@@ -374,55 +374,60 @@ static void cc_backend_process_binop(
         ctx->backend_data->gen_mov(ctx, ovmap, &lvmap);
 }
 
-static cc_ast_node** cc_ast_collect_cases(
-    const cc_ast_node* node, cc_ast_node** list)
+static const cc_ast_node** cc_ast_collect_cases(
+    const cc_ast_node* node, const cc_ast_node*** list, size_t* n_list)
 {
     if (node == NULL)
-        return;
+        return *list;
     switch (node->type) {
     case AST_NODE_BINOP:
-        cc_ast_collect_cases(node->data.binop.left, list);
-        cc_ast_collect_cases(node->data.binop.right, list);
+        cc_ast_collect_cases(node->data.binop.left, list, n_list);
+        cc_ast_collect_cases(node->data.binop.right, list, n_list);
         break;
     case AST_NODE_BLOCK:
+        if (node->data.block.is_case) {
+            (*list) = cc_realloc(*list, sizeof(*list) * (*n_list + 1));
+            (*list)[(*n_list)++] = node;
+        }
+
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-            cc_ast_collect_cases(var->body, list);
+            cc_ast_collect_cases(var->body, list, n_list);
         }
         for (size_t i = 0; i < node->data.block.n_children; i++)
-            cc_ast_collect_cases(&node->data.block.children[i], list);
+            cc_ast_collect_cases(&node->data.block.children[i], list, n_list);
         break;
     case AST_NODE_CALL:
-        cc_ast_collect_cases(node->data.call.call_expr, list);
+        cc_ast_collect_cases(node->data.call.call_expr, list, n_list);
         for (size_t i = 0; i < node->data.call.n_params; i++)
-            cc_ast_collect_cases(&node->data.call.params[i], list);
+            cc_ast_collect_cases(&node->data.call.params[i], list, n_list);
         break;
     case AST_NODE_IF:
-        cc_ast_collect_cases(node->data.if_expr.cond, list);
-        cc_ast_collect_cases(node->data.if_expr.block, list);
-        cc_ast_collect_cases(node->data.if_expr.tail_else, list);
+        cc_ast_collect_cases(node->data.if_expr.cond, list, n_list);
+        cc_ast_collect_cases(node->data.if_expr.block, list, n_list);
+        cc_ast_collect_cases(node->data.if_expr.tail_else, list, n_list);
         break;
     case AST_NODE_RETURN:
-        cc_ast_collect_cases(node->data.return_expr.value, list);
+        cc_ast_collect_cases(node->data.return_expr.value, list, n_list);
+        break;
+    case AST_NODE_UNOP:
+        cc_ast_collect_cases(node->data.unop.child, list, n_list);
         break;
     case AST_NODE_JUMP:
     case AST_NODE_STRING_LITERAL:
     case AST_NODE_LITERAL:
     case AST_NODE_VARIABLE:
         break;
-    case AST_NODE_UNOP:
-        cc_ast_collect_cases(node->data.unop.child, list);
-        break;
     default:
         break;
     }
+    return *list;
 }
 
 void cc_backend_process_node(
     cc_context* ctx, const cc_ast_node* node, cc_backend_varmap* ovmap)
 {
-    if (node == NULL)
-        return;
+    if (node == NULL) return;
 
     if (node->ref_count > 0)
         fprintf(ctx->out, "L%u: #refs=%u\n", node->label_id, node->ref_count);
@@ -475,6 +480,27 @@ void cc_backend_process_node(
         vmap.regno = cc_backend_alloc_register(ctx);
         vmap.flags = VARMAP_REGISTER;
         cc_backend_process_node(ctx, node->data.switch_expr.control, &vmap);
+
+        const cc_ast_node** list = NULL;
+        size_t n_list = 0;
+        cc_ast_collect_cases(node->data.switch_expr.block, &list, &n_list);
+
+        const cc_ast_node* default_node = NULL;
+        for (size_t i = 0; i < n_list; i++) {
+            assert(list[i]->data.block.is_case);
+            if (list[i]->data.block.is_default) {
+                default_node = list[i];
+            } else {
+                cc_backend_varmap onevmap = {};
+                onevmap.flags = VARMAP_CONSTANT;
+                onevmap.constant = list[i]->data.block.case_val;
+                ctx->backend_data->gen_branch(ctx, list[i], &vmap, &onevmap, AST_BINOP_COND_EQ);
+            }
+        }
+        if (default_node != NULL)
+            ctx->backend_data->gen_jump(ctx, default_node);
+        cc_free(list);
+
         cc_backend_process_node(ctx, node->data.switch_expr.block, &vmap);
     } break;
     default:

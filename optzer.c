@@ -13,6 +13,9 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, _Bool managed)
     cc_ast_node* node = *pnode;
     if (node == NULL)
         return;
+    
+    if (node->ref_count) /* Do not remove nodes that are jumped into */
+        return;
 
     switch (node->type) {
     case AST_NODE_BINOP:
@@ -52,7 +55,7 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, _Bool managed)
         }
 
         /* Do not delete case labels we use to jump */
-        if (node->ref_count)
+        if (node->data.block.is_case)
             return;
 
         /* Empty block with no effect whatsoever, typedefs are NOT accounted

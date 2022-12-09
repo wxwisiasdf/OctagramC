@@ -2,13 +2,9 @@
 #define BACKEND_H 1
 
 #include <stddef.h>
+#include "ast.h"
 
-typedef struct cc_ast_node cc_ast_node;
-typedef struct cc_ast_type cc_ast_type;
-typedef struct cc_ast_variable cc_ast_variable;
 typedef struct cc_context cc_context;
-enum cc_ast_binop_type;
-enum cc_ast_unop_type;
 
 enum cc_backend_varmap_flags {
     VARMAP_REGISTER,
@@ -61,6 +57,9 @@ typedef struct cc_backend_context {
     _Bool (*gen_unop)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap, enum cc_ast_unop_type type);
     _Bool (*map_variable)(cc_context* ctx, const cc_ast_variable* var);
+    _Bool (*gen_branch)(cc_context* ctx, const cc_ast_node* node,
+        const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
+        enum cc_ast_binop_type type);
     cc_ast_variable* current_func_var;
 } cc_backend_context;
 

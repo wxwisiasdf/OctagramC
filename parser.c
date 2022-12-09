@@ -1411,6 +1411,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
 
             block_node->data.block.case_val = r;
             block_node->data.block.is_case = true;
+            block_node->ref_count++; /* Referenced by switch node */
             cc_ast_add_block_node(node, block_node);
         }
             return true;
@@ -1421,6 +1422,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             cc_parse_statment(ctx, block_node);
             block_node->data.block.is_case = true;
             block_node->data.block.is_default = true;
+            block_node->ref_count++; /* Referenced by switch node */
             cc_ast_add_block_node(node, block_node);
         }
             return true;

@@ -398,6 +398,55 @@ _Bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
+_Bool cc_as386_gen_branch(cc_context* ctx, const cc_ast_node* node,
+    const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
+    enum cc_ast_binop_type type)
+{
+    fprintf(ctx->out, "#switch-case %i\n", type);
+    switch (type) {
+    case AST_BINOP_GT:
+    case AST_BINOP_GTE:
+    case AST_BINOP_LT:
+    case AST_BINOP_LTE:
+    case AST_BINOP_COND_EQ:
+    case AST_BINOP_COND_NEQ: {
+        const char* jmp_insn = "jmp";
+        switch (type) {
+        case AST_BINOP_GT:
+            jmp_insn = "jg";
+            break;
+        case AST_BINOP_GTE:
+            jmp_insn = "jge";
+            break;
+        case AST_BINOP_LT:
+            jmp_insn = "jl";
+            break;
+        case AST_BINOP_LTE:
+            jmp_insn = "jle";
+            break;
+        case AST_BINOP_COND_EQ:
+            jmp_insn = "je";
+            break;
+        case AST_BINOP_COND_NEQ:
+            jmp_insn = "jne";
+            break;
+        default:
+            break;
+        }
+        fprintf(ctx->out, "\tcmp\t");
+        cc_as386_print_varmap(ctx, lvmap);
+        fprintf(ctx->out, ",");
+        cc_as386_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
+        fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, node->label_id);
+    } return true;
+    default:
+        cc_diag_error(ctx, "Can't generate branch for binop %i", type);
+        break;
+    }
+    return false;
+}
+
 void cc_as386_gen_prologue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
@@ -457,6 +506,7 @@ int cc_as386_top(cc_context* ctx)
     ctx->backend_data->gen_jump = &cc_as386_gen_jump;
     ctx->backend_data->gen_binop = &cc_as386_gen_binop;
     ctx->backend_data->gen_unop = &cc_as386_gen_unop;
+    ctx->backend_data->gen_branch = &cc_as386_gen_branch;
     ctx->stage = STAGE_AST;
     cc_backend_process_node(ctx, ctx->root, NULL);
     cc_backend_deinit(ctx);
