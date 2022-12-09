@@ -1,0 +1,34 @@
+extern int printf(const char *fmt, ...);
+constexpr int g(int a, int b) { return a + b; }
+int f(int a, int b) {
+    while (a > 10) { a++; }
+    int i;
+    for (i = 0; i < 100; i++) { printf("%d bottles of beer\n", i); }
+    return b & a + b * 6;
+}
+struct type {
+    int memb0;
+    int memb1;
+    int memb2 : 3;
+    int memb3 : 5;
+};
+int h(int *a, int *b, unsigned int n) {
+    int i;
+    int acc;
+    for (i = 0; i < n; i++) {
+        acc += acc + a[i] * b[i];
+        a[i] = b[i];
+    }
+    struct type m;
+    m.memb0 += 5;
+    return acc;
+}
+int main(int argc, char **argv) {
+    switch (argc) {
+    case 10: break;
+    case 5: break;
+    default: break;
+    }
+    printf("Hello world!\n");
+    return 0;
+}

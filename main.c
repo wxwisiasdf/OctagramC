@@ -1,0 +1,88 @@
+#include "as386.h"
+#include "ast.h"
+#include "context.h"
+#include "diag.h"
+#include "lexer.h"
+#include "optzer.h"
+#include "parser.h"
+#include "util.h"
+#include <assert.h>
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+int main(int argc, char** argv)
+{
+    const char* output_filename = "out.asm";
+    const char* input_filename = "main.c";
+    cc_context ctx = {};
+
+    cc_alloc_init(true);
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-o")) {
+            i++;
+            if (i < argc) {
+                output_filename = argv[i];
+
+                if (ctx.out != NULL)
+                    fclose(ctx.out);
+                ctx.out = fopen(output_filename, "wt");
+                if (ctx.out == NULL) {
+                    cc_diag_error(
+                        &ctx, "Unable to open file %s", output_filename);
+                    return -1;
+                }
+                i++;
+            }
+        } else {
+            input_filename = argv[i];
+
+            if (ctx.fp != NULL)
+                fclose(ctx.fp);
+            ctx.fp = fopen(input_filename, "rt");
+            if (ctx.fp == NULL) {
+                cc_diag_error(&ctx, "Unable to open file %s", input_filename);
+                return -1;
+            }
+            cc_diag_add_info(&ctx,
+                (cc_diag_info) {
+                    .filename = cc_strdup(input_filename),
+                    .column = 0,
+                    .line = 0,
+                });
+        }
+    }
+
+    if (ctx.fp == NULL)
+        ctx.fp = stdin;
+    if (ctx.out == NULL)
+        ctx.out = stdout;
+
+    cc_lex_top(&ctx); /* Start lexing and make the token stream*/
+    cc_parse_top(&ctx); /* Generate the AST */
+    cc_lex_deinit(&ctx); /* Lexer information no longer needed */
+
+    printf("\nUnoptimized\n");
+    cc_ast_print(ctx.root, 0);
+    printf("\n");
+
+    cc_optimizer_top(&ctx); /* Optimize the AST */
+
+    printf("\nOptimized\n");
+    cc_ast_print(ctx.root, 0);
+    printf("\n");
+
+    cc_as386_top(&ctx); /* Start generating the assembly code */
+    /*cc_graphviz_top(&ctx);*/
+
+    cc_ast_destroy_node(ctx.root, true);
+
+    if (ctx.out != stdout)
+        fclose(ctx.out);
+    return 0;
+}

@@ -1,0 +1,5 @@
+cc
+*.o
+*.out
+.vscode/
+*.S
