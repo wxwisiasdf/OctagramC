@@ -186,7 +186,8 @@ _Bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     return false;
 }
 
-void cc_as386_gen_epilogue(cc_context* ctx, const cc_ast_node* node)
+void cc_as386_gen_epilogue(
+    cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     if (node->type == AST_NODE_BLOCK) {
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
@@ -216,7 +217,7 @@ cc_backend_varmap cc_as386_get_call_retval(
 }
 
 /* Generate a jump to the given node */
-_Bool cc_as386_gen_jump(cc_context *ctx, const cc_ast_node *node)
+_Bool cc_as386_gen_jump(cc_context* ctx, const cc_ast_node* node)
 {
     fprintf(ctx->out, "\tjmp\tL%i\n", node->label_id);
     return true;
@@ -397,9 +398,11 @@ _Bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-void cc_as386_gen_prologue(cc_context* ctx, const cc_ast_node* node)
+void cc_as386_gen_prologue(
+    cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
-    fprintf(ctx->out, "#prologue\n");
+    assert(var != NULL);
+    fprintf(ctx->out, "#prologue-for-%s\n", var->name);
     cc_backend_unspill(ctx);
     if (node != NULL) {
         /* TODO: Generate & return on EAX */
@@ -415,8 +418,18 @@ void cc_as386_gen_prologue(cc_context* ctx, const cc_ast_node* node)
 
 _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
-    if (var->type.mode == TYPE_MODE_FUNCTION)
-        return false;
+    if (var->type.mode == TYPE_MODE_FUNCTION) {
+        if (var->type.storage == STORAGE_STATIC) {
+            cc_backend_add_static_var(ctx, var);
+            fprintf(ctx->out, "%s:\n", var->name);
+        } else if (var->type.storage == STORAGE_AUTO) {
+            cc_backend_add_static_var(ctx, var);
+            fprintf(ctx->out, ".global %s\n", var->name);
+            fprintf(ctx->out, "%s:\n", var->name);
+        }
+        return true;
+    }
+
     if (var->type.storage == STORAGE_STATIC) {
         cc_backend_add_static_var(ctx, var);
         fprintf(ctx->out, "%s:\n", var->name);

@@ -319,9 +319,11 @@ cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
         }
     } else if (node->type == AST_NODE_SWITCH) {
         cc_ast_node* bnode;
-        if ((bnode = cc_ast_find_label(name, node->data.switch_expr.control)) != NULL)
+        if ((bnode = cc_ast_find_label(name, node->data.switch_expr.control))
+            != NULL)
             return bnode;
-        if ((bnode = cc_ast_find_label(name, node->data.switch_expr.block)) != NULL)
+        if ((bnode = cc_ast_find_label(name, node->data.switch_expr.block))
+            != NULL)
             return bnode;
     }
     return cc_ast_find_label(name, node->parent);

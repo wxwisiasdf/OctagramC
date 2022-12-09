@@ -8,6 +8,7 @@
 #include "util.h"
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 enum cc_mf370_reg {
     MF370_NONE = -1,
@@ -37,9 +38,8 @@ typedef struct cc_mf370_context {
 static void cc_mf370_process_binop(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);
 
-static const char* reg_names[MF370_NUM_REGS]
-    = { "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10",
-        "R11","R12","R13","R14","R15" };
+static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
+    "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
 
 unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
 {
@@ -82,13 +82,13 @@ static void cc_mf370_print_varmap(
         fprintf(ctx->out, "%s", reg_names[vmap->regno]);
         break;
     case VARMAP_STACK:
-        fprintf(ctx->out, "-%u(R13)", vmap->offset);
+        fprintf(ctx->out, "%u(R1)", vmap->offset);
         break;
     case VARMAP_THREAD_LOCAL:
         fprintf(ctx->out, "%%gs::%s@ntpoff", vmap->var->name);
         break;
     case VARMAP_CONSTANT:
-        fprintf(ctx->out, "X'%lx'", vmap->constant);
+        fprintf(ctx->out, "X'%08lx'", vmap->constant);
         break;
     default:
         cc_diag_error(ctx, "Invalid varmap %i", vmap->flags);
@@ -151,12 +151,12 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         unsigned int literal_label_id = cc_backend_get_labelnum(ctx);
 
         fprintf(ctx->out, "\tBR\tL%i\n", branch_label_id);
-        fprintf(ctx->out, "L%i:\n", literal_label_id);
+        fprintf(ctx->out, "L%i\tDS\t0H\n", literal_label_id);
         if (lvmap->flags == VARMAP_LITERAL)
-            fprintf(ctx->out, "\t.string \"%s\"\n", lvmap->data);
-        else if (rvmap->flags == VARMAP_LITERAL)
-            fprintf(ctx->out, "\t.string \"%s\"\n", rvmap->data);
-        fprintf(ctx->out, "L%i:\n", branch_label_id);
+            fprintf(ctx->out, "\tDC\tC'%s'\n", lvmap->data);
+        if (rvmap->flags == VARMAP_LITERAL)
+            fprintf(ctx->out, "\tDC\tC'%s'\n", rvmap->data);
+        fprintf(ctx->out, "L%i\tDS\t0H\n", branch_label_id);
 
         if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_LITERAL) {
             fprintf(ctx->out, "\tL\tL%i, %s\n", literal_label_id,
@@ -171,13 +171,13 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
                 lvmap->offset);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_STACK) {
-            fprintf(ctx->out, "\tL\t-%u(R13), L%i\n", rvmap->offset,
-                literal_label_id);
+            fprintf(
+                ctx->out, "\tLA\t=V(L%i)\n", literal_label_id, rvmap->offset);
         }
         return true;
     }
 
-    if (lvmap->flags == VARMAP_STACK && rvmap->flags == VARMAP_STACK) {
+    if (lvmap->flags == VARMAP_STACK) {
         cc_backend_varmap mvmap = {};
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
@@ -195,8 +195,25 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     return false;
 }
 
-void cc_mf370_gen_epilogue(cc_context* ctx, const cc_ast_node* node)
+static const char* cc_mf370_logical_label(const char* name)
 {
+    static char buf[8];
+    size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
+    memcpy(buf, name, n);
+    buf[n - 1] = '\0';
+
+    for (size_t i = 0; i < sizeof(buf); i++) {
+        if (buf[i] == '_')
+            buf[i] = '@';
+        buf[i] = toupper(buf[i]);
+    }
+    return buf;
+}
+
+void cc_mf370_gen_epilogue(
+    cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
+{
+    assert(var != NULL);
     if (node->type == AST_NODE_BLOCK) {
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* bvar = &node->data.block.vars[i];
@@ -207,26 +224,30 @@ void cc_mf370_gen_epilogue(cc_context* ctx, const cc_ast_node* node)
     }
     /* I forgot how you're supposed to do alloc/drop on hlasm */
     fprintf(ctx->out, "* X-epilogue\n");
-    fprintf(ctx->out, "\tUSE\tR13,R14\n");
-    fprintf(ctx->out, "\tNC\t-$%u, R12\n",
-        ctx->backend_data->min_stack_alignment);
-    fprintf(ctx->out, "\tL\tR12, R13\n");
-    fprintf(
-        ctx->out, "\tS\t$%u, R12\n", ctx->backend_data->stack_frame_size);
+    fprintf(ctx->out, "\tPUSH USING\n");
+    fprintf(ctx->out, "\tDROP\t,\n");
+    fprintf(ctx->out, "\tENTRY %-7s\n", cc_mf370_logical_label(var->name));
+    fprintf(ctx->out, "%-7s\tDS\t0H\n", cc_mf370_logical_label(var->name));
+    fprintf(ctx->out, "\tSAVE\t(R14,R12),,%-7s\n",
+        cc_mf370_logical_label(var->name));
+    fprintf(ctx->out, "\tLR\tR12, R15\n");
+    fprintf(ctx->out, "\tUSING\tR13,R14\n");
+    assert(ctx->backend_data->min_stack_alignment == 0);
+    fprintf(ctx->out, "\tS\t$%u, R12\n", ctx->backend_data->stack_frame_size);
 }
 
 cc_backend_varmap cc_mf370_get_call_retval(
     cc_context* ctx, const cc_ast_node* node)
 {
     cc_backend_varmap vmap = {};
-    cc_backend_reserve_reg(ctx, MF370_EAX);
-    vmap.regno = MF370_EAX;
+    cc_backend_reserve_reg(ctx, MF370_R1);
+    vmap.regno = MF370_R1;
     vmap.flags = VARMAP_REGISTER;
     return vmap;
 }
 
 /* Generate a jump to the given node */
-_Bool cc_mf370_gen_jump(cc_context *ctx, const cc_ast_node *node)
+_Bool cc_mf370_gen_jump(cc_context* ctx, const cc_ast_node* node)
 {
     fprintf(ctx->out, "\tBR\tL%i\n", node->label_id);
     return true;
@@ -238,7 +259,7 @@ _Bool cc_mf370_gen_call(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
-        fprintf(ctx->out, "\tBR\tR14,%s\n", var->name);
+        fprintf(ctx->out, "\tCALL\t%s\n", cc_mf370_logical_label(var->name));
     }
         return true;
     default:
@@ -325,28 +346,28 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         fprintf(ctx->out, "\n");
     } break;
     case AST_BINOP_MUL:
-        fprintf(ctx->out, "\tmull\t");
+        fprintf(ctx->out, "\tMR\t");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ", ");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_DIV:
-        fprintf(ctx->out, "\tdivl\t");
+        fprintf(ctx->out, "\tDR\t");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ", ");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_LSHIFT:
-        fprintf(ctx->out, "\tshll\t");
+        fprintf(ctx->out, "\tSLR\t");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ", ");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_RSHIFT:
-        fprintf(ctx->out, "\tshrl\t");
+        fprintf(ctx->out, "\tSRR\t");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ", ");
         cc_mf370_print_varmap(ctx, lvmap);
@@ -394,11 +415,11 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         ctx->backend_data->gen_mov(ctx, lvmap, &constant);
         fprintf(ctx->out, "\tBR\tL%u\n", finish_lnum);
 
-        fprintf(ctx->out, "L%u:\n", branch_lnum);
+        fprintf(ctx->out, "L%u\tDS\t0H\n", branch_lnum);
         constant.constant = 0ul;
         ctx->backend_data->gen_mov(ctx, lvmap, &constant);
 
-        fprintf(ctx->out, "L%u:\n", finish_lnum);
+        fprintf(ctx->out, "L%u\tDS\t0H\n", finish_lnum);
     } break;
     default:
         cc_diag_error(ctx, "Unrecognized binop type %u", type);
@@ -407,30 +428,42 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-void cc_mf370_gen_prologue(cc_context* ctx, const cc_ast_node* node)
+void cc_mf370_gen_prologue(
+    cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     fprintf(ctx->out, "* X-prologue\n");
     cc_backend_unspill(ctx);
     if (node != NULL) {
         /* TODO: Generate & return on EAX */
         cc_backend_varmap lvmap = {};
-        cc_backend_reserve_reg(ctx, MF370_EAX);
+        cc_backend_reserve_reg(ctx, MF370_R1);
         lvmap.flags = VARMAP_REGISTER;
-        lvmap.regno = MF370_EAX;
+        lvmap.regno = MF370_R1;
         cc_backend_process_node(ctx, node, &lvmap);
     }
-    fprintf(ctx->out, "\tDROP R13\n");
-    fprintf(ctx->out, "\tBR 14\n");
+    fprintf(ctx->out, "\tRETURN\n(14,12),RC=(15)\n");
+    fprintf(ctx->out, "\tPOP\tUSING\n");
+    fprintf(ctx->out, "\tLTORG\t,\n");
 }
 
 _Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
-    if (var->type.mode == TYPE_MODE_FUNCTION)
-        return false;
+    if (var->type.mode == TYPE_MODE_FUNCTION) {
+        if (var->type.storage == STORAGE_STATIC) {
+            cc_backend_add_static_var(ctx, var);
+            fprintf(ctx->out, "%s:\n", var->name);
+        } else if (var->type.storage == STORAGE_AUTO) {
+            cc_backend_add_static_var(ctx, var);
+            fprintf(ctx->out, ".global %s\n", var->name);
+            fprintf(ctx->out, "%s:\n", var->name);
+        }
+        return true;
+    }
+
     if (var->type.storage == STORAGE_STATIC) {
         cc_backend_add_static_var(ctx, var);
-        fprintf(ctx->out, "%s:\n", var->name);
-        fprintf(ctx->out, "\t.zero %u\n", cc_mf370_get_sizeof(ctx, &var->type));
+        fprintf(ctx->out, "%s\tDS\t0H", var->name);
+        fprintf(ctx->out, "\tDS\t%uH\n", cc_mf370_get_sizeof(ctx, &var->type));
     } else if (var->type.storage == STORAGE_AUTO) {
         cc_backend_add_stack_var(ctx, var);
         fprintf(ctx->out, "* X-stack-var %s\n", var->name);
@@ -442,7 +475,8 @@ int cc_mf370_top(cc_context* ctx)
 {
     ctx->asgen_data = cc_zalloc(sizeof(cc_mf370_context));
     cc_backend_init(ctx, reg_names, MF370_NUM_REGS);
-    ctx->backend_data->min_stack_alignment = 16;
+    /* No alignment required! */
+    ctx->backend_data->min_stack_alignment = 0;
     ctx->backend_data->is_reserved = &cc_mf370_is_reserved_reg;
     ctx->backend_data->get_sizeof = &cc_mf370_get_sizeof;
     ctx->backend_data->gen_mov = &cc_mf370_gen_mov;

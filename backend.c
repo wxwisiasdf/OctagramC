@@ -235,8 +235,10 @@ static void cc_backend_process_function(
         cc_backend_add_stack_var(ctx, param);
     }
 
+    ctx->backend_data->current_func_var = var;
     if (var->body != NULL)
         cc_backend_map_variables(ctx, var->body);
+    ctx->backend_data->map_variable(ctx, var);
 
     if (var->body != NULL) {
         if (var->body->type == AST_NODE_BLOCK) {
@@ -248,9 +250,10 @@ static void cc_backend_process_function(
             }
         }
 
-        ctx->backend_data->gen_epilogue(ctx, var->body);
+        ctx->backend_data->gen_epilogue(ctx, var->body, var);
         cc_backend_process_node(ctx, var->body, NULL);
     }
+    ctx->backend_data->current_func_var = NULL;
 }
 
 static void cc_backend_process_call(cc_context* ctx, const cc_ast_node* node)
@@ -283,10 +286,9 @@ static void cc_backend_process_unop(
 
     /*fprintf(ctx->out, "#backend-gen-unop\n");*/
     if (node->data.unop.op == AST_UNOP_POSTDEC
-    || node->data.unop.op == AST_UNOP_POSTINC
-    || node->data.unop.op == AST_UNOP_PREDEC
-    || node->data.unop.op == AST_UNOP_PREINC)
-    {
+        || node->data.unop.op == AST_UNOP_POSTINC
+        || node->data.unop.op == AST_UNOP_PREDEC
+        || node->data.unop.op == AST_UNOP_PREINC) {
         /*fprintf(ctx->out, "#todo-properly-do-post/prefix-inc/dec\n");*/
         return;
     }
@@ -439,6 +441,8 @@ void cc_backend_process_node(
             const cc_ast_variable* var = &node->data.block.vars[i];
             if (var->type.mode == TYPE_MODE_FUNCTION)
                 cc_backend_process_function(ctx, var);
+            else
+                ctx->backend_data->map_variable(ctx, var);
         }
 
         for (size_t i = 0; i < node->data.block.n_children; i++)
@@ -448,7 +452,8 @@ void cc_backend_process_node(
         cc_backend_process_call(ctx, node);
         break;
     case AST_NODE_RETURN:
-        ctx->backend_data->gen_prologue(ctx, node->data.return_expr.value);
+        ctx->backend_data->gen_prologue(ctx, node->data.return_expr.value,
+            ctx->backend_data->current_func_var);
         break;
     case AST_NODE_IF:
         cc_backend_process_node(ctx, node->data.if_expr.cond, ovmap);

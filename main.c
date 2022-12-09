@@ -2,7 +2,9 @@
 #include "ast.h"
 #include "context.h"
 #include "diag.h"
+#include "graphviz.h"
 #include "lexer.h"
+#include "mf370.h"
 #include "optzer.h"
 #include "parser.h"
 #include "util.h"
@@ -16,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum cc_output_target { TARGET_AS386, TARGET_MF370, TARGET_GRAPHVIZ };
+
 int main(int argc, char** argv)
 {
     const char* output_filename = "out.asm";
@@ -23,6 +27,7 @@ int main(int argc, char** argv)
     cc_context ctx = {};
 
     cc_alloc_init(true);
+    enum cc_output_target target = TARGET_AS386;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-o")) {
             i++;
@@ -39,6 +44,12 @@ int main(int argc, char** argv)
                 }
                 i++;
             }
+        } else if (!strcmp(argv[i], "-386")) {
+            target = TARGET_AS386;
+        } else if (!strcmp(argv[i], "-370")) {
+            target = TARGET_MF370;
+        } else if (!strcmp(argv[i], "-gviz")) {
+            target = TARGET_GRAPHVIZ;
         } else {
             input_filename = argv[i];
 
@@ -77,8 +88,17 @@ int main(int argc, char** argv)
     cc_ast_print(ctx.root, 0);
     printf("\n");
 
-    cc_as386_top(&ctx); /* Start generating the assembly code */
-    /*cc_graphviz_top(&ctx);*/
+    switch (target) {
+    case TARGET_AS386:
+        cc_as386_top(&ctx); /* Start generating the assembly code */
+        break;
+    case TARGET_MF370:
+        cc_mf370_top(&ctx);
+        break;
+    case TARGET_GRAPHVIZ:
+        cc_graphviz_top(&ctx);
+        break;
+    }
 
     cc_ast_destroy_node(ctx.root, true);
 

@@ -8,6 +8,7 @@ typedef struct cc_ast_type cc_ast_type;
 typedef struct cc_ast_variable cc_ast_variable;
 typedef struct cc_context cc_context;
 enum cc_ast_binop_type;
+enum cc_ast_unop_type;
 
 enum cc_backend_varmap_flags {
     VARMAP_REGISTER,
@@ -46,18 +47,21 @@ typedef struct cc_backend_context {
     _Bool (*is_reserved)(unsigned int regno);
     _Bool (*gen_mov)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap);
-    _Bool (*gen_prologue)(cc_context* ctx, const cc_ast_node* node);
-    _Bool (*gen_epilogue)(cc_context* ctx, const cc_ast_node* node);
+    _Bool (*gen_prologue)(
+        cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var);
+    _Bool (*gen_epilogue)(
+        cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var);
     _Bool (*gen_call)(cc_context* ctx, const cc_ast_node* node);
     unsigned int (*get_sizeof)(cc_context* ctx, const cc_ast_type* type);
     cc_backend_varmap (*get_call_retval)(
         cc_context* ctx, const cc_ast_node* node);
-    _Bool (*gen_jump)(cc_context *ctx, const cc_ast_node *node);
+    _Bool (*gen_jump)(cc_context* ctx, const cc_ast_node* node);
     _Bool (*gen_binop)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap, enum cc_ast_binop_type type);
     _Bool (*gen_unop)(cc_context* ctx, const cc_backend_varmap* lvmap,
-        const cc_backend_varmap* rvmap, enum cc_ast_binop_type type);
+        const cc_backend_varmap* rvmap, enum cc_ast_unop_type type);
     _Bool (*map_variable)(cc_context* ctx, const cc_ast_variable* var);
+    cc_ast_variable* current_func_var;
 } cc_backend_context;
 
 unsigned int cc_backend_get_labelnum(cc_context* ctx);
