@@ -3,6 +3,6 @@
 
 #include "context.h"
 
-int cc_as386_top(cc_context* ctx);
+int cc_as386_init(cc_context* ctx);
 
 #endif

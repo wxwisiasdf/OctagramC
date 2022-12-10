@@ -5,6 +5,7 @@
    cpp -ansi file.c | awk '!/^#/' | awk NF */
 #include "as386.h"
 #include "ast.h"
+#include "backend.h"
 #include "context.h"
 #include "diag.h"
 #include "graphviz.h"
@@ -89,9 +90,20 @@ int main(int argc, char** argv)
 
     cc_lex_top(&ctx); /* Start lexing and make the token stream*/
     if (!ctx.error_cnt) {
+        switch (target) {
+        case TARGET_AS386:
+            cc_as386_init(&ctx); /* Start generating the assembly code */
+            break;
+        case TARGET_MF370:
+            cc_mf370_init(&ctx);
+            break;
+        }
+
         cc_parse_top(&ctx); /* Generate the AST */
         cc_lex_deinit(&ctx); /* Lexer information no longer needed */
         if (!ctx.error_cnt) {
+            ctx.stage = STAGE_AST;
+
             if (ctx.print_ast) {
                 printf("\nUnoptimized\n");
                 cc_ast_print(ctx.root, 0);
@@ -108,10 +120,8 @@ int main(int argc, char** argv)
 
             switch (target) {
             case TARGET_AS386:
-                cc_as386_top(&ctx); /* Start generating the assembly code */
-                break;
             case TARGET_MF370:
-                cc_mf370_top(&ctx);
+                cc_backend_process_node(&ctx, ctx.root, NULL);
                 break;
             case TARGET_GRAPHVIZ:
                 cc_graphviz_top(&ctx);
@@ -119,6 +129,7 @@ int main(int argc, char** argv)
             }
         }
         cc_ast_destroy_node(ctx.root, true);
+        cc_backend_deinit(&ctx);
     }
 
     if (ctx.out != stdout)

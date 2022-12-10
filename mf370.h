@@ -3,6 +3,6 @@
 
 #include "context.h"
 
-int cc_mf370_top(cc_context* ctx);
+int cc_mf370_init(cc_context* ctx);
 
 #endif

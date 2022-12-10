@@ -525,6 +525,7 @@ void cc_backend_init(
 
 void cc_backend_deinit(cc_context* ctx)
 {
+    ctx->backend_data->deinit(ctx);
     cc_free(ctx->backend_data->varmaps);
     cc_free(ctx->backend_data);
 }

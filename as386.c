@@ -51,7 +51,7 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     default:
         break;
     }
-    cc_diag_error(ctx, "Unknown sizeof");
+    cc_diag_error(ctx, "Unknown sizeof for %i", type->mode);
     return 0;
 }
 
@@ -488,9 +488,10 @@ _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
     return true;
 }
 
-int cc_as386_top(cc_context* ctx)
+static void cc_as386_deinit(cc_context* ctx) { cc_free(ctx->asgen_data); }
+
+int cc_as386_init(cc_context* ctx)
 {
-    ctx->asgen_data = cc_zalloc(sizeof(cc_as386_context));
     cc_backend_init(ctx, reg_names, AS386_NUM_REGS);
     ctx->backend_data->min_stack_alignment = 16;
     ctx->backend_data->is_reserved = &cc_as386_is_reserved_reg;
@@ -505,9 +506,6 @@ int cc_as386_top(cc_context* ctx)
     ctx->backend_data->gen_binop = &cc_as386_gen_binop;
     ctx->backend_data->gen_unop = &cc_as386_gen_unop;
     ctx->backend_data->gen_branch = &cc_as386_gen_branch;
-    ctx->stage = STAGE_AST;
-    cc_backend_process_node(ctx, ctx->root, NULL);
-    cc_backend_deinit(ctx);
-    cc_free(ctx->asgen_data);
+    ctx->backend_data->deinit = &cc_as386_deinit;
     return 0;
 }

@@ -1,6 +1,7 @@
 /* parser.c - C parser an AST generator. */
 #include "parser.h"
 #include "ast.h"
+#include "backend.h"
 #include "constevl.h"
 #include "context.h"
 #include "diag.h"
@@ -234,6 +235,7 @@ static _Bool cc_parse_constant_expression(
     cc_parse_expression(ctx, const_expr); /* Parse like a normal expression */
     if (!cc_ceval_constant_expression(ctx, const_expr)
         || const_expr->type != AST_NODE_LITERAL) {
+        cc_ast_print(const_expr, 0);
         cc_diag_error(ctx, "Unable to evaluate static expression");
         return false;
     }
@@ -831,28 +833,34 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_sizeof) {
+        && ctok->type == LEXER_TOKEN_sizeof) {
         cc_lex_token_consume(ctx);
 
         /* This block is just a virtual block and will be destroyed
             once we finish evaluating our sizeof. */
         cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
-
         _Bool old_v = ctx->declaration_ident_optional;
         ctx->declaration_ident_optional = true;
-        
+        _Bool deduce_required = true;
+
         /* Parenthesis following means we can evaluate and obtain the size
            of a concise expression, otherwise we have to stick with another
            unary expression. */
+        cc_ast_type virtual_type = { 0 };
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_LPAREN) {
+            && ctok->type == LEXER_TOKEN_LPAREN) {
             cc_lex_token_consume(ctx);
-            cc_ast_variable virtual_var = {0};
+            cc_ast_variable virtual_var = { 0 };
             if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
                 cc_diag_error(ctx, "Expected unary expression after sizeof");
                 ctx->declaration_ident_optional = old_v;
                 cc_ast_destroy_node(virtual_node, true);
                 goto error_handle;
+            }
+            /* Type can be deduced from variable alone */
+            if (virtual_var.type.mode != TYPE_MODE_NONE) {
+                cc_ast_copy_type(&virtual_type, &virtual_var.type);
+                deduce_required = false;
             }
             cc_ast_destroy_var(&virtual_var, false);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
@@ -867,7 +875,22 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         }
         ctx->declaration_ident_optional = old_v;
+        if (deduce_required) {
+            if (!cc_ceval_deduce_type(ctx, virtual_node, &virtual_type)) {
+                cc_diag_error(ctx, "Unable to deduce abstract type");
+                cc_ast_destroy_node(virtual_node, true);
+                goto error_handle;
+            }
+        }
         cc_ast_destroy_node(virtual_node, true);
+
+        unsigned int obj_sizeof
+            = ctx->backend_data->get_sizeof(ctx, &virtual_type);
+        /* TODO: Better way to convert our numbers into strings */
+        static char numbuf[80];
+        snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
+        cc_ast_node* literal_node = cc_ast_create_literal(ctx, node, numbuf);
+        cc_ast_add_block_node(node, literal_node);
         return true;
     }
 
@@ -1601,7 +1624,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     /* Not a variable declaration - just a type declaration or a forward
        declaration of sorts. */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        && ctok->type == LEXER_TOKEN_SEMICOLON) {
         /* The declarator function will parse expressions such as:
            struct abc def {}, then proceed to put 'abc' on var.type.name
            and 'def' on var.name, hence, on forward declarations such as:
@@ -1612,7 +1635,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             cc_diag_error(ctx, "Forward declaration without identifier");
             goto error_handle;
         }
-        const char *name = var.type.name != NULL ? var.type.name : var.name;
+        const char* name = var.type.name != NULL ? var.type.name : var.name;
 
         cc_lex_token_consume(ctx);
         cc_ast_type type = { 0 };
