@@ -112,6 +112,12 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
     case 10:
         while (isdigit(*p))
             p++;
+        
+        if (*p == '.')
+            p++;
+        
+        while (isdigit(*p))
+            p++;
         break;
     case 8:
         while (ISODIGIT(*p))
