@@ -66,27 +66,20 @@ static void cc_diag_common(
     }
 }
 
-static int err_cnt = 0;
 void cc_diag_error(cc_context* ctx, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    cc_diag_common(ctx, "error", fmt, args);
+    cc_diag_common(ctx, ANSI_COLOUR(31) "error" ANSI_COLOUR(0), fmt, args);
     va_end(args);
-    err_cnt++;
-
-    abort();
-#if 0
-    if (err_cnt > 10)
-        exit(EXIT_FAILURE);
-#endif
+    ctx->error_cnt++;
 }
 
 void cc_diag_warning(cc_context* ctx, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    cc_diag_common(ctx, "warning", fmt, args);
+    cc_diag_common(ctx, ANSI_COLOUR(93) "warning" ANSI_COLOUR(0), fmt, args);
     va_end(args);
 }
 

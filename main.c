@@ -43,6 +43,8 @@ int main(int argc, char** argv)
                 }
                 i++;
             }
+        } else if (!strcmp(argv[i], "-print-ast")) {
+            ctx.print_ast = true;
         } else if (!strcmp(argv[i], "-386")) {
             target = TARGET_AS386;
         } else if (!strcmp(argv[i], "-370")) {
@@ -80,32 +82,38 @@ int main(int argc, char** argv)
         ctx.out = stdout;
 
     cc_lex_top(&ctx); /* Start lexing and make the token stream*/
-    cc_parse_top(&ctx); /* Generate the AST */
-    cc_lex_deinit(&ctx); /* Lexer information no longer needed */
+    if (!ctx.error_cnt) {
+        cc_parse_top(&ctx); /* Generate the AST */
+        cc_lex_deinit(&ctx); /* Lexer information no longer needed */
+        if (!ctx.error_cnt) {
+            if (ctx.print_ast) {
+                printf("\nUnoptimized\n");
+                cc_ast_print(ctx.root, 0);
+                printf("\n");
+            }
 
-    printf("\nUnoptimized\n");
-    cc_ast_print(ctx.root, 0);
-    printf("\n");
+            cc_optimizer_top(&ctx); /* Optimize the AST */
 
-    cc_optimizer_top(&ctx); /* Optimize the AST */
+            if (ctx.print_ast) {
+                printf("\nOptimized\n");
+                cc_ast_print(ctx.root, 0);
+                printf("\n");
+            }
 
-    printf("\nOptimized\n");
-    cc_ast_print(ctx.root, 0);
-    printf("\n");
-
-    switch (target) {
-    case TARGET_AS386:
-        cc_as386_top(&ctx); /* Start generating the assembly code */
-        break;
-    case TARGET_MF370:
-        cc_mf370_top(&ctx);
-        break;
-    case TARGET_GRAPHVIZ:
-        cc_graphviz_top(&ctx);
-        break;
+            switch (target) {
+            case TARGET_AS386:
+                cc_as386_top(&ctx); /* Start generating the assembly code */
+                break;
+            case TARGET_MF370:
+                cc_mf370_top(&ctx);
+                break;
+            case TARGET_GRAPHVIZ:
+                cc_graphviz_top(&ctx);
+                break;
+            }
+        }
+        cc_ast_destroy_node(ctx.root, true);
     }
-
-    cc_ast_destroy_node(ctx.root, true);
 
     if (ctx.out != stdout)
         fclose(ctx.out);
