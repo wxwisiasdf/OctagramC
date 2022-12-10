@@ -68,6 +68,8 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
         const char* m = lexer_token_match[i];
         if (m != NULL) {
             if (!strncmp(ctx->cptr, m, strlen(m))) {
+                if (ISSTARTIDENT(m[0]) && ISIDENT(ctx->cptr[strlen(m)]))
+                    continue;
                 ctx->cptr += strlen(m);
                 return (enum cc_lexer_token_type)i;
             }

@@ -182,7 +182,7 @@ static _Bool cc_parse_typedef_name(
         return false;
 
     if (ctok->type == LEXER_TOKEN_IDENT) {
-        const cc_ast_typedef* tpdef;
+        const cc_ast_typedef* tpdef = NULL;
         if ((tpdef = cc_ast_find_typedef(ctok->data, node)) == NULL)
             return false;
         cc_lex_token_consume(ctx);
@@ -1090,6 +1090,7 @@ static _Bool cc_parse_declaration_specifier(
         || cc_parse_type_specifier(ctx, node, type)
         || cc_parse_type_qualifier(ctx, type))
         ;
+    /* Parse pointers that can be of any depths */
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASTERISK) {
         cc_lex_token_consume(ctx);
@@ -1317,13 +1318,17 @@ static _Bool cc_parse_declarator(
     cc_parse_declaration_specifier(ctx, node, &var->type);
 
     const cc_lexer_token* ctok;
+
+    /* On cases such as struct b {} ; */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_SEMICOLON)
+        return true;
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL) {
         cc_diag_error(ctx, "Expected identifier or '(' for declarator");
         goto error_handle;
     }
     switch (ctok->type) {
-    case LEXER_TOKEN_SEMICOLON: /* On cases such as struct b {} ; */
-        goto error_handle;
     case LEXER_TOKEN_LPAREN: /* ( <declarator> ) */
         cc_lex_token_consume(ctx);
         cc_parse_declarator(ctx, node, var);
@@ -1343,8 +1348,14 @@ static _Bool cc_parse_declarator(
         }
     } break;
     default:
-        if (ctx->is_parsing_prototype || ctx->declaration_ident_optional)
+        if (ctx->is_parsing_prototype || ctx->declaration_ident_optional) {
+            if (var->type.mode == TYPE_MODE_NONE) {
+                cc_diag_error(ctx, "Unable to disambiguate");
+                cc_lex_token_consume(ctx);
+                goto error_handle;
+            }
             goto ignore_missing_ident;
+        }
         cc_diag_error(ctx, "Expected identifier or '(' for declarator");
         cc_lex_token_consume(ctx);
         goto error_handle;
@@ -1367,7 +1378,9 @@ ignore_missing_ident:
             cc_lex_token_consume(ctx);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_void) {
+            && ctok->type == LEXER_TOKEN_void
+            && (ctok = cc_lex_token_peek(ctx, 1)) != NULL
+            && ctok->type == LEXER_TOKEN_RPAREN) {
             /* func(void), functions taking no parameters at all */
             cc_lex_token_consume(ctx);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
@@ -1404,12 +1417,12 @@ ignore_missing_ident:
                 }
                 break;
             }
-            ctx->is_parsing_prototype = true;
+            ctx->is_parsing_prototype = false;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         }
     }
 
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LBRACKET) {
         _Bool is_static = false;
         cc_lex_token_consume(ctx);
@@ -1493,6 +1506,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             cc_lex_token_consume(ctx);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
             cc_parse_statment(ctx, block_node);
+
             block_node->data.block.is_case = true;
             block_node->data.block.is_default = true;
             block_node->ref_count++; /* Referenced by switch node */
@@ -1593,12 +1607,11 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     /* Declaration specifiers */
     cc_ast_variable var = { 0 };
-    _Bool decl_result = !cc_parse_declarator(ctx, node, &var);
-
-    /* Types with a given name **can** */
-    if (var.name != NULL) {
-        printf("var=%s\n", var.name);
-    }
+    _Bool decl_result;
+comma_list_initializers: /* Jump here, reusing the variable's stack
+                            location **but** copying over the type
+                            with the various elements. */
+    decl_result = cc_parse_declarator(ctx, node, &var);
 
     /* A typedef can be treated as a variable UNTIL we exit the declarator
        parser loop. Once we exit it we will have to convert the variable
@@ -1619,43 +1632,29 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         ctx->is_parsing_typedef = false;
     }
 
-    /* Not a variable declaration - just a type declaration or a forward
-       declaration of sorts. */
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_SEMICOLON) {
-        /* The declarator function will parse expressions such as:
-           struct abc def {}, then proceed to put 'abc' on var.type.name
-           and 'def' on var.name, hence, on forward declarations such as:
-           struct abc; it is wise to grab the first identifier found
-           by the declarator function; but if it is not available (eg. nul)
-           then grab the var.name as a fallback. */
-        if (var.name == NULL && var.type.name == NULL) {
-            cc_diag_error(ctx, "Forward declaration without identifier");
-            goto error_handle;
-        }
-        const char* name = var.type.name != NULL ? var.type.name : var.name;
-
-        cc_lex_token_consume(ctx);
-        cc_ast_type type = { 0 };
-        cc_ast_copy_type(&type, &var.type);
-        type.name = cc_strdup(name);
-        cc_ast_add_block_type(node, &type);
-        cc_ast_destroy_var(&var, false);
-        return true;
-    }
-
-    if (!decl_result) {
+    if (!decl_result)
         goto error_handle;
-    }
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         switch (ctok->type) {
-        case LEXER_TOKEN_SEMICOLON: /* Prototype/declaration */
+        case LEXER_TOKEN_COMMA:
             cc_lex_token_consume(ctx);
+            
+            /* Save the type somewhere safe, destroy the var,
+               recreate the var with our type and destroy the type. */
+            cc_ast_type stype = {0};
+            cc_ast_copy_type(&stype, &var.type);
+            cc_ast_destroy_var(&var, false);
+            memset(&var, 0, sizeof(var));
+            cc_ast_copy_type(&var.type, &stype);
+            cc_ast_destroy_type(&stype, false);
+            goto comma_list_initializers;
+        case LEXER_TOKEN_SEMICOLON: /* Prototype/declaration */
             /* Function prototype usually ends up with ");" */
-            if ((ctok = cc_lex_token_peek(ctx, -2)) != NULL
+            if ((ctok = cc_lex_token_peek(ctx, -1)) != NULL
                 && ctok->type == LEXER_TOKEN_RPAREN)
                 var.type.mode = TYPE_MODE_FUNCTION;
+            cc_lex_token_consume(ctx);
             break;
         case LEXER_TOKEN_LBRACE: /* Function body */
             cc_lex_token_consume(ctx);
@@ -1664,9 +1663,8 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             /* All functions that are not prototypes are treated as a variable
                and all functions whose storage is extern are depromoted from
                extern into auto automatically. */
-            if (var.type.storage == STORAGE_EXTERN) {
+            if (var.type.storage == STORAGE_EXTERN)
                 var.type.storage = STORAGE_AUTO;
-            }
 
             /* Variable for the function prototype (then replaced) */
             cc_ast_variable prot_var = { 0 };
@@ -1684,11 +1682,14 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             cc_diag_error(ctx, "Unexpected token in declarator");
             goto error_handle;
         }
+    }
 
-        if (var.type.mode != TYPE_MODE_FUNCTION
-            && var.type.data.func.n_params) {
-            cc_diag_error(ctx, "Parameter declaration for non-function");
+    if(var.name == NULL) {
+        if (var.type.name == NULL) {
+            cc_diag_error(ctx, "Anonymous external declaration of variable with type '%s'", var.type.name);
             goto error_handle;
+        } else {
+            return true;
         }
     }
     cc_ast_add_block_variable(node, &var);

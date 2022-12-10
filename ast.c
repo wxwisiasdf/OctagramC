@@ -424,11 +424,13 @@ void cc_ast_copy_type(
         dest->data.func.n_params = src->data.func.n_params;
         dest->data.func.params = cc_realloc(dest->data.func.params,
             sizeof(cc_ast_variable) * dest->data.func.n_params);
+        memset(dest->data.func.params, 0, sizeof(cc_ast_variable) * dest->data.func.n_params);
         for (size_t i = 0; i < dest->data.func.n_params; i++) {
             cc_ast_copy_type(&dest->data.func.params[i].type,
                 &src->data.func.params[i].type);
-            dest->data.func.params[i].name
-                = cc_strdup(src->data.func.params[i].name);
+            if (src->data.func.params[i].name != NULL)
+                dest->data.func.params[i].name
+                    = cc_strdup(src->data.func.params[i].name);
         }
 
         if (src->data.func.return_type != NULL) {
@@ -446,7 +448,8 @@ void cc_ast_copy_type(
             const cc_ast_variable* src_param = &src->data.s_or_u.members[i];
             cc_ast_variable* dest_param = &dest->data.s_or_u.members[i];
             cc_ast_copy_type(&dest_param->type, &src_param->type);
-            dest_param->name = cc_strdup(src_param->name);
+            if (src_param->name)
+                dest_param->name = cc_strdup(src_param->name);
         }
     }
 }

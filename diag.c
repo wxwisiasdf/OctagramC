@@ -54,7 +54,7 @@ static void cc_diag_common(
         cc_diag_print_diag(ctx, tok->info, severity, fmt, args);
     } else if (ctx->stage == STAGE_LEXER) {
         if (ctx->n_diag_infos) {
-            cc_diag_print_diag(ctx, ctx->diag_infos[ctx->n_diag_infos - 1],
+            cc_diag_print_diag(ctx, ctx->tokens[ctx->n_tokens - 1].info,
                 severity, fmt, args);
         } else {
             fprintf(stderr, "<lexer>\n");
