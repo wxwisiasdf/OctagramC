@@ -1586,6 +1586,10 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
             recreate the var with our type and destroy the type. */
         cc_ast_type stype = { 0 };
         cc_ast_copy_type(&stype, &var->type);
+        /* Assign global storage to the variable if it is not inside a
+           function body. */
+        if (!ctx->is_func_body && var->type.storage == STORAGE_AUTO)
+            var->type.storage = STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);
@@ -1779,8 +1783,11 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
             /* And variable for the function itself */
             var.body = cc_ast_create_block(ctx, node);
+            _Bool old_is_func_body = ctx->is_func_body;
+            ctx->is_func_body = true;
             while (cc_parse_compund_statment(ctx, var.body))
                 ;
+            ctx->is_func_body = old_is_func_body;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
             break;
         default:

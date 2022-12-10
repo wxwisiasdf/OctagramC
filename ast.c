@@ -283,7 +283,8 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
     if (node->type == AST_NODE_BLOCK) {
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-            if (!strcmp(var->name, name))
+
+            if (var->name != NULL && !strcmp(var->name, name))
                 return var;
 
             /* Check parameters for functions */
@@ -293,6 +294,7 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
                     /* Unnamed parameters are supported and valid */
                     if (param->name == NULL)
                         continue;
+                    
                     if (!strcmp(param->name, name))
                         return param;
                 }

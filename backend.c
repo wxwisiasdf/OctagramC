@@ -130,12 +130,13 @@ void cc_backend_add_varmap(cc_context* ctx, const cc_ast_variable* restrict var)
 }
 
 cc_backend_varmap* cc_backend_find_var_varmap(
-    cc_context* ctx, const cc_ast_variable* var)
+    cc_context* ctx, const cc_ast_variable* restrict var)
 {
-    assert(var != NULL);
-    for (size_t i = 0; i < ctx->backend_data->n_varmaps; i++)
-        if (ctx->backend_data->varmaps[i].var == var)
-            return &ctx->backend_data->varmaps[i];
+    for (size_t i = 0; i < ctx->backend_data->n_varmaps; i++) {
+        cc_backend_varmap* vmap = &ctx->backend_data->varmaps[i];
+        if (vmap->var == var)
+            return vmap;
+    }
 
     cc_diag_error(ctx, "No mapping for variable '%s'", var->name);
     return NULL;
@@ -235,8 +236,10 @@ static void cc_backend_process_function(
         if (var->body->type == AST_NODE_BLOCK) {
             for (size_t i = 0; i < var->body->data.block.n_vars; i++) {
                 const cc_ast_variable* bvar = &var->body->data.block.vars[i];
-                ctx->backend_data->stack_frame_size
-                    += ctx->backend_data->get_sizeof(ctx, &bvar->type);
+                /* Automatically place on stack ^-^ */
+                if (bvar->type.storage == STORAGE_AUTO)
+                    ctx->backend_data->stack_frame_size
+                        += ctx->backend_data->get_sizeof(ctx, &bvar->type);
                 cc_backend_add_varmap(ctx, bvar);
             }
         }

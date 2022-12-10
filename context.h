@@ -45,6 +45,8 @@ typedef struct cc_context {
                                          is specified. */
     unsigned int error_cnt; /* Counter for errors */
     _Bool print_ast; /* Printing of AST is allowed/disallowed */
+    _Bool is_func_body; /* Parsing assigning automatic storage to variables
+                           if global or pertaining to the stack of a functor. */
 } cc_context;
 
 #endif

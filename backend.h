@@ -15,7 +15,7 @@ enum cc_backend_varmap_flags {
 };
 
 typedef struct cc_backend_varmap {
-    const cc_ast_variable* var;
+    const cc_ast_variable* restrict var;
     enum cc_backend_varmap_flags flags;
     unsigned int regno; /* Register number */
     unsigned int offset; /* Stack offset (if stack based) */
@@ -77,7 +77,7 @@ void cc_backend_free_register(cc_context* ctx, int regno);
 void cc_backend_add_varmap(
     cc_context* ctx, const cc_ast_variable* restrict var);
 cc_backend_varmap* cc_backend_find_var_varmap(
-    cc_context* ctx, const cc_ast_variable* var);
+    cc_context* ctx, const cc_ast_variable* restrict var);
 cc_backend_varmap cc_backend_get_node_varmap(
     cc_context* ctx, const cc_ast_node* node);
 void cc_backend_map_variables(cc_context* ctx, const cc_ast_node* node);

@@ -38,6 +38,21 @@ typedef struct cc_mf370_context {
 static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
     "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
 
+static const char* cc_mf370_logical_label(const char* name)
+{
+    static char buf[8];
+    size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
+    memcpy(buf, name, n);
+    buf[n - 1] = '\0';
+
+    for (size_t i = 0; i < sizeof(buf); i++) {
+        if (buf[i] == '_')
+            buf[i] = '@';
+        buf[i] = toupper(buf[i]);
+    }
+    return buf;
+}
+
 unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
 {
     size_t sizeof_ptr = 4;
@@ -83,7 +98,7 @@ static void cc_mf370_print_varmap(
         fprintf(ctx->out, "=F'%08lu'", vmap->constant);
         break;
     case VARMAP_STATIC:
-        fprintf(ctx->out, "=V(%s)", vmap->var->name);
+        fprintf(ctx->out, "=V(%s)", cc_mf370_logical_label(vmap->var->name));
         break;
     default:
         cc_diag_error(ctx, "Invalid varmap %i", vmap->flags);
@@ -203,21 +218,6 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     cc_diag_error(ctx, "Impossible constraints for move from %i->%i",
         rvmap->flags, lvmap->flags);
     return false;
-}
-
-static const char* cc_mf370_logical_label(const char* name)
-{
-    static char buf[8];
-    size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
-    memcpy(buf, name, n);
-    buf[n - 1] = '\0';
-
-    for (size_t i = 0; i < sizeof(buf); i++) {
-        if (buf[i] == '_')
-            buf[i] = '@';
-        buf[i] = toupper(buf[i]);
-    }
-    return buf;
 }
 
 _Bool cc_mf370_gen_epilogue(
