@@ -827,71 +827,193 @@ static _Bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
     return false;
 }
 
+static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+    || ctok->type != LEXER_TOKEN_sizeof)
+        return false;
+
+    cc_lex_token_consume(ctx);
+
+    /* This block is just a virtual block and will be destroyed
+        once we finish evaluating our sizeof. */
+    cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
+    _Bool old_v = ctx->declaration_ident_optional;
+    ctx->declaration_ident_optional = true;
+    _Bool deduce_required = true;
+
+    /* Parenthesis following means we can evaluate and obtain the size
+        of a concise expression, otherwise we have to stick with another
+        unary expression. */
+    cc_ast_type virtual_type = { 0 };
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_LPAREN) {
+        cc_lex_token_consume(ctx);
+        cc_ast_variable virtual_var = { 0 };
+        if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
+            cc_diag_error(ctx, "Expected unary expression after sizeof");
+            ctx->declaration_ident_optional = old_v;
+            cc_ast_destroy_node(virtual_node, true);
+            goto error_handle;
+        }
+        /* Type can be deduced from variable alone */
+        if (virtual_var.type.mode != TYPE_MODE_NONE) {
+            cc_ast_copy_type(&virtual_type, &virtual_var.type);
+            deduce_required = false;
+        }
+        cc_ast_destroy_var(&virtual_var, false);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+    } else {
+        ctx->declaration_ident_optional = true;
+        if (!cc_parse_unary_expression(ctx, virtual_node)) {
+            cc_diag_error(ctx, "Expected unary expression after sizeof");
+            ctx->declaration_ident_optional = old_v;
+            cc_ast_destroy_node(virtual_node, true);
+            goto error_handle;
+        }
+    }
+    ctx->declaration_ident_optional = old_v;
+    if (deduce_required) {
+        if (!cc_ceval_deduce_type(ctx, virtual_node, &virtual_type)) {
+            cc_diag_error(ctx, "Unable to deduce abstract type");
+            cc_ast_destroy_node(virtual_node, true);
+            goto error_handle;
+        }
+    }
+    cc_ast_destroy_node(virtual_node, true);
+
+    unsigned int obj_sizeof
+        = ctx->backend_data->get_sizeof(ctx, &virtual_type);
+    /* TODO: Better way to convert our numbers into strings */
+    static char numbuf[80];
+    snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
+    cc_ast_node* literal_node = cc_ast_create_literal(ctx, node, numbuf);
+    cc_ast_add_block_node(node, literal_node);
+    return true;
+error_handle:
+    return false;
+}
+
+static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    
+    cc_ast_node* expr_node = NULL;
+    switch (ctok->type) {
+    case LEXER_TOKEN_NUMBER:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        goto finish_expr_setup;
+    case LEXER_TOKEN_CHAR_LITERAL:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        goto finish_expr_setup;
+    case LEXER_TOKEN_IDENT: {
+        const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
+        if (var == NULL) {
+            cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
+            goto error_handle;
+        }
+        cc_lex_token_consume(ctx);
+
+        if (cc_parse_unary_call(ctx, node, var, &expr_node)) {
+            /* Parsed the call.. */
+        } else { /* Not a call, just a variable reference*/
+            expr_node = cc_ast_create_var_ref(ctx, node, var);
+        }
+    } goto finish_expr_setup;
+    case LEXER_TOKEN_STRING_LITERAL:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
+        goto finish_expr_setup;
+    default:
+        expr_node = cc_ast_create_block(ctx, node);
+        break;
+    }
+
+    if (expr_node == NULL) {
+        cc_ast_destroy_node(expr_node, true);
+        goto error_handle;
+    }
+
+    /* With postfix increment we will do a:
+        <unop <op> <expr-node>> */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
+        switch (ctok->type) {
+        case LEXER_TOKEN_INCREMENT:
+        case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
+            cc_lex_token_consume(ctx); /* <unop <postinc> <expr>> */
+            cc_ast_node* pi_node = cc_ast_create_unop_expr(ctx, node,
+                ctok->type == LEXER_TOKEN_INCREMENT ? AST_UNOP_POSTINC
+                                                    : AST_UNOP_POSTDEC);
+            expr_node->parent = pi_node->data.unop.child;
+            cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
+            cc_ast_add_block_node(node, pi_node);
+        }
+            return true;
+        /* Array accessor <expr>[<expr>] syntax */
+        case LEXER_TOKEN_LBRACKET: {
+            cc_lex_token_consume(ctx);
+
+            /* Create an expression of the form:
+                <unop deref <binop <array> + <index>>*/
+            cc_ast_node* arr_deref_node
+                = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
+            cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
+                ctx, arr_deref_node->data.unop.child, AST_BINOP_PLUS);
+            expr_node->parent = arr_index_node->data.binop.left;
+            cc_ast_add_block_node(
+                arr_index_node->data.binop.left, expr_node);
+            cc_parse_expression(ctx, arr_index_node->data.binop.right);
+            cc_ast_add_block_node(
+                arr_deref_node->data.unop.child, arr_index_node);
+            cc_ast_add_block_node(node, arr_deref_node);
+            CC_PARSE_EXPECT(
+                ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+        }
+            return true;
+        case LEXER_TOKEN_DOT:
+        case LEXER_TOKEN_ARROW: {
+            cc_lex_token_consume(ctx);
+            cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
+                ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT
+                                                : AST_BINOP_ARROW);
+            expr_node->parent = accessor_node->data.binop.left;
+            cc_ast_add_block_node(
+                accessor_node->data.binop.left, expr_node);
+            CC_PARSE_EXPECT(
+                ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
+            cc_ast_node* var_node = cc_ast_create_field_ref(
+                ctx, accessor_node->data.binop.right, ctok->data);
+            cc_ast_add_block_node(
+                accessor_node->data.binop.right, var_node);
+            cc_ast_add_block_node(node, accessor_node);
+        }
+            return true;
+        default:
+            goto error_handle;
+        }
+    }
+finish_expr_setup:
+    expr_node->parent = node;
+    cc_ast_add_block_node(node, expr_node);
+    return true;
+error_handle:
+    if (expr_node != NULL)
+        cc_ast_destroy_node(expr_node, true);
+    return false;
+}
+
 /* TODO: Handle operator ordering and post/prefix inc/dec appropriately */
 static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_sizeof) {
-        cc_lex_token_consume(ctx);
-
-        /* This block is just a virtual block and will be destroyed
-            once we finish evaluating our sizeof. */
-        cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
-        _Bool old_v = ctx->declaration_ident_optional;
-        ctx->declaration_ident_optional = true;
-        _Bool deduce_required = true;
-
-        /* Parenthesis following means we can evaluate and obtain the size
-           of a concise expression, otherwise we have to stick with another
-           unary expression. */
-        cc_ast_type virtual_type = { 0 };
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_LPAREN) {
-            cc_lex_token_consume(ctx);
-            cc_ast_variable virtual_var = { 0 };
-            if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
-                cc_diag_error(ctx, "Expected unary expression after sizeof");
-                ctx->declaration_ident_optional = old_v;
-                cc_ast_destroy_node(virtual_node, true);
-                goto error_handle;
-            }
-            /* Type can be deduced from variable alone */
-            if (virtual_var.type.mode != TYPE_MODE_NONE) {
-                cc_ast_copy_type(&virtual_type, &virtual_var.type);
-                deduce_required = false;
-            }
-            cc_ast_destroy_var(&virtual_var, false);
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-        } else {
-            ctx->declaration_ident_optional = true;
-            if (!cc_parse_unary_expression(ctx, virtual_node)) {
-                cc_diag_error(ctx, "Expected unary expression after sizeof");
-                ctx->declaration_ident_optional = old_v;
-                cc_ast_destroy_node(virtual_node, true);
-                goto error_handle;
-            }
-        }
-        ctx->declaration_ident_optional = old_v;
-        if (deduce_required) {
-            if (!cc_ceval_deduce_type(ctx, virtual_node, &virtual_type)) {
-                cc_diag_error(ctx, "Unable to deduce abstract type");
-                cc_ast_destroy_node(virtual_node, true);
-                goto error_handle;
-            }
-        }
-        cc_ast_destroy_node(virtual_node, true);
-
-        unsigned int obj_sizeof
-            = ctx->backend_data->get_sizeof(ctx, &virtual_type);
-        /* TODO: Better way to convert our numbers into strings */
-        static char numbuf[80];
-        snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
-        cc_ast_node* literal_node = cc_ast_create_literal(ctx, node, numbuf);
-        cc_ast_add_block_node(node, literal_node);
+    if (cc_parse_unary_sizeof(ctx, node))
         return true;
-    }
-
+    
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         cc_ast_node *binop_node = NULL, *literal_node = NULL, *unop_node = NULL;
         switch (ctok->type) {
@@ -966,106 +1088,10 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         }
     }
 
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        cc_ast_node* expr_node = NULL;
-        switch (ctok->type) {
-        case LEXER_TOKEN_NUMBER:
-            cc_lex_token_consume(ctx);
-            expr_node = cc_ast_create_literal(ctx, node, ctok->data);
-            break;
-        case LEXER_TOKEN_CHAR_LITERAL:
-            cc_lex_token_consume(ctx);
-            expr_node = cc_ast_create_literal(ctx, node, ctok->data);
-            break;
-        case LEXER_TOKEN_IDENT: {
-            const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
-            if (var == NULL) {
-                cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
-                goto error_handle;
-            }
-            cc_lex_token_consume(ctx);
-
-            if (cc_parse_unary_call(ctx, node, var, &expr_node)) {
-                /* Parsed the call.. */
-            } else { /* Not a call, just a variable reference*/
-                expr_node = cc_ast_create_var_ref(ctx, node, var);
-            }
-        } break;
-        case LEXER_TOKEN_STRING_LITERAL: {
-            cc_lex_token_consume(ctx);
-            expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
-        } break;
-        default:
-            break;
-        }
-
-        if (expr_node == NULL) {
-            cc_ast_destroy_node(expr_node, true);
-            goto error_handle; /* No match */
-        }
-
-        /* With postfix increment we will do a:
-            <unop <op> <expr-node>> */
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-            switch (ctok->type) {
-            case LEXER_TOKEN_INCREMENT:
-            case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
-                cc_lex_token_consume(ctx); /* <unop <postinc> <expr>> */
-                cc_ast_node* pi_node = cc_ast_create_unop_expr(ctx, node,
-                    ctok->type == LEXER_TOKEN_INCREMENT ? AST_UNOP_POSTINC
-                                                        : AST_UNOP_POSTDEC);
-                expr_node->parent = pi_node->data.unop.child;
-                cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
-                cc_ast_add_block_node(node, pi_node);
-            }
-                return true;
-            /* Array accessor <expr>[<expr>] syntax */
-            case LEXER_TOKEN_LBRACKET: {
-                cc_lex_token_consume(ctx);
-
-                /* Create an expression of the form:
-                    <unop deref <binop <array> + <index>>*/
-                cc_ast_node* arr_deref_node
-                    = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
-                cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
-                    ctx, arr_deref_node->data.unop.child, AST_BINOP_PLUS);
-                expr_node->parent = arr_index_node->data.binop.left;
-                cc_ast_add_block_node(
-                    arr_index_node->data.binop.left, expr_node);
-                cc_parse_expression(ctx, arr_index_node->data.binop.right);
-                cc_ast_add_block_node(
-                    arr_deref_node->data.unop.child, arr_index_node);
-                cc_ast_add_block_node(node, arr_deref_node);
-                CC_PARSE_EXPECT(
-                    ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
-            }
-                return true;
-            case LEXER_TOKEN_DOT:
-            case LEXER_TOKEN_ARROW: {
-                cc_lex_token_consume(ctx);
-                cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
-                    ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT
-                                                  : AST_BINOP_ARROW);
-                expr_node->parent = accessor_node->data.binop.left;
-                cc_ast_add_block_node(
-                    accessor_node->data.binop.left, expr_node);
-                CC_PARSE_EXPECT(
-                    ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
-                cc_ast_node* var_node = cc_ast_create_field_ref(
-                    ctx, accessor_node->data.binop.right, ctok->data);
-                cc_ast_add_block_node(
-                    accessor_node->data.binop.right, var_node);
-                cc_ast_add_block_node(node, accessor_node);
-            }
-                return true;
-            default:
-                break;
-            }
-        }
-        expr_node->parent = node;
-        cc_ast_add_block_node(node, expr_node);
-        return true;
-    }
+    _Bool has_match = false;
+    while(cc_parse_postfix_expression(ctx, node))
+        has_match = true;
+    return has_match;
 error_handle:
     return false;
 }
@@ -1092,6 +1118,7 @@ static _Bool cc_parse_declaration_specifier(
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)
+        || cc_parse_function_specifier(ctx, type)
         || cc_parse_type_qualifier(ctx, type))
         qualified_once = true;
     /* Parse pointers that can be of any depths */
@@ -1532,7 +1559,6 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
                             location **but** copying over the type
                             with the various elements. */
     decl_result = cc_parse_declarator(ctx, node, var);
-    printf("var=%s,type=%s\n", var->name, var->type.name);
 
     /* A typedef can be treated as a variable UNTIL we exit the declarator
        parser loop. Once we exit it we will have to convert the variable
@@ -1650,11 +1676,12 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         } break;
         case LEXER_TOKEN_IDENT: {
             const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
+            if (var == NULL)
+                cc_ast_find_variable(ctok->data, node->parent);
+
             if (var != NULL) { /* Variable reference OR call/assignment */
                 cc_parse_expression(ctx, node);
-                printf("foundVar=%s\n", var->name);
             } else { /* Type for declaration within compound stmt */
-                printf("varNotFound=%s\n", ctok->data);
                 /* Implicit function declarations, where the prototype
                    is missing from the function and it's declared in place
                    this exception exists for some fucking reason??? */
