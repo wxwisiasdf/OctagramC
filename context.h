@@ -35,6 +35,10 @@ typedef struct cc_context {
 
     struct cc_ast_node* continue_node; /* Node to jump to in continue */
     struct cc_ast_node* break_node; /* Node to jump to in break */
+
+    /* State machine variables for parser, lexer, etc */
+    _Bool is_parsing_prototype; /* Allow ignoring missing identifiers on
+                                   parameters. */
 } cc_context;
 
 #endif

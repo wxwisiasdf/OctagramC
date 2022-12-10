@@ -1280,11 +1280,14 @@ static _Bool cc_parse_declarator(
         }
     } break;
     default:
+        if (ctx->is_parsing_prototype)
+            goto ignore_missing_ident;
         cc_diag_error(ctx, "Expected identifier or '(' for declarator");
         cc_lex_token_consume(ctx);
         goto error_handle;
     }
 
+ignore_missing_ident:
     /* Parenthesis after this equates into a function */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
@@ -1307,6 +1310,7 @@ static _Bool cc_parse_declarator(
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         } else {
             cc_ast_variable virtual_param_var = { 0 };
+            ctx->is_parsing_prototype = true;
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
                 var->type.data.func.params
                     = cc_realloc(var->type.data.func.params,
@@ -1316,7 +1320,9 @@ static _Bool cc_parse_declarator(
                     = &var->type.data.func
                            .params[var->type.data.func.n_params++];
                 cc_ast_copy_type(&param->type, &virtual_param_var.type);
-                param->name = cc_strdup(virtual_param_var.name);
+                param->name = NULL;
+                if (virtual_param_var.name != NULL)
+                    param->name = cc_strdup(virtual_param_var.name);
 
                 /* Destroy... */
                 memset(&virtual_param_var, 0, sizeof(virtual_param_var));
@@ -1335,6 +1341,7 @@ static _Bool cc_parse_declarator(
                 }
                 break;
             }
+            ctx->is_parsing_prototype = true;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         }
     }
