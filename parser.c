@@ -658,6 +658,7 @@ static _Bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
                is converted into:
                 if (<expr-1>) <expr-2> else <expr-3> */
             cc_ast_node* if_expr = cc_ast_create_if_expr(ctx, node);
+            expr->parent = if_expr->data.if_expr.cond;
             cc_ast_add_block_node(if_expr->data.if_expr.cond, expr);
 
             cc_parse_expression(ctx, if_expr->data.if_expr.block);
@@ -1586,12 +1587,11 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
     && ctok->type == LEXER_TOKEN_COMMA) {
         cc_lex_token_consume(ctx);
-
         /* Save the type somewhere safe, destroy the var,
             recreate the var with our type and destroy the type. */
         cc_ast_type stype = { 0 };
         cc_ast_copy_type(&stype, &var->type);
-        cc_ast_destroy_var(var, false);
+        cc_ast_add_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);
         cc_ast_destroy_type(&stype, false);
@@ -1710,14 +1710,18 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 }
             }
         } break;
-        default: { /* Rest of cases now handled by declarator :) */
-            cc_ast_variable nvar = { 0 };
-            _Bool is_parsing_typedef = false;
-            if (!cc_parse_declarator_list(ctx, node, &nvar,
-                                            &is_parsing_typedef))
-                goto error_handle;
-            if (!is_parsing_typedef)
-                cc_ast_add_block_variable(node, &nvar);
+        default: {
+            /* First try interpreting as an expression, then if that
+               does NOT work, fallback to the declarator */
+            if(!cc_parse_expression(ctx, node)) {
+                cc_ast_variable nvar = { 0 };
+                _Bool is_parsing_typedef = false;
+                if (!cc_parse_declarator_list(ctx, node, &nvar,
+                                                &is_parsing_typedef))
+                    goto error_handle;
+                if (!is_parsing_typedef)
+                    cc_ast_add_block_variable(node, &nvar);
+            }
         } break;
         }
     } else {

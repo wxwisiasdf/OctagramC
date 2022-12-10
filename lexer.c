@@ -181,12 +181,19 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             ctx->cptr++;
         if (*ctx->cptr == '\0')
             break;
+        
+        /* Special handling for literals of the form:
+           .<numbers><suffix> */
+        if (ctx->cptr[0] == '.' && isdigit(ctx->cptr[1]))
+            goto handle_literal;
 
         tok.type = cc_lex_match_token(ctx); /* Match a token */
         if (tok.type == LEXER_TOKEN_NONE) {
             /* Special handling for the idents, literals, etc */
             if (isdigit(*ctx->cptr)) { /* Numbers */
-                const char* s = ctx->cptr;
+                const char* s;
+handle_literal:
+                s = ctx->cptr;
                 ctx->cptr = cc_lex_literal(ctx, ctx->cptr);
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = LEXER_TOKEN_NUMBER;
