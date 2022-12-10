@@ -60,7 +60,7 @@ typedef struct cc_backend_context {
     _Bool (*gen_branch)(cc_context* ctx, const cc_ast_node* node,
         const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
         enum cc_ast_binop_type type);
-    cc_ast_variable* current_func_var;
+    const cc_ast_variable* current_func_var;
 } cc_backend_context;
 
 unsigned int cc_backend_get_labelnum(cc_context* ctx);

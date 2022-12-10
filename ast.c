@@ -658,7 +658,7 @@ void cc_ast_print(cc_ast_node* node, int ident)
             printf("^");
             break;
         default:
-            printf("???(%i)", node->data.binop.op);
+            printf("(%i?)", node->data.binop.op);
             break;
         }
         printf(" (");

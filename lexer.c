@@ -7,12 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LEXER_TOKEN_LIST_1(x, v) #x
-static const char* lexer_token_names[] = { LEXER_TOKEN_LIST };
-#undef LEXER_TOKEN_LIST_1
 #define LEXER_TOKEN_LIST_1(x, v) v
 static const char* lexer_token_match[] = { LEXER_TOKEN_LIST };
 #undef LEXER_TOKEN_LIST_1
+#undef LEXER_TOKEN_LIST
 
 /* ========================================================================== */
 /* Lexer and tokenizer */
@@ -154,7 +152,7 @@ cc_lexer_token* cc_lex_token_consume(cc_context* ctx)
     return &ctx->tokens[ctx->c_token++];
 }
 
-cc_lexer_token* cc_lex_skip_until(
+const cc_lexer_token* cc_lex_skip_until(
     cc_context* ctx, enum cc_lexer_token_type type)
 {
     const cc_lexer_token* ctok;

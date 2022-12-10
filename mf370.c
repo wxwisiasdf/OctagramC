@@ -35,9 +35,6 @@ typedef struct cc_mf370_context {
     cc_backend_varmap latest_varmap; /* Latest relevant varmap */
 } cc_mf370_context;
 
-static void cc_mf370_process_binop(
-    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);
-
 static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
     "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
 
@@ -67,12 +64,10 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
-_Bool cc_mf370_is_reserved_reg(enum cc_mf370_reg regno)
+_Bool cc_mf370_is_reserved_reg(unsigned int regno)
 {
     return regno == MF370_R14 || regno == MF370_R13;
 }
-
-static void cc_mf370_process_node(cc_context* ctx, const cc_ast_node* node);
 
 static void cc_mf370_print_varmap(
     cc_context* ctx, const cc_backend_varmap* vmap)
@@ -173,8 +168,15 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
                 lvmap->offset);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_STACK) {
+            cc_backend_varmap mvmap = {};
+            cc_backend_spill(ctx, 1);
+            mvmap.regno = cc_backend_alloc_register(ctx);
+            mvmap.flags = VARMAP_REGISTER;
             fprintf(
-                ctx->out, "\tLA\t=V(L%i)\n", literal_label_id, rvmap->offset);
+                ctx->out, "\tLA\t%s,%u(R13)\n", reg_names[mvmap.regno], rvmap->offset);
+            fprintf(
+                ctx->out, "\tST\t%s,=V(L%i)\n", reg_names[mvmap.regno], literal_label_id);
+            cc_backend_free_register(ctx, mvmap.regno);
         }
         return true;
     }
@@ -184,11 +186,11 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
         mvmap.flags = VARMAP_REGISTER;
-
         fprintf(ctx->out, "\tL\t%s,%u(R13)\n", reg_names[mvmap.regno],
             rvmap->offset);
         fprintf(ctx->out, "\tST\t%s,%u(R13)\n", reg_names[mvmap.regno],
             lvmap->offset);
+        cc_backend_free_register(ctx, mvmap.regno);
         return true;
     }
 
@@ -212,7 +214,7 @@ static const char* cc_mf370_logical_label(const char* name)
     return buf;
 }
 
-void cc_mf370_gen_epilogue(
+_Bool cc_mf370_gen_epilogue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     assert(var != NULL);
@@ -235,6 +237,7 @@ void cc_mf370_gen_epilogue(
     fprintf(ctx->out, "\tLR\tR12, R15\n");
     fprintf(ctx->out, "\tUSING\tR13,R14\n");
     assert(ctx->backend_data->min_stack_alignment == 0);
+    return true;
 }
 
 cc_backend_varmap cc_mf370_get_call_retval(
@@ -429,7 +432,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-void cc_mf370_gen_prologue(
+_Bool cc_mf370_gen_prologue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     fprintf(ctx->out, "* X-prologue\n");
@@ -445,6 +448,7 @@ void cc_mf370_gen_prologue(
     fprintf(ctx->out, "\tRETURN\t(14,12),RC=(15)\n");
     fprintf(ctx->out, "\tPOP\tUSING\n");
     fprintf(ctx->out, "\tLTORG\t,\n");
+    return true;
 }
 
 _Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)

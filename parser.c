@@ -93,7 +93,7 @@ static _Bool cc_parse_struct_or_union_specifier(
             virtual_member.type.bitint_bits = 0;
 
             /* Constexpression follows, evaluate it nicely :) */
-            signed long result = 0;
+            signed int result = 0;
             cc_parse_constant_expression(ctx, node, &result);
             if (result <= 0) {
                 cc_diag_error(ctx, "Invalid number of bits %li", result);
@@ -234,16 +234,13 @@ static _Bool cc_parse_constant_expression(
 {
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     cc_parse_expression(ctx, const_expr); /* Parse like a normal expression */
-
-    cc_ceval_constant_expression(ctx, const_expr);
-    if (const_expr->type != AST_NODE_LITERAL) {
+    if (!cc_ceval_constant_expression(ctx, const_expr)
+    || const_expr->type != AST_NODE_LITERAL) {
         cc_diag_error(ctx, "Unable to evaluate static expression");
         return false;
     }
     *r = (signed int)const_expr->data.literal.value.s;
     return true;
-error_handle:
-    return false;
 }
 
 static _Bool cc_parse_type_specifier(
@@ -1352,8 +1349,7 @@ static _Bool cc_parse_declarator(
             && ctok->type == LEXER_TOKEN_static)
             is_static = true;
         while (cc_parse_type_qualifier(ctx, &var->type))
-            ; /* Parse type
-                                                            qualifiers list */
+            ; /* Parse type qualifiers list */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_static)
             is_static = true;

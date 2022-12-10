@@ -26,9 +26,6 @@ typedef struct cc_as386_context {
     cc_backend_varmap latest_varmap; /* Latest relevant varmap */
 } cc_as386_context;
 
-static void cc_as386_process_binop(
-    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);
-
 static const char* reg_names[AS386_NUM_REGS]
     = { "%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "%ebp", "%esp" };
 
@@ -58,12 +55,10 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
-_Bool cc_as386_is_reserved_reg(enum cc_as386_reg regno)
+_Bool cc_as386_is_reserved_reg(unsigned int regno)
 {
     return regno == AS386_EBP || regno == AS386_ESP;
 }
-
-static void cc_as386_process_node(cc_context* ctx, const cc_ast_node* node);
 
 static void cc_as386_print_varmap(
     cc_context* ctx, const cc_backend_varmap* vmap)
@@ -186,7 +181,7 @@ _Bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     return false;
 }
 
-void cc_as386_gen_epilogue(
+_Bool cc_as386_gen_epilogue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     if (node->type == AST_NODE_BLOCK) {
@@ -204,6 +199,7 @@ void cc_as386_gen_epilogue(
     fprintf(ctx->out, "\tmovl\t%%esp, %%ebp\n");
     fprintf(
         ctx->out, "\tsubl\t$%u, %%esp\n", ctx->backend_data->stack_frame_size);
+    return true;
 }
 
 cc_backend_varmap cc_as386_get_call_retval(
@@ -447,7 +443,7 @@ _Bool cc_as386_gen_branch(cc_context* ctx, const cc_ast_node* node,
     return false;
 }
 
-void cc_as386_gen_prologue(
+_Bool cc_as386_gen_prologue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     assert(var != NULL);
@@ -463,6 +459,7 @@ void cc_as386_gen_prologue(
     }
     fprintf(ctx->out, "\tleave\n");
     fprintf(ctx->out, "\tret\n");
+    return true;
 }
 
 _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)

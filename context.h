@@ -33,7 +33,7 @@ typedef struct cc_context {
     cc_diag_info* diag_infos;
     size_t n_diag_infos;
     enum cc_stage stage;
-    cc_ast_node* diag_node; /* Node for diagnostic */
+    const cc_ast_node* diag_node; /* Node for diagnostic */
 
     void* asgen_data; /* Opaque pointer for assembly generation */
     cc_backend_context* backend_data;

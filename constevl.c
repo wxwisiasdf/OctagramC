@@ -85,4 +85,5 @@ error_handle:
 size_t cc_ceval_get_field_offset(
     cc_context* ctx, const cc_ast_type* type, const cc_ast_node* node)
 {
+    return 0;
 }
