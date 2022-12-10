@@ -39,6 +39,7 @@ typedef struct cc_context {
     /* State machine variables for parser, lexer, etc */
     _Bool is_parsing_prototype; /* Allow ignoring missing identifiers on
                                    parameters. */
+    _Bool is_parsing_typedef; /* Handling for typedefs */
     unsigned int error_cnt; /* Counter for errors */
     _Bool print_ast; /* Printing of AST is allowed/disallowed */
 } cc_context;

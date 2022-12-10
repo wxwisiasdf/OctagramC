@@ -469,12 +469,16 @@ _Bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
         }
 
         if ((lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_LITERAL)
-        || (lvmap->flags == VARMAP_LITERAL && rvmap->flags == VARMAP_REGISTER)) {
+            || (lvmap->flags == VARMAP_LITERAL
+                && rvmap->flags == VARMAP_REGISTER)) {
             fprintf(ctx->out, "\tC\t");
-        } else if ((lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_CONSTANT)
-        || (lvmap->flags == VARMAP_CONSTANT && rvmap->flags == VARMAP_REGISTER)) {
+        } else if ((lvmap->flags == VARMAP_REGISTER
+                       && rvmap->flags == VARMAP_CONSTANT)
+            || (lvmap->flags == VARMAP_CONSTANT
+                && rvmap->flags == VARMAP_REGISTER)) {
             fprintf(ctx->out, "\tCFI\t");
-        } else if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_REGISTER) {
+        } else if (lvmap->flags == VARMAP_REGISTER
+            && rvmap->flags == VARMAP_REGISTER) {
             fprintf(ctx->out, "\tCR\t");
         } else {
             cc_diag_error(ctx, "Invalid combination for compare");

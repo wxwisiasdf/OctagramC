@@ -128,7 +128,7 @@ void cc_free(void* p)
 
 char* cc_strndup(const char* s, size_t n)
 {
-    assert(s != NULL && n > 0);
+    assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
 
     g_alloc_ctx.is_string = true;

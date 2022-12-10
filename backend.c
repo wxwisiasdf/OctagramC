@@ -429,7 +429,7 @@ void cc_backend_process_node(
 {
     if (node == NULL)
         return;
-    
+
     ctx->diag_node = node;
     switch (node->type) {
     case AST_NODE_UNOP:

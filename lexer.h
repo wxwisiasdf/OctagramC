@@ -29,6 +29,7 @@
     LEXER_TOKEN_LIST_R(nullptr), \
     LEXER_TOKEN_LIST_R(_Atomic), \
     LEXER_TOKEN_LIST_R(_BitInt), \
+    LEXER_TOKEN_LIST_R(typedef), \
     LEXER_TOKEN_LIST_R(double), \
     LEXER_TOKEN_LIST_R(extern), \
     LEXER_TOKEN_LIST_R(inline), \

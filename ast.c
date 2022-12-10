@@ -289,7 +289,8 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
                 for (size_t j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
                     /* Unnamed parameters are supported and valid */
-                    if (param->name == NULL) continue;
+                    if (param->name == NULL)
+                        continue;
                     if (!strcmp(param->name, name))
                         return param;
                 }

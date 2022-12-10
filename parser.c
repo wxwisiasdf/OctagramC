@@ -182,11 +182,6 @@ static _Bool cc_parse_typedef_name(
         if ((tpdef = cc_ast_find_typedef(ctok->data, node)) == NULL)
             return false;
         cc_lex_token_consume(ctx);
-
-        if (type->mode != TYPE_MODE_NONE) {
-            cc_diag_error(ctx, "Overriding existing type is not supported");
-            return false;
-        }
         cc_ast_copy_type(type, &tpdef->type);
         return true;
     }
@@ -342,6 +337,9 @@ static _Bool cc_parse_storage_class_specifier(
         break;
     case LEXER_TOKEN_constexpr:
         type->storage |= STORAGE_CONSTEXPR;
+        break;
+    case LEXER_TOKEN_typedef:
+        ctx->is_parsing_typedef = true;
         break;
     default:
         return false;
@@ -1260,7 +1258,7 @@ static _Bool cc_parse_declarator(
     }
     switch (ctok->type) {
     case LEXER_TOKEN_SEMICOLON: /* On cases such as struct b {} ; */
-        return false;
+        goto error_handle;
     case LEXER_TOKEN_LPAREN: /* ( <declarator> ) */
         cc_lex_token_consume(ctx);
         cc_parse_declarator(ctx, node, var);
@@ -1296,7 +1294,7 @@ ignore_missing_ident:
         /* No storage specified? set extern then */
         if (var->type.storage == STORAGE_AUTO)
             var->type.storage = STORAGE_EXTERN;
-        
+
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ELLIPSIS) {
             /* Fully variadic function (non-standard) */
@@ -1530,18 +1528,46 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     /* Declaration specifiers */
     cc_ast_variable var = { 0 };
-    while (cc_parse_storage_class_specifier(ctx, &var.type)
-        || cc_parse_function_specifier(ctx, &var.type))
-        ;
+    _Bool decl_result = !cc_parse_declarator(ctx, node, &var);
 
-    if (!cc_parse_declarator(ctx, node, &var)) {
-        /* Not a variable declaration - just a type declaration */
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_SEMICOLON) {
-            cc_ast_destroy_var(&var, false);
-            cc_lex_token_consume(ctx);
-            return true;
+    /* A typedef can be treated as a variable UNTIL we exit the declarator
+       parser loop. Once we exit it we will have to convert the variable
+       into a typedef we can toy with.
+
+       This state is updated accordingly on the type storage
+       specifiers. */
+    if (ctx->is_parsing_typedef) {
+        if (var.name == NULL) {
+            cc_diag_error(ctx, "Anonymous typedef");
+            goto error_handle;
         }
+
+        cc_ast_typedef ntpdef = { 0 };
+        ntpdef.name = cc_strdup(var.name);
+        cc_ast_copy_type(&ntpdef.type, &var.type); /* Copy type over */
+        cc_ast_add_block_typedef(node, &ntpdef);
+        ctx->is_parsing_typedef = false;
+    }
+
+    /* Not a variable declaration - just a type declaration or a forward
+       declaration of sorts. */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        cc_lex_token_consume(ctx);
+
+        if (var.name == NULL) {
+            cc_diag_error(ctx, "Forward declaration without identifier");
+            goto error_handle;
+        }
+
+        cc_ast_type type = { 0 };
+        cc_ast_copy_type(&type, &var.type);
+        cc_ast_add_block_type(node, &type);
+        cc_ast_destroy_var(&var, false);
+        return true;
+    }
+
+    if (!decl_result) {
         goto error_handle;
     }
 
@@ -1578,7 +1604,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
             break;
         default:
-            cc_diag_error(ctx, "Unexpected token here");
+            cc_diag_error(ctx, "Unexpected token in declarator");
             goto error_handle;
         }
 

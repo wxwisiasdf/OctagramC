@@ -14,13 +14,15 @@
 #undef ANSI_COLOUR
 #define ANSI_COLOUR(f) "\x1B[" #f "m"
 #else
-#define ANSI_COLOUR(f) 
+#define ANSI_COLOUR(f)
 #endif
 
 static void cc_diag_print_diag(cc_context* ctx, cc_diag_info info,
     const char* severity, const char* fmt, va_list args)
 {
-    fprintf(stderr, "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%zu: ", severity, info.filename, info.line);
+    fprintf(stderr,
+        "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%zu: ", severity,
+        info.filename, info.line);
     vfprintf(stderr, fmt, args);
 
     FILE* fp = fopen(info.filename, "rt");
@@ -73,6 +75,8 @@ void cc_diag_error(cc_context* ctx, const char* fmt, ...)
     cc_diag_common(ctx, ANSI_COLOUR(31) "error" ANSI_COLOUR(0), fmt, args);
     va_end(args);
     ctx->error_cnt++;
+
+    abort();
 }
 
 void cc_diag_warning(cc_context* ctx, const char* fmt, ...)

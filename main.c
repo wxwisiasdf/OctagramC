@@ -1,3 +1,8 @@
+/* main.c - Top file for the compiler.
+   Doesn't preprocess C files, however it can compile them, so if a
+   preprocessor is available one could do:
+   
+   cpp -ansi file.c | awk '!/^#/' | awk NF */
 #include "as386.h"
 #include "ast.h"
 #include "context.h"
@@ -52,7 +57,8 @@ int main(int argc, char** argv)
         } else if (!strcmp(argv[i], "-gviz")) {
             target = TARGET_GRAPHVIZ;
         } else if (!strcmp(argv[i], "-h")) {
-            printf("cc23 - A compiler for the C23 language, targeting 370 and 386\n");
+            printf("cc23 - A compiler for the C23 language, targeting 370 and "
+                   "386\n");
             printf("-386\tGenerate 386 code\n");
             printf("-370\tGenerate 370 code\n");
             printf("-graphviz\tGenerate graphviz graphs\n");
