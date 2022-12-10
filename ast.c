@@ -424,7 +424,8 @@ void cc_ast_copy_type(
         dest->data.func.n_params = src->data.func.n_params;
         dest->data.func.params = cc_realloc(dest->data.func.params,
             sizeof(cc_ast_variable) * dest->data.func.n_params);
-        memset(dest->data.func.params, 0, sizeof(cc_ast_variable) * dest->data.func.n_params);
+        memset(dest->data.func.params, 0,
+            sizeof(cc_ast_variable) * dest->data.func.n_params);
         for (size_t i = 0; i < dest->data.func.n_params; i++) {
             cc_ast_copy_type(&dest->data.func.params[i].type,
                 &src->data.func.params[i].type);

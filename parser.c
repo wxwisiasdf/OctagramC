@@ -938,7 +938,6 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                     ctx, unop_node, &unop_node->data.unop.cast)) {
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
             } else { /* (unary-expresion) */
-                cc_ast_destroy_node(node, true); /* Not of usage for us */
                 cc_parse_unary_expression(ctx, node);
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
                 return true;
@@ -1085,14 +1084,16 @@ static _Bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok;
+    _Bool qualified_once = false;
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)
         || cc_parse_type_qualifier(ctx, type))
-        ;
+        qualified_once = true;
     /* Parse pointers that can be of any depths */
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASTERISK) {
+        qualified_once = true;
         cc_lex_token_consume(ctx);
         type->n_cv_qual++;
         if (type->n_cv_qual >= MAX_CV_QUALIFIERS) {
@@ -1103,7 +1104,7 @@ static _Bool cc_parse_declaration_specifier(
         while (cc_parse_type_qualifier(ctx, type))
             ; /* Consume qualifiers */
     }
-    return true;
+    return qualified_once;
 error_handle:
     return false;
 }
@@ -1312,6 +1313,32 @@ error_handle:
     return false;
 }
 
+/* TODO: parse lbrace the brace thing for arrays wtf am i??? ?!?!?! */
+static _Bool cc_parse_declarator_assignment_expression(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
+{
+    cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_LBRACE) {
+        cc_lex_token_consume(ctx);
+        cc_parse_declarator_assignment_expression(ctx, node, var);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+    } else {
+        while (cc_parse_assignment_expression(ctx, node, NULL)) {
+            const cc_lexer_token* ctok;
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type == LEXER_TOKEN_COMMA) {
+                cc_lex_token_consume(ctx);
+                continue;
+            }
+            break;
+        }
+    }
+    return true;
+error_handle:
+    return false;
+}
+
 static _Bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
@@ -1321,7 +1348,7 @@ static _Bool cc_parse_declarator(
 
     /* On cases such as struct b {} ; */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_SEMICOLON)
+        && ctok->type == LEXER_TOKEN_SEMICOLON)
         return true;
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL) {
@@ -1462,16 +1489,16 @@ ignore_missing_ident:
        is to be assigned. */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASSIGN) {
+        cc_lex_token_consume(ctx);
         cc_ast_node* assign_node
             = cc_ast_create_binop_expr(ctx, node, AST_BINOP_ASSIGN);
         cc_ast_node* lhs_node = assign_node->data.binop.left;
         cc_ast_node* var_node = cc_ast_create_var_ref(ctx, lhs_node, var);
-        cc_lex_token_consume(ctx);
-
         /* Parse <var this-variable> = <expr> */
         cc_ast_add_block_node(lhs_node, var_node); /* Plug implicit var ref
                                                       into lhs */
-        cc_parse_expression(ctx, assign_node->data.binop.right);
+        cc_parse_declarator_assignment_expression(
+            ctx, assign_node->data.binop.right, var);
         cc_ast_add_block_node(node, assign_node); /* Add binop expr to block */
     }
     return true;
@@ -1639,10 +1666,10 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         switch (ctok->type) {
         case LEXER_TOKEN_COMMA:
             cc_lex_token_consume(ctx);
-            
+
             /* Save the type somewhere safe, destroy the var,
                recreate the var with our type and destroy the type. */
-            cc_ast_type stype = {0};
+            cc_ast_type stype = { 0 };
             cc_ast_copy_type(&stype, &var.type);
             cc_ast_destroy_var(&var, false);
             memset(&var, 0, sizeof(var));
@@ -1684,9 +1711,11 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         }
     }
 
-    if(var.name == NULL) {
+    if (var.name == NULL) {
         if (var.type.name == NULL) {
-            cc_diag_error(ctx, "Anonymous external declaration of variable with type '%s'", var.type.name);
+            cc_diag_error(ctx,
+                "Anonymous external declaration of variable with type '%s'",
+                var.type.name);
             goto error_handle;
         } else {
             return true;

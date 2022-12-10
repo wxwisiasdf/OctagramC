@@ -1,11 +1,12 @@
 CC = gcc
-CFLAGS = -std=c99 -D_FORTIFY_SOURCE=2 -DANSI_COLOUR=1 -Wall -Wextra -pedantic -Wno-unused-parameter -O0 -g
+CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
+	-pedantic -Wno-unused-parameter -O0 -g
 
 all: build
 
 run: build
-#	valgrind --leak-check=full --track-origins=yes ./cc hello.in -o
-#	gdb --args ./cc hello.in -o
+#	valgrind --leak-check=full --track-origins=yes ./cc stt.c
+	gdb --args ./cc stt.c
 
 build: cc
 
