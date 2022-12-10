@@ -832,7 +832,7 @@ static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
-    || ctok->type != LEXER_TOKEN_sizeof)
+        || ctok->type != LEXER_TOKEN_sizeof)
         return false;
 
     cc_lex_token_consume(ctx);
@@ -884,8 +884,7 @@ static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    unsigned int obj_sizeof
-        = ctx->backend_data->get_sizeof(ctx, &virtual_type);
+    unsigned int obj_sizeof = ctx->backend_data->get_sizeof(ctx, &virtual_type);
     /* TODO: Better way to convert our numbers into strings */
     static char numbuf[80];
     snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
@@ -901,7 +900,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     cc_ast_node* expr_node = NULL;
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
@@ -925,7 +924,8 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         } else { /* Not a call, just a variable reference*/
             expr_node = cc_ast_create_var_ref(ctx, node, var);
         }
-    } goto finish_expr_setup;
+    }
+        goto finish_expr_setup;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
@@ -966,14 +966,12 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
                 ctx, arr_deref_node->data.unop.child, AST_BINOP_PLUS);
             expr_node->parent = arr_index_node->data.binop.left;
-            cc_ast_add_block_node(
-                arr_index_node->data.binop.left, expr_node);
+            cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
             cc_parse_expression(ctx, arr_index_node->data.binop.right);
             cc_ast_add_block_node(
                 arr_deref_node->data.unop.child, arr_index_node);
             cc_ast_add_block_node(node, arr_deref_node);
-            CC_PARSE_EXPECT(
-                ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
         }
             return true;
         case LEXER_TOKEN_DOT:
@@ -981,16 +979,14 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_lex_token_consume(ctx);
             cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
                 ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT
-                                                : AST_BINOP_ARROW);
+                                              : AST_BINOP_ARROW);
             expr_node->parent = accessor_node->data.binop.left;
-            cc_ast_add_block_node(
-                accessor_node->data.binop.left, expr_node);
+            cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
             CC_PARSE_EXPECT(
                 ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
             cc_ast_node* var_node = cc_ast_create_field_ref(
                 ctx, accessor_node->data.binop.right, ctok->data);
-            cc_ast_add_block_node(
-                accessor_node->data.binop.right, var_node);
+            cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
             cc_ast_add_block_node(node, accessor_node);
         }
             return true;
@@ -1014,7 +1010,7 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if (cc_parse_unary_sizeof(ctx, node))
         return true;
-    
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         cc_ast_node *binop_node = NULL, *literal_node = NULL, *unop_node = NULL;
         switch (ctok->type) {
@@ -1090,7 +1086,7 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
     }
 
     _Bool has_match = false;
-    while(cc_parse_postfix_expression(ctx, node))
+    while (cc_parse_postfix_expression(ctx, node))
         has_match = true;
     return has_match;
 error_handle:
@@ -1544,8 +1540,7 @@ error_handle:
    as this is used by both compound and external declarations to declare
    multiple variables at once. */
 static _Bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
-                                      cc_ast_variable *var,
-                                      _Bool *is_parsing_typedef)
+    cc_ast_variable* var, _Bool* is_parsing_typedef)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
@@ -1585,7 +1580,7 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         goto error_handle;
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_COMMA) {
+        && ctok->type == LEXER_TOKEN_COMMA) {
         cc_lex_token_consume(ctx);
         /* Save the type somewhere safe, destroy the var,
             recreate the var with our type and destroy the type. */
@@ -1702,8 +1697,8 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 } else {
                     cc_ast_variable nvar = { 0 };
                     _Bool is_parsing_typedef = false;
-                    if (!cc_parse_declarator_list(ctx, node, &nvar,
-                                                  &is_parsing_typedef))
+                    if (!cc_parse_declarator_list(
+                            ctx, node, &nvar, &is_parsing_typedef))
                         goto error_handle;
                     if (!is_parsing_typedef)
                         cc_ast_add_block_variable(node, &nvar);
@@ -1713,11 +1708,11 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         default: {
             /* First try interpreting as an expression, then if that
                does NOT work, fallback to the declarator */
-            if(!cc_parse_expression(ctx, node)) {
+            if (!cc_parse_expression(ctx, node)) {
                 cc_ast_variable nvar = { 0 };
                 _Bool is_parsing_typedef = false;
-                if (!cc_parse_declarator_list(ctx, node, &nvar,
-                                                &is_parsing_typedef))
+                if (!cc_parse_declarator_list(
+                        ctx, node, &nvar, &is_parsing_typedef))
                     goto error_handle;
                 if (!is_parsing_typedef)
                     cc_ast_add_block_variable(node, &nvar);

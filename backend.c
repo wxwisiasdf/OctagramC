@@ -441,14 +441,24 @@ void cc_backend_process_node(
     case AST_NODE_BLOCK:
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            if (var->type.mode == TYPE_MODE_FUNCTION)
-                cc_backend_process_function(ctx, var);
-            else
+            if (var->type.mode != TYPE_MODE_FUNCTION)
                 ctx->backend_data->map_variable(ctx, var);
         }
 
-        for (size_t i = 0; i < node->data.block.n_children; i++)
-            cc_backend_process_node(ctx, &node->data.block.children[i], ovmap);
+        for (size_t i = 0; i < node->data.block.n_vars; i++) {
+            const cc_ast_variable* var = &node->data.block.vars[i];
+            if (var->type.mode == TYPE_MODE_FUNCTION)
+                cc_backend_process_function(ctx, var);
+        }
+
+        for (size_t i = 0; i < node->data.block.n_children; i++) {
+            const cc_ast_node* child = &node->data.block.children[i];
+            const cc_ast_node* old_outermost_stmt
+                = ctx->backend_data->outermost_stmt;
+            ctx->backend_data->outermost_stmt = child;
+            cc_backend_process_node(ctx, child, ovmap);
+            ctx->backend_data->outermost_stmt = old_outermost_stmt;
+        }
         break;
     case AST_NODE_CALL:
         cc_backend_process_call(ctx, node);

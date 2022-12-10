@@ -280,6 +280,9 @@ _Bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         return false;
 
     switch (type) {
+    case AST_BINOP_COND_AND:
+    case AST_BINOP_COND_OR:
+        break;
     case AST_BINOP_PLUS:
     case AST_BINOP_MINUS:
     case AST_BINOP_AND:

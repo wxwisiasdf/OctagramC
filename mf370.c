@@ -318,6 +318,9 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         return false;
 
     switch (type) {
+    case AST_BINOP_COND_AND:
+    case AST_BINOP_COND_OR:
+        break;
     case AST_BINOP_PLUS:
     case AST_BINOP_MINUS:
     case AST_BINOP_AND:
@@ -412,7 +415,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
             break;
         }
 
-        fprintf(ctx->out, "\tCMP\t%s, %s\n", reg_names[lvmap->regno],
+        fprintf(ctx->out, "\tCR\t%s, %s\n", reg_names[lvmap->regno],
             reg_names[rvmap->regno]);
         fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, branch_lnum);
         constant.constant = 1ul;

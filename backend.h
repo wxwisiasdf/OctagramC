@@ -30,6 +30,7 @@ typedef struct cc_backend_reginfo {
 } cc_backend_reginfo;
 
 typedef struct cc_backend_context {
+    const cc_ast_node* outermost_stmt; /* For scheduling ++/--, &&, ||, etc. */
     cc_backend_varmap* varmaps;
     size_t n_varmaps;
     const char** reg_names;

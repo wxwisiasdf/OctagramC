@@ -112,10 +112,10 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
     case 10:
         while (isdigit(*p))
             p++;
-        
+
         if (*p == '.')
             p++;
-        
+
         while (isdigit(*p))
             p++;
         break;
@@ -181,7 +181,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             ctx->cptr++;
         if (*ctx->cptr == '\0')
             break;
-        
+
         /* Special handling for literals of the form:
            .<numbers><suffix> */
         if (ctx->cptr[0] == '.' && isdigit(ctx->cptr[1]))
@@ -192,7 +192,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             /* Special handling for the idents, literals, etc */
             if (isdigit(*ctx->cptr)) { /* Numbers */
                 const char* s;
-handle_literal:
+            handle_literal:
                 s = ctx->cptr;
                 ctx->cptr = cc_lex_literal(ctx, ctx->cptr);
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
