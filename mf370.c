@@ -289,13 +289,13 @@ _Bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
         nlvmap.flags = VARMAP_REGISTER;
         fprintf(ctx->out, "\tLA\t");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, &nlvmap);
         fprintf(ctx->out, "\n");
 
         fprintf(ctx->out, "\tL\t(");
         cc_mf370_print_varmap(ctx, &nlvmap);
-        fprintf(ctx->out, "), ");
+        fprintf(ctx->out, "),");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
     } break;
@@ -348,35 +348,35 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         }
         fprintf(ctx->out, "\t%sl\t", insn);
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
     } break;
     case AST_BINOP_MUL:
         fprintf(ctx->out, "\tMR\t");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_DIV:
         fprintf(ctx->out, "\tDR\t");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_LSHIFT:
         fprintf(ctx->out, "\tSLR\t");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;
     case AST_BINOP_RSHIFT:
         fprintf(ctx->out, "\tSRR\t");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ", ");
+        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         break;

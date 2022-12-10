@@ -374,6 +374,39 @@ static void cc_backend_process_binop(
         ctx->backend_data->gen_mov(ctx, ovmap, &lvmap);
 }
 
+static void cc_backend_process_if(
+    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
+{
+    assert(node->type == AST_NODE_IF);
+    const cc_ast_node* child = node->data.unop.child;
+
+    /*fprintf(ctx->out, "#backend-gen-unop\n");*/
+    if (node->data.unop.op == AST_UNOP_POSTDEC
+        || node->data.unop.op == AST_UNOP_POSTINC
+        || node->data.unop.op == AST_UNOP_PREDEC
+        || node->data.unop.op == AST_UNOP_PREINC) {
+        /*fprintf(ctx->out, "#todo-properly-do-post/prefix-inc/dec\n");*/
+        return;
+    }
+
+    cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, child);
+    cc_backend_process_node(ctx, node->data.if_expr.cond, &rvmap);
+
+    cc_backend_varmap lvmap = {0};
+    lvmap.flags = VARMAP_CONSTANT;
+    lvmap.constant = 1;
+    ctx->backend_data->gen_branch(ctx, node->data.if_expr.block, &lvmap, &rvmap, AST_BINOP_COND_EQ);
+    if (node->data.if_expr.tail_else) {
+        ctx->backend_data->gen_branch(ctx, node->data.if_expr.tail_else, &lvmap, &rvmap, AST_BINOP_COND_NEQ);
+    } else {
+        assert(node->parent != NULL);
+        ctx->backend_data->gen_jump(ctx, node->parent);
+    }
+
+    cc_backend_process_node(ctx, node->data.if_expr.block, ovmap);
+    cc_backend_process_node(ctx, node->data.if_expr.tail_else, ovmap);
+}
+
 static const cc_ast_node** cc_ast_collect_cases(
     const cc_ast_node* node, const cc_ast_node*** list, size_t* n_list)
 {
@@ -468,9 +501,7 @@ void cc_backend_process_node(
             ctx->backend_data->current_func_var);
         break;
     case AST_NODE_IF:
-        cc_backend_process_node(ctx, node->data.if_expr.cond, ovmap);
-        cc_backend_process_node(ctx, node->data.if_expr.block, ovmap);
-        cc_backend_process_node(ctx, node->data.if_expr.tail_else, ovmap);
+        cc_backend_process_if(ctx, node, ovmap);
         break;
     case AST_NODE_JUMP: {
         cc_ast_node* fnode
@@ -513,7 +544,8 @@ void cc_backend_process_node(
     } break;
     default:
         if (ovmap == NULL) {
-            cc_diag_error(ctx, "Variable without specified varmap for output");
+            cc_ast_print(node, 0);
+            cc_diag_error(ctx, "Node without specified varmap for output");
             break;
         }
         cc_backend_varmap vvmap = cc_backend_get_node_varmap(ctx, node);

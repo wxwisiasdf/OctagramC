@@ -11,12 +11,12 @@
 #define MAX_ARRAY_SIZE 65536
 
 typedef struct cc_ast_type_cv {
-    _Bool is_const;
-    _Bool is_volatile;
-    _Bool is_restrict;
-    _Bool is_atomic;
-    _Bool is_array; /* Treating this pointer as array? */
-    _Bool is_static_array; /* If the given size of the array is an static */
+    _Bool is_const : 1;
+    _Bool is_volatile : 1;
+    _Bool is_restrict : 1;
+    _Bool is_atomic : 1;
+    _Bool is_array : 1; /* Treating this pointer as array? */
+    _Bool is_static_array : 1; /* If the given size of the array is an static */
     unsigned int array_size; /* Size of the array! */
 } cc_ast_type_cv;
 
@@ -274,6 +274,6 @@ void cc_ast_iterate(const cc_ast_node *node,
 #endif
 cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned int id);
-void cc_ast_print(cc_ast_node* node, int ident);
+void cc_ast_print(const cc_ast_node* node, int ident);
 
 #endif

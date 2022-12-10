@@ -24,18 +24,16 @@ static char* cc_lex_get_logical_line(cc_context* ctx)
         total_len += len;
         p = cc_realloc(p, total_len + 1);
         memcpy(p, tmpbuf, len + 1);
+        cc_diag_increment_linenum(ctx);
 
         /* Logical lines can only continue after ecaping the newline */
         if (len > 1 && tmpbuf[len - 2] == '\\' && tmpbuf[len - 1] == '\n') {
-            cc_diag_increment_linenum(ctx);
             continue;
         } else if (len > 0 && tmpbuf[len - 1] == '\\') {
-            cc_diag_increment_linenum(ctx);
             continue;
         }
         break;
     }
-    cc_diag_increment_linenum(ctx);
     return p;
 }
 

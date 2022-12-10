@@ -588,7 +588,7 @@ cc_ast_node* cc_ast_find_label_id(
     return NULL;
 }
 
-void cc_ast_print(cc_ast_node* node, int ident)
+void cc_ast_print(const cc_ast_node* node, int ident)
 {
     if (node == NULL) {
         printf("<null>");
