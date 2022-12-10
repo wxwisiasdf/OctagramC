@@ -429,12 +429,8 @@ void cc_backend_process_node(
 {
     if (node == NULL)
         return;
-
-    if (node->ref_count > 0)
-        fprintf(ctx->out, "L%u: #refs=%u\n", node->label_id, node->ref_count);
-
+    
     ctx->diag_node = node;
-
     switch (node->type) {
     case AST_NODE_UNOP:
         cc_backend_process_unop(ctx, node, ovmap);

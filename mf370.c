@@ -147,7 +147,7 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         unsigned int branch_label_id = cc_backend_get_labelnum(ctx);
         unsigned int literal_label_id = cc_backend_get_labelnum(ctx);
 
-        fprintf(ctx->out, "\tBR\tL%i\n", branch_label_id);
+        fprintf(ctx->out, "\tB\tL%i\n", branch_label_id);
         fprintf(ctx->out, "L%i\tDS\t0H\n", literal_label_id);
         if (lvmap->flags == VARMAP_LITERAL)
             fprintf(ctx->out, "\tDC\tC'%s'\n", lvmap->data);
@@ -388,7 +388,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         cc_backend_varmap constant = { 0 };
         constant.flags = VARMAP_CONSTANT;
 
-        const char* jmp_insn = "BR";
+        const char* jmp_insn = "B";
         switch (type) {
         case AST_BINOP_GT:
             jmp_insn = "BGT";
@@ -417,7 +417,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, branch_lnum);
         constant.constant = 1ul;
         ctx->backend_data->gen_mov(ctx, lvmap, &constant);
-        fprintf(ctx->out, "\tBR\tL%u\n", finish_lnum);
+        fprintf(ctx->out, "\tB\tL%u\n", finish_lnum);
 
         fprintf(ctx->out, "L%u\tDS\t0H\n", branch_lnum);
         constant.constant = 0ul;
@@ -430,6 +430,69 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         break;
     }
     return true;
+}
+
+_Bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
+    const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
+    enum cc_ast_binop_type type)
+{
+    fprintf(ctx->out, "#switch-case %i\n", type);
+    switch (type) {
+    case AST_BINOP_GT:
+    case AST_BINOP_GTE:
+    case AST_BINOP_LT:
+    case AST_BINOP_LTE:
+    case AST_BINOP_COND_EQ:
+    case AST_BINOP_COND_NEQ: {
+        const char* jmp_insn = "B";
+        switch (type) {
+        case AST_BINOP_GT:
+            jmp_insn = "BGT";
+            break;
+        case AST_BINOP_GTE:
+            jmp_insn = "BGE";
+            break;
+        case AST_BINOP_LT:
+            jmp_insn = "BLT";
+            break;
+        case AST_BINOP_LTE:
+            jmp_insn = "BLE";
+            break;
+        case AST_BINOP_COND_EQ:
+            jmp_insn = "BEQ";
+            break;
+        case AST_BINOP_COND_NEQ:
+            jmp_insn = "BNE";
+            break;
+        default:
+            break;
+        }
+
+        if ((lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_LITERAL)
+        || (lvmap->flags == VARMAP_LITERAL && rvmap->flags == VARMAP_REGISTER)) {
+            fprintf(ctx->out, "\tC\t");
+        } else if ((lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_CONSTANT)
+        || (lvmap->flags == VARMAP_CONSTANT && rvmap->flags == VARMAP_REGISTER)) {
+            fprintf(ctx->out, "\tCFI\t");
+        } else if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_REGISTER) {
+            fprintf(ctx->out, "\tCR\t");
+        } else {
+            cc_diag_error(ctx, "Invalid combination for compare");
+            return false;
+        }
+
+        cc_mf370_print_varmap(ctx, lvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
+        fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, node->label_id);
+    }
+        return true;
+    default:
+        cc_diag_error(ctx, "Can't generate branch for binop %i", type);
+        break;
+    }
+    return false;
 }
 
 _Bool cc_mf370_gen_prologue(
@@ -494,6 +557,7 @@ int cc_mf370_top(cc_context* ctx)
     ctx->backend_data->gen_jump = &cc_mf370_gen_jump;
     ctx->backend_data->gen_binop = &cc_mf370_gen_binop;
     ctx->backend_data->gen_unop = &cc_mf370_gen_unop;
+    ctx->backend_data->gen_branch = &cc_mf370_gen_branch;
     ctx->stage = STAGE_AST;
     cc_backend_process_node(ctx, ctx->root, NULL);
     cc_backend_deinit(ctx);

@@ -288,6 +288,8 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
             if (var->type.mode == TYPE_MODE_FUNCTION) {
                 for (size_t j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
+                    /* Unnamed parameters are supported and valid */
+                    if (param->name == NULL) continue;
                     if (!strcmp(param->name, name))
                         return param;
                 }
@@ -594,6 +596,9 @@ void cc_ast_print(cc_ast_node* node, int ident)
         cc_ast_print(node->data.binop.left, ident);
         printf(") ");
         switch (node->data.binop.op) {
+        case AST_BINOP_NONE:
+            printf("XXX");
+            break;
         case AST_BINOP_GT:
             printf(">");
             break;
