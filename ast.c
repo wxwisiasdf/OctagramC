@@ -294,7 +294,7 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
                     /* Unnamed parameters are supported and valid */
                     if (param->name == NULL)
                         continue;
-                    
+
                     if (!strcmp(param->name, name))
                         return param;
                 }

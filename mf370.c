@@ -202,15 +202,22 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         return true;
     }
 
-    if (lvmap->flags == VARMAP_STACK) {
+    if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC)
+    && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_STATIC)) {
         cc_backend_varmap mvmap = { 0 };
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
         mvmap.flags = VARMAP_REGISTER;
-        fprintf(ctx->out, "\tL\t%s,%u(R13)\n", reg_names[mvmap.regno],
-            rvmap->offset);
-        fprintf(ctx->out, "\tST\t%s,%u(R13)\n", reg_names[mvmap.regno],
-            lvmap->offset);
+        fprintf(ctx->out, "\tL\t"); /* Load to temporal reg */
+        cc_mf370_print_varmap(ctx, &mvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
+        fprintf(ctx->out, "\tST\t"); /* Store back */
+        cc_mf370_print_varmap(ctx, lvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
         cc_backend_free_register(ctx, mvmap.regno);
         return true;
     }
@@ -308,7 +315,7 @@ _Bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     case AST_UNOP_REF:
         break;
     default:
-        cc_diag_error(ctx, "Unrecognized unop type %u", type);
+        /*cc_diag_error(ctx, "Unrecognized unop type %u", type);*/
         break;
     }
     return true;

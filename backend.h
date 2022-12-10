@@ -22,6 +22,7 @@ typedef struct cc_backend_varmap {
     unsigned long constant;
     char* data;
     size_t n_data;
+    unsigned int depth; /* Depth at which the varmap was made */
 } cc_backend_varmap;
 
 typedef struct cc_backend_reginfo {
@@ -35,6 +36,7 @@ typedef struct cc_backend_context {
                                              require scheduling too */
     cc_backend_varmap* varmaps;
     size_t n_varmaps;
+    unsigned int varmap_depth; /* Depth for moving/removing varmaps */
     const char** reg_names;
     cc_backend_reginfo* regs;
     size_t n_regs;

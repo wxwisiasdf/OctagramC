@@ -113,6 +113,7 @@ void cc_backend_add_varmap(cc_context* ctx, const cc_ast_variable* restrict var)
 
     /* Populate variable mapping */
     vmap->var = var;
+    vmap->depth = ctx->backend_data->varmap_depth;
     if (var->type.storage == STORAGE_THREAD_LOCAL) {
         vmap->flags = VARMAP_THREAD_LOCAL;
     } else if (var->type.storage == STORAGE_STATIC
@@ -129,12 +130,31 @@ void cc_backend_add_varmap(cc_context* ctx, const cc_ast_variable* restrict var)
     }
 }
 
+void cc_backend_increment_varmap_depth(cc_context* ctx)
+{
+    ctx->backend_data->varmap_depth++;
+}
+
+void cc_backend_decrement_varmap_depth(cc_context* ctx)
+{
+    assert(ctx->backend_data->varmap_depth > 0);
+    ctx->backend_data->varmap_depth--;
+    /* Remove out-of-scope varmaps */
+    for (size_t i = 0; i < ctx->backend_data->n_varmaps; i++) {
+        cc_backend_varmap* vmap = &ctx->backend_data->varmaps[i];
+        if (vmap->depth > ctx->backend_data->varmap_depth)
+            memmove(&ctx->backend_data->varmaps[i],
+                &ctx->backend_data->varmaps[i + 1],
+                sizeof(*vmap) * (ctx->backend_data->n_varmaps - i - 1));
+    }
+}
+
 cc_backend_varmap* cc_backend_find_var_varmap(
     cc_context* ctx, const cc_ast_variable* restrict var)
 {
     for (size_t i = 0; i < ctx->backend_data->n_varmaps; i++) {
         cc_backend_varmap* vmap = &ctx->backend_data->varmaps[i];
-        if (vmap->var == var)
+        if (!strcmp(vmap->var->name, var->name))
             return vmap;
     }
 
@@ -219,6 +239,8 @@ static void cc_backend_process_function(
     cc_context* ctx, const cc_ast_variable* var)
 {
     assert(var->type.mode == TYPE_MODE_FUNCTION);
+
+    cc_backend_increment_varmap_depth(ctx);
     ctx->backend_data->stack_frame_size = 0;
     for (size_t i = 0; i < var->type.data.func.n_params; i++) {
         const cc_ast_variable* param = &var->type.data.func.params[i];
@@ -227,6 +249,8 @@ static void cc_backend_process_function(
         cc_backend_add_varmap(ctx, param);
     }
 
+    const cc_ast_variable* old_current_func_var
+        = ctx->backend_data->current_func_var;
     ctx->backend_data->current_func_var = var;
     if (var->body != NULL)
         cc_backend_map_variables(ctx, var->body);
@@ -247,7 +271,8 @@ static void cc_backend_process_function(
         ctx->backend_data->gen_epilogue(ctx, var->body, var);
         cc_backend_process_node(ctx, var->body, NULL);
     }
-    ctx->backend_data->current_func_var = NULL;
+    ctx->backend_data->current_func_var = old_current_func_var;
+    cc_backend_decrement_varmap_depth(ctx);
 }
 
 static void cc_backend_process_call(cc_context* ctx, const cc_ast_node* node)
@@ -319,6 +344,8 @@ static void cc_backend_process_binop(
             cc_backend_process_binop(ctx, lhs, &lvmap);
         } else if (lhs->type == AST_NODE_UNOP) {
             cc_backend_process_unop(ctx, lhs, &lvmap);
+        } else if (lhs->type == AST_NODE_BLOCK) {
+            /* TODO: Process block */
         } else {
             cc_diag_error(ctx, "Unknown assignment LHS %i", lhs->type);
             return;
@@ -468,16 +495,10 @@ void cc_backend_process_node(
         cc_backend_process_binop(ctx, node, ovmap);
         break;
     case AST_NODE_BLOCK:
+        cc_backend_increment_varmap_depth(ctx);
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            if (var->type.storage == STORAGE_STATIC
-                || var->type.storage == STORAGE_EXTERN
-                || var->type.storage == STORAGE_GLOBAL) {
-                cc_backend_add_varmap(ctx, var);
-            } else if (var->type.storage == STORAGE_AUTO) {
-                cc_backend_add_varmap(ctx, var);
-            }
-
+            cc_backend_add_varmap(ctx, var);
             if (var->type.mode != TYPE_MODE_FUNCTION)
                 ctx->backend_data->map_variable(ctx, var);
         }
@@ -496,6 +517,7 @@ void cc_backend_process_node(
             cc_backend_process_node(ctx, child, ovmap);
             ctx->backend_data->outermost_stmt = old_outermost_stmt;
         }
+        cc_backend_decrement_varmap_depth(ctx);
         break;
     case AST_NODE_CALL:
         cc_backend_process_call(ctx, node);

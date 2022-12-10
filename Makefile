@@ -1,12 +1,12 @@
 CC = gcc
 CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
-	-pedantic -Wno-unused-parameter -O0 -g
+	-pedantic -Wno-unused-parameter -O2 -g -march=native
 
 all: build
 
 run: build
 #	valgrind --leak-check=full --track-origins=yes ./cc stt.c
-	gdb --args ./cc stt.c
+	gdb --args ./cc stt.c -370
 
 build: cc
 
