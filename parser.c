@@ -113,6 +113,9 @@ static _Bool cc_parse_struct_or_union_specifier(
 
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+
+    /* We will add structs that are not anonymous into the current defined
+       types list so we can use them later as required. */
     if (type->name != NULL) /* Non-anonymous struct */
         cc_ast_add_block_type(node, type);
     return true;
@@ -827,6 +830,47 @@ static _Bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
 static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_sizeof) {
+        cc_lex_token_consume(ctx);
+
+        /* This block is just a virtual block and will be destroyed
+            once we finish evaluating our sizeof. */
+        cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
+
+        _Bool old_v = ctx->declaration_ident_optional;
+        ctx->declaration_ident_optional = true;
+        
+        /* Parenthesis following means we can evaluate and obtain the size
+           of a concise expression, otherwise we have to stick with another
+           unary expression. */
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_LPAREN) {
+            cc_lex_token_consume(ctx);
+            cc_ast_variable virtual_var = {0};
+            if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
+                cc_diag_error(ctx, "Expected unary expression after sizeof");
+                ctx->declaration_ident_optional = old_v;
+                cc_ast_destroy_node(virtual_node, true);
+                goto error_handle;
+            }
+            cc_ast_destroy_var(&virtual_var, false);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+        } else {
+            ctx->declaration_ident_optional = true;
+            if (!cc_parse_unary_expression(ctx, virtual_node)) {
+                cc_diag_error(ctx, "Expected unary expression after sizeof");
+                ctx->declaration_ident_optional = old_v;
+                cc_ast_destroy_node(virtual_node, true);
+                goto error_handle;
+            }
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+        }
+        ctx->declaration_ident_optional = old_v;
+        cc_ast_destroy_node(virtual_node, true);
+        return true;
+    }
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         cc_ast_node *binop_node = NULL, *literal_node = NULL, *unop_node = NULL;
         switch (ctok->type) {
@@ -1278,7 +1322,7 @@ static _Bool cc_parse_declarator(
         }
     } break;
     default:
-        if (ctx->is_parsing_prototype)
+        if (ctx->is_parsing_prototype || ctx->declaration_ident_optional)
             goto ignore_missing_ident;
         cc_diag_error(ctx, "Expected identifier or '(' for declarator");
         cc_lex_token_consume(ctx);
@@ -1530,6 +1574,11 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     cc_ast_variable var = { 0 };
     _Bool decl_result = !cc_parse_declarator(ctx, node, &var);
 
+    /* Types with a given name **can** */
+    if (var.name != NULL) {
+        printf("var=%s\n", var.name);
+    }
+
     /* A typedef can be treated as a variable UNTIL we exit the declarator
        parser loop. Once we exit it we will have to convert the variable
        into a typedef we can toy with.
@@ -1543,8 +1592,8 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         }
 
         cc_ast_typedef ntpdef = { 0 };
-        ntpdef.name = cc_strdup(var.name);
         cc_ast_copy_type(&ntpdef.type, &var.type); /* Copy type over */
+        ntpdef.name = cc_strdup(var.name);
         cc_ast_add_block_typedef(node, &ntpdef);
         ctx->is_parsing_typedef = false;
     }
@@ -1552,16 +1601,23 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     /* Not a variable declaration - just a type declaration or a forward
        declaration of sorts. */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_SEMICOLON) {
-        cc_lex_token_consume(ctx);
-
-        if (var.name == NULL) {
+    && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        /* The declarator function will parse expressions such as:
+           struct abc def {}, then proceed to put 'abc' on var.type.name
+           and 'def' on var.name, hence, on forward declarations such as:
+           struct abc; it is wise to grab the first identifier found
+           by the declarator function; but if it is not available (eg. nul)
+           then grab the var.name as a fallback. */
+        if (var.name == NULL && var.type.name == NULL) {
             cc_diag_error(ctx, "Forward declaration without identifier");
             goto error_handle;
         }
+        const char *name = var.type.name != NULL ? var.type.name : var.name;
 
+        cc_lex_token_consume(ctx);
         cc_ast_type type = { 0 };
         cc_ast_copy_type(&type, &var.type);
+        type.name = cc_strdup(name);
         cc_ast_add_block_type(node, &type);
         cc_ast_destroy_var(&var, false);
         return true;

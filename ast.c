@@ -141,6 +141,7 @@ void cc_ast_add_block_node(
 void cc_ast_add_block_typedef(cc_ast_node* block, const cc_ast_typedef* tpdef)
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
+    assert(tpdef->name != NULL);
     block->data.block.typedefs = cc_realloc(block->data.block.typedefs,
         sizeof(cc_ast_typedef) * (block->data.block.n_typedefs + 1));
     block->data.block.typedefs[block->data.block.n_typedefs++] = *tpdef;
@@ -150,6 +151,7 @@ void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type)
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
     assert(type->mode != TYPE_MODE_NONE);
+    assert(type->name != NULL);
     block->data.block.types = cc_realloc(block->data.block.types,
         sizeof(cc_ast_type) * (block->data.block.n_types + 1));
     block->data.block.types[block->data.block.n_types++] = *type;

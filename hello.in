@@ -1,11 +1,27 @@
-extern int printf(const char *fmt, ...);
+extern int printf(const char *, ...);
+
+int switch_test(int x) {
+    if (x > 10)
+        return 7;
+    
+    switch (x) {
+    case 0:
+        return 1;
+    case 10:
+        break;
+    case 5:
+        break;
+    default:
+        break;
+    }
+    return x;
+}
+
+constexpr int eval_test(int x) {
+    
+}
 
 int main(int argc, char **argv) {
-    switch (argc) {
-    case 10: break;
-    case 5: break;
-    default: break;
-    }
     printf("Hello world!\n");
     return 0;
 }
