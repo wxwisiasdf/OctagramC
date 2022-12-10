@@ -168,21 +168,21 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
                 lvmap->offset);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_STACK) {
-            cc_backend_varmap mvmap = {0};
+            cc_backend_varmap mvmap = { 0 };
             cc_backend_spill(ctx, 1);
             mvmap.regno = cc_backend_alloc_register(ctx);
             mvmap.flags = VARMAP_REGISTER;
-            fprintf(
-                ctx->out, "\tLA\t%s,%u(R13)\n", reg_names[mvmap.regno], rvmap->offset);
-            fprintf(
-                ctx->out, "\tST\t%s,=V(L%i)\n", reg_names[mvmap.regno], literal_label_id);
+            fprintf(ctx->out, "\tLA\t%s,%u(R13)\n", reg_names[mvmap.regno],
+                rvmap->offset);
+            fprintf(ctx->out, "\tST\t%s,=V(L%i)\n", reg_names[mvmap.regno],
+                literal_label_id);
             cc_backend_free_register(ctx, mvmap.regno);
         }
         return true;
     }
 
     if (lvmap->flags == VARMAP_STACK) {
-        cc_backend_varmap mvmap = {0};
+        cc_backend_varmap mvmap = { 0 };
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
         mvmap.flags = VARMAP_REGISTER;
@@ -243,7 +243,7 @@ _Bool cc_mf370_gen_epilogue(
 cc_backend_varmap cc_mf370_get_call_retval(
     cc_context* ctx, const cc_ast_node* node)
 {
-    cc_backend_varmap vmap = {0};
+    cc_backend_varmap vmap = { 0 };
     cc_backend_reserve_reg(ctx, MF370_R1);
     vmap.regno = MF370_R1;
     vmap.flags = VARMAP_REGISTER;
@@ -284,7 +284,7 @@ _Bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     switch (type) {
     case AST_UNOP_DEREF: {
         cc_backend_spill(ctx, 1);
-        cc_backend_varmap nlvmap = {0};
+        cc_backend_varmap nlvmap = { 0 };
         nlvmap.regno = cc_backend_alloc_register(ctx);
         nlvmap.flags = VARMAP_REGISTER;
         fprintf(ctx->out, "\tLA\t");
@@ -385,7 +385,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     case AST_BINOP_COND_NEQ: {
         unsigned int branch_lnum = cc_backend_get_labelnum(ctx);
         unsigned int finish_lnum = cc_backend_get_labelnum(ctx);
-        cc_backend_varmap constant = {0};
+        cc_backend_varmap constant = { 0 };
         constant.flags = VARMAP_CONSTANT;
 
         const char* jmp_insn = "BR";
@@ -439,7 +439,7 @@ _Bool cc_mf370_gen_prologue(
     cc_backend_unspill(ctx);
     if (node != NULL) {
         /* TODO: Generate & return on EAX */
-        cc_backend_varmap lvmap = {0};
+        cc_backend_varmap lvmap = { 0 };
         cc_backend_reserve_reg(ctx, MF370_R1);
         lvmap.flags = VARMAP_REGISTER;
         lvmap.regno = MF370_R1;

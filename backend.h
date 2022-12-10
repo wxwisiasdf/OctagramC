@@ -1,9 +1,9 @@
 #ifndef BACKEND_H
 #define BACKEND_H 1
 
-#include <stddef.h>
 #include "ast.h"
 #include "context.h"
+#include <stddef.h>
 
 enum cc_backend_varmap_flags {
     VARMAP_REGISTER,

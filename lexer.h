@@ -1,8 +1,8 @@
 #ifndef LEXER_H
 #define LEXER_H 1
 
-#include "diag.h"
 #include "context.h"
+#include "diag.h"
 
 #define LEXER_TOKEN_LIST_R(x) LEXER_TOKEN_LIST_1(x, #x)
 #define LEXER_TOKEN_LIST                                                       \

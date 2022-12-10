@@ -1,8 +1,8 @@
 #ifndef DIAG_H
 #define DIAG_H 1
 
-#include <stddef.h>
 #include "context.h"
+#include <stddef.h>
 
 typedef struct cc_diag_info {
     char* filename;

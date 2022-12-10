@@ -668,7 +668,8 @@ void cc_ast_print(cc_ast_node* node, int ident)
     case AST_NODE_BLOCK:
         printf("{ ");
         if (node->data.block.is_case)
-            printf("case(%u,%s)", node->data.block.case_val, node->data.block.is_default ? "default" : "case");
+            printf("case(%u,%s)", node->data.block.case_val,
+                node->data.block.is_default ? "default" : "case");
 
         for (size_t i = 0; i < node->data.block.n_typedefs; i++) {
             const cc_ast_typedef* tpdef = &node->data.block.typedefs[i];

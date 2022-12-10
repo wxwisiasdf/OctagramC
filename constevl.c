@@ -24,7 +24,8 @@ _Bool cc_ceval_deduce_type(
     case AST_NODE_VARIABLE: {
         cc_ast_variable* var = cc_ast_find_variable(node->data.var.name, node);
         *type = var->type;
-    } return true;
+    }
+        return true;
     case AST_NODE_STRING_LITERAL:
         type->n_cv_qual = 1;
         type->cv_qual[0].is_const = true;

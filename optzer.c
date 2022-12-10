@@ -13,7 +13,7 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, _Bool managed)
     cc_ast_node* node = *pnode;
     if (node == NULL)
         return;
-    
+
     if (node->ref_count) /* Do not remove nodes that are jumped into */
         return;
 

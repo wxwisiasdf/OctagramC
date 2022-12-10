@@ -15,7 +15,7 @@ unsigned int cc_backend_get_labelnum(cc_context* ctx)
 
 void cc_backend_spill_reg(cc_context* ctx, unsigned int regno)
 {
-    cc_backend_varmap ltmp = {0}, rtmp = {0};
+    cc_backend_varmap ltmp = { 0 }, rtmp = { 0 };
     ltmp.flags = VARMAP_STACK;
     ltmp.offset = ctx->backend_data->stack_frame_size;
     rtmp.flags = VARMAP_REGISTER;
@@ -49,7 +49,7 @@ void cc_backend_spill(cc_context* ctx, unsigned int num)
 
 void cc_backend_unspill_reg(cc_context* ctx, unsigned int regno)
 {
-    cc_backend_varmap ltmp = {0}, rtmp = {0};
+    cc_backend_varmap ltmp = { 0 }, rtmp = { 0 };
     ltmp.flags = VARMAP_REGISTER;
     ltmp.regno = regno;
     rtmp.flags = VARMAP_STACK;
@@ -154,7 +154,7 @@ cc_backend_varmap* cc_backend_find_stack_var(
 cc_backend_varmap cc_backend_get_node_varmap(
     cc_context* ctx, const cc_ast_node* node)
 {
-    cc_backend_varmap vmap = {0};
+    cc_backend_varmap vmap = { 0 };
     switch (node->type) {
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
@@ -261,12 +261,12 @@ static void cc_backend_process_call(cc_context* ctx, const cc_ast_node* node)
     unsigned int total_stack = 0;
     for (size_t i = 0; i < node->data.call.n_params; i++) {
         const cc_ast_node* param_node = &node->data.call.params[i];
-        cc_ast_type param_type = {0};
+        cc_ast_type param_type = { 0 };
         cc_ceval_deduce_type(ctx, param_node, &param_type);
 
         cc_backend_varmap pvmap = cc_backend_get_node_varmap(ctx, param_node);
 
-        cc_backend_varmap svmap = {0};
+        cc_backend_varmap svmap = { 0 };
         svmap.flags = VARMAP_STACK;
         svmap.offset = ctx->backend_data->stack_frame_size + total_stack;
         ctx->backend_data->gen_mov(ctx, &svmap, &pvmap);
@@ -307,7 +307,7 @@ static void cc_backend_process_binop(
     const cc_ast_node* rhs = node->data.binop.right;
 
     if (node->data.binop.op == AST_BINOP_DOT) {
-        cc_ast_type type = {0};
+        cc_ast_type type = { 0 };
         if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &type)) {
             cc_diag_error(ctx, "Unable to deduce type");
             return;
@@ -347,13 +347,13 @@ static void cc_backend_process_binop(
     if (!ctx->backend_data->gen_binop(
             ctx, &lvmap, &rvmap, node->data.binop.op)) {
         cc_backend_spill_reg(ctx, 2);
-        cc_backend_varmap nrvmap = {0};
+        cc_backend_varmap nrvmap = { 0 };
         nrvmap.regno = cc_backend_alloc_register(ctx);
         nrvmap.flags = VARMAP_REGISTER;
         ctx->backend_data->gen_mov(ctx, &nrvmap, &rvmap);
         if (!ctx->backend_data->gen_binop(
                 ctx, &lvmap, &nrvmap, node->data.binop.op)) {
-            cc_backend_varmap nlvmap = {0};
+            cc_backend_varmap nlvmap = { 0 };
             nlvmap.regno = cc_backend_alloc_register(ctx);
             nlvmap.flags = VARMAP_REGISTER;
             ctx->backend_data->gen_mov(ctx, &nlvmap, &lvmap);
@@ -427,7 +427,8 @@ static const cc_ast_node** cc_ast_collect_cases(
 void cc_backend_process_node(
     cc_context* ctx, const cc_ast_node* node, cc_backend_varmap* ovmap)
 {
-    if (node == NULL) return;
+    if (node == NULL)
+        return;
 
     if (node->ref_count > 0)
         fprintf(ctx->out, "L%u: #refs=%u\n", node->label_id, node->ref_count);
@@ -476,7 +477,7 @@ void cc_backend_process_node(
     } break;
     case AST_NODE_SWITCH: {
         /* We only evalaute the switch control expression once */
-        cc_backend_varmap vmap = {0};
+        cc_backend_varmap vmap = { 0 };
         vmap.regno = cc_backend_alloc_register(ctx);
         vmap.flags = VARMAP_REGISTER;
         cc_backend_process_node(ctx, node->data.switch_expr.control, &vmap);
@@ -491,10 +492,11 @@ void cc_backend_process_node(
             if (list[i]->data.block.is_default) {
                 default_node = list[i];
             } else {
-                cc_backend_varmap onevmap = {0};
+                cc_backend_varmap onevmap = { 0 };
                 onevmap.flags = VARMAP_CONSTANT;
                 onevmap.constant = list[i]->data.block.case_val;
-                ctx->backend_data->gen_branch(ctx, list[i], &vmap, &onevmap, AST_BINOP_COND_EQ);
+                ctx->backend_data->gen_branch(
+                    ctx, list[i], &vmap, &onevmap, AST_BINOP_COND_EQ);
             }
         }
         if (default_node != NULL)

@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 {
     const char* output_filename = "out.asm";
     const char* input_filename = "main.c";
-    cc_context ctx = {0};
+    cc_context ctx = { 0 };
 
     cc_alloc_init(true);
     enum cc_output_target target = TARGET_AS386;
