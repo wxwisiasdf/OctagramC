@@ -2,8 +2,7 @@
 #define LEXER_H 1
 
 #include "diag.h"
-
-typedef struct cc_context cc_context;
+#include "context.h"
 
 #define LEXER_TOKEN_LIST_R(x) LEXER_TOKEN_LIST_1(x, #x)
 #define LEXER_TOKEN_LIST                                                       \
@@ -128,7 +127,7 @@ cc_lexer_token* cc_lex_token_peek(cc_context* ctx, int offset);
 cc_lexer_token* cc_lex_token_consume(cc_context* ctx);
 int cc_lex_top(cc_context* ctx);
 void cc_lex_print_token(const cc_lexer_token* tok);
-cc_lexer_token* cc_lex_skip_until(
+const cc_lexer_token* cc_lex_skip_until(
     cc_context* ctx, enum cc_lexer_token_type type);
 void cc_lex_deinit(cc_context* ctx);
 

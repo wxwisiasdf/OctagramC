@@ -6,10 +6,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct cc_ast_node cc_ast_node;
-typedef struct cc_ast_type cc_ast_type;
-typedef struct cc_ast_variable cc_ast_variable;
-
 /* AST Parsing */
 #define MAX_CV_QUALIFIERS 3
 #define MAX_ARRAY_SIZE 65536
@@ -71,13 +67,13 @@ typedef struct cc_ast_type {
     union {
         struct {
             _Bool no_return;
-            cc_ast_type* return_type;
-            cc_ast_variable* params;
+            struct cc_ast_type* return_type;
+            struct cc_ast_variable* params;
             size_t n_params;
             _Bool variadic; /* Variadic functions */
         } func;
         struct {
-            cc_ast_variable* members;
+            struct cc_ast_variable* members;
             size_t n_members;
         } s_or_u;
         struct {
@@ -95,7 +91,7 @@ typedef struct cc_ast_typedef {
 typedef struct cc_ast_variable {
     cc_ast_type type;
     char* name;
-    cc_ast_node* body; /* For functions */
+    struct cc_ast_node* body; /* For functions */
     unsigned int id;
 } cc_ast_variable;
 
@@ -153,7 +149,7 @@ enum cc_ast_unop_type {
 
 typedef struct cc_ast_node {
     enum cc_ast_node_type type;
-    cc_ast_node* parent;
+    struct cc_ast_node* parent;
     cc_diag_info info;
     unsigned int label_id;
     unsigned int ref_count; /* Label ref_count */
@@ -176,8 +172,8 @@ typedef struct cc_ast_node {
                                standalone thing. */
         } var;
         struct {
-            cc_ast_node* call_expr;
-            cc_ast_node* params;
+            struct cc_ast_node* call_expr;
+            struct cc_ast_node* params;
             size_t n_params;
         } call;
         struct {
@@ -185,22 +181,22 @@ typedef struct cc_ast_node {
         } jump;
         struct {
             enum cc_ast_binop_type op;
-            cc_ast_node* left;
-            cc_ast_node* right;
+            struct cc_ast_node* left;
+            struct cc_ast_node* right;
         } binop;
         struct {
             enum cc_ast_unop_type op;
-            cc_ast_node* child;
+            struct cc_ast_node* child;
             cc_ast_type cast; /* Cast type */
         } unop;
         struct {
-            cc_ast_node* children;
+            struct cc_ast_node* children;
             size_t n_children;
-            cc_ast_variable* vars;
+            struct cc_ast_variable* vars;
             size_t n_vars;
-            cc_ast_typedef* typedefs;
+            struct cc_ast_typedef* typedefs;
             size_t n_typedefs;
-            cc_ast_type* types;
+            struct cc_ast_type* types;
             size_t n_types;
             _Bool is_func; /* Is this a function? (handling for return
                               and stuff) */
@@ -209,16 +205,16 @@ typedef struct cc_ast_node {
             signed int case_val; /* Case value */
         } block;
         struct {
-            cc_ast_node* cond;
-            cc_ast_node* block;
-            cc_ast_node* tail_else;
+            struct cc_ast_node* cond;
+            struct cc_ast_node* block;
+            struct cc_ast_node* tail_else;
         } if_expr;
         struct {
-            cc_ast_node* control;
-            cc_ast_node* block;
+            struct cc_ast_node* control;
+            struct cc_ast_node* block;
         } switch_expr;
         struct {
-            cc_ast_node* value; /* Return value */
+            struct cc_ast_node* value; /* Return value */
         } return_expr;
         struct {
             char* name;

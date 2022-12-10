@@ -80,7 +80,7 @@ static _Bool cc_parse_struct_or_union_specifier(
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACE, "Expected '{'");
 
     /* TODO: Attributes */
-    cc_ast_variable virtual_member = {};
+    cc_ast_variable virtual_member = {0};
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_RBRACE)
         goto empty_memberlist;
@@ -1299,7 +1299,7 @@ static _Bool cc_parse_declarator(
             var->type.data.func.variadic = true;
             cc_lex_token_consume(ctx);
         } else {
-            cc_ast_variable virtual_param_var = {};
+            cc_ast_variable virtual_param_var = {0};
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
                 var->type.data.func.params
                     = cc_realloc(var->type.data.func.params,
@@ -1471,7 +1471,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 if ((ctok = cc_lex_token_peek(ctx, 1)) != NULL
                     && ctok->type == LEXER_TOKEN_LPAREN) {
                     ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
-                    cc_ast_variable nvar = {};
+                    cc_ast_variable nvar = {0};
                     nvar.name = cc_strdup(ctok->data);
                     nvar.type.mode = TYPE_MODE_FUNCTION;
                     nvar.type.storage = STORAGE_EXTERN;
@@ -1483,7 +1483,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     cc_ast_add_block_variable(node, &nvar);
                     return cc_parse_compund_statment(ctx, node);
                 } else {
-                    cc_ast_variable nvar = {};
+                    cc_ast_variable nvar = {0};
                     if (!cc_parse_declarator(ctx, node, &nvar))
                         return false;
                     cc_ast_add_block_variable(node, &nvar);
@@ -1491,7 +1491,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             }
         } break;
         default: { /* Rest of cases now handled by declarator :3 */
-            cc_ast_variable nvar = {};
+            cc_ast_variable nvar = {0};
             if (!cc_parse_declarator(ctx, node, &nvar))
                 goto error_handle;
             cc_ast_add_block_variable(node, &nvar);
@@ -1515,7 +1515,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         return false;
 
     /* Declaration specifiers */
-    cc_ast_variable var = {};
+    cc_ast_variable var = {0};
     while (cc_parse_storage_class_specifier(ctx, &var.type)
         || cc_parse_function_specifier(ctx, &var.type))
         ;
@@ -1552,7 +1552,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             /* Variable for the function prototype (then replaced) */
-            cc_ast_variable prot_var = {};
+            cc_ast_variable prot_var = {0};
             cc_ast_copy_type(&prot_var.type, &var.type); /* Copy safely */
             prot_var.name = cc_strdup(var.name);
             cc_ast_add_block_variable(node, &prot_var);

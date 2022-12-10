@@ -166,7 +166,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
 {
     ctx->cptr = ctx->cbuf = line;
     while (*ctx->cptr != '\0') {
-        cc_lexer_token tok = {};
+        cc_lexer_token tok = {0};
 
         /* Skip space */
         while (ISSPACE(*ctx->cptr))

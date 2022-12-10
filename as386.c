@@ -164,7 +164,7 @@ _Bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     }
 
     if (lvmap->flags == VARMAP_STACK && rvmap->flags == VARMAP_STACK) {
-        cc_backend_varmap mvmap = {};
+        cc_backend_varmap mvmap = {0};
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
         mvmap.flags = VARMAP_REGISTER;
@@ -205,7 +205,7 @@ _Bool cc_as386_gen_epilogue(
 cc_backend_varmap cc_as386_get_call_retval(
     cc_context* ctx, const cc_ast_node* node)
 {
-    cc_backend_varmap vmap = {};
+    cc_backend_varmap vmap = {0};
     cc_backend_reserve_reg(ctx, AS386_EAX);
     vmap.regno = AS386_EAX;
     vmap.flags = VARMAP_REGISTER;
@@ -246,7 +246,7 @@ _Bool cc_as386_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     switch (type) {
     case AST_UNOP_DEREF: {
         cc_backend_spill(ctx, 1);
-        cc_backend_varmap nlvmap = {};
+        cc_backend_varmap nlvmap = {0};
         nlvmap.regno = cc_backend_alloc_register(ctx);
         nlvmap.flags = VARMAP_REGISTER;
         fprintf(ctx->out, "\tleal\t");
@@ -347,7 +347,7 @@ _Bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     case AST_BINOP_COND_NEQ: {
         unsigned int branch_lnum = cc_backend_get_labelnum(ctx);
         unsigned int finish_lnum = cc_backend_get_labelnum(ctx);
-        cc_backend_varmap constant = {};
+        cc_backend_varmap constant = {0};
         constant.flags = VARMAP_CONSTANT;
 
         const char* jmp_insn = "jmp";
@@ -451,7 +451,7 @@ _Bool cc_as386_gen_prologue(
     cc_backend_unspill(ctx);
     if (node != NULL) {
         /* TODO: Generate & return on EAX */
-        cc_backend_varmap lvmap = {};
+        cc_backend_varmap lvmap = {0};
         cc_backend_reserve_reg(ctx, AS386_EAX);
         lvmap.flags = VARMAP_REGISTER;
         lvmap.regno = AS386_EAX;

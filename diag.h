@@ -2,8 +2,8 @@
 #define DIAG_H 1
 
 #include <stddef.h>
+#include "context.h"
 
-typedef struct cc_context cc_context;
 typedef struct cc_diag_info {
     char* filename;
     size_t line;

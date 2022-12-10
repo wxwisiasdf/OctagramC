@@ -3,8 +3,7 @@
 
 #include <stddef.h>
 #include "ast.h"
-
-typedef struct cc_context cc_context;
+#include "context.h"
 
 enum cc_backend_varmap_flags {
     VARMAP_REGISTER,
