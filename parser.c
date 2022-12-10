@@ -1801,8 +1801,13 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     }
 
     /* Only treat as a variable iff we're NOT parsing a typedef */
-    if (!is_parsing_typedef)
+    if (!is_parsing_typedef) {
+        /* Automatically give variables globality-scope if they don't
+           have any other linkage specifiers. */
+        if (var.type.storage == STORAGE_AUTO)
+            var.type.storage = STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, &var);
+    }
     return true;
 error_handle:
     cc_ast_destroy_var(&var, false);

@@ -74,9 +74,9 @@ void cc_backend_unspill(cc_context* ctx);
 void cc_backend_reserve_reg(cc_context* ctx, unsigned int regno);
 unsigned int cc_backend_alloc_register(cc_context* ctx);
 void cc_backend_free_register(cc_context* ctx, int regno);
-void cc_backend_add_static_var(cc_context* ctx, const cc_ast_variable* var);
-void cc_backend_add_stack_var(cc_context* ctx, const cc_ast_variable* var);
-cc_backend_varmap* cc_backend_find_stack_var(
+void cc_backend_add_varmap(
+    cc_context* ctx, const cc_ast_variable* restrict var);
+cc_backend_varmap* cc_backend_find_var_varmap(
     cc_context* ctx, const cc_ast_variable* var);
 cc_backend_varmap cc_backend_get_node_varmap(
     cc_context* ctx, const cc_ast_node* node);

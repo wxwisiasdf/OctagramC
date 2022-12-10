@@ -82,6 +82,9 @@ static void cc_mf370_print_varmap(
     case VARMAP_CONSTANT:
         fprintf(ctx->out, "=F'%08lu'", vmap->constant);
         break;
+    case VARMAP_STATIC:
+        fprintf(ctx->out, "=V(%s)", vmap->var->name);
+        break;
     default:
         cc_diag_error(ctx, "Invalid varmap %i", vmap->flags);
         break;
@@ -115,30 +118,33 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         fprintf(ctx->out, "\n");
         return true;
     }
-    if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_THREAD_LOCAL)
+
+    if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC
+            || lvmap->flags == VARMAP_THREAD_LOCAL)
         && rvmap->flags == VARMAP_REGISTER) {
         fprintf(ctx->out, "\tST\t");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         return true;
     } else if (lvmap->flags == VARMAP_REGISTER
         && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_THREAD_LOCAL
-            || rvmap->flags == VARMAP_CONSTANT)) {
+            || rvmap->flags == VARMAP_CONSTANT
+            || rvmap->flags == VARMAP_STATIC)) {
         fprintf(ctx->out, "\tL\t");
         cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, "\n");
         return true;
-    } else if (lvmap->flags == VARMAP_STACK
+    } else if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC)
         && (rvmap->flags == VARMAP_REGISTER
             || rvmap->flags == VARMAP_CONSTANT)) {
         fprintf(ctx->out, "\tST\t");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, lvmap);
         fprintf(ctx->out, "\n");
         return true;
     }
@@ -223,7 +229,7 @@ _Bool cc_mf370_gen_epilogue(
             const cc_ast_variable* bvar = &node->data.block.vars[i];
             ctx->backend_data->stack_frame_size
                 += cc_mf370_get_sizeof(ctx, &bvar->type);
-            cc_backend_add_stack_var(ctx, bvar);
+            cc_backend_add_varmap(ctx, bvar);
         }
     }
     /* I forgot how you're supposed to do alloc/drop on hlasm */
@@ -525,11 +531,10 @@ _Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
     if (var->type.mode == TYPE_MODE_FUNCTION) {
         if (var->type.storage == STORAGE_STATIC) {
-            cc_backend_add_static_var(ctx, var);
+
         } else if (var->type.storage == STORAGE_AUTO) {
-            cc_backend_add_static_var(ctx, var);
+
         } else if (var->type.storage == STORAGE_EXTERN) {
-            cc_backend_add_static_var(ctx, var);
             fprintf(
                 ctx->out, "\tEXTRN\t%s\n", cc_mf370_logical_label(var->name));
         }
@@ -537,12 +542,15 @@ _Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
     }
 
     if (var->type.storage == STORAGE_STATIC) {
-        cc_backend_add_static_var(ctx, var);
+        fprintf(ctx->out, "* X-static-var %s\n", var->name);
         fprintf(ctx->out, "%s\tDS\t%uH\n", cc_mf370_logical_label(var->name),
             cc_mf370_get_sizeof(ctx, &var->type));
     } else if (var->type.storage == STORAGE_AUTO) {
-        cc_backend_add_stack_var(ctx, var);
         fprintf(ctx->out, "* X-stack-var %s\n", var->name);
+    } else if (var->type.storage == STORAGE_GLOBAL) {
+        fprintf(ctx->out, "* X-global-var %s\n", var->name);
+        fprintf(ctx->out, "%s\tDS\t%uH\n", cc_mf370_logical_label(var->name),
+            cc_mf370_get_sizeof(ctx, &var->type));
     }
     return true;
 }

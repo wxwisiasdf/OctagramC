@@ -22,13 +22,13 @@ typedef struct cc_ast_type_cv {
 
 enum cc_storage {
     STORAGE_AUTO = 0,
-    STORAGE_EXTERN = 1,
-    STORAGE_STATIC = 2,
-    STORAGE_REGISTER = 4,
-    STORAGE_THREAD_LOCAL = 8,
-    STORAGE_CONSTEXPR = 16,
-    /* Function specifiers */
-    STORAGE_INLINE = 32,
+    STORAGE_EXTERN,
+    STORAGE_STATIC,
+    STORAGE_REGISTER,
+    STORAGE_CONSTEXPR,
+    STORAGE_GLOBAL,
+    STORAGE_THREAD_LOCAL = 0x40,
+    STORAGE_INLINE = 0x80,
 };
 
 enum cc_ast_type_mode {

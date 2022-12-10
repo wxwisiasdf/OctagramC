@@ -104,19 +104,7 @@ void cc_backend_free_register(cc_context* ctx, int regno)
     ctx->backend_data->regs[regno].used = false;
 }
 
-void cc_backend_add_static_var(cc_context* ctx, const cc_ast_variable* var)
-{
-    ctx->backend_data->varmaps = cc_realloc(ctx->backend_data->varmaps,
-        sizeof(cc_backend_varmap) * (ctx->backend_data->n_varmaps + 1));
-    cc_backend_varmap* vmap
-        = &ctx->backend_data->varmaps[ctx->backend_data->n_varmaps++];
-
-    /* Populate variable mapping */
-    vmap->var = var;
-    vmap->flags = VARMAP_STATIC;
-}
-
-void cc_backend_add_stack_var(cc_context* ctx, const cc_ast_variable* var)
+void cc_backend_add_varmap(cc_context* ctx, const cc_ast_variable* restrict var)
 {
     ctx->backend_data->varmaps = cc_realloc(ctx->backend_data->varmaps,
         sizeof(cc_backend_varmap) * (ctx->backend_data->n_varmaps + 1));
@@ -127,6 +115,9 @@ void cc_backend_add_stack_var(cc_context* ctx, const cc_ast_variable* var)
     vmap->var = var;
     if (var->type.storage == STORAGE_THREAD_LOCAL) {
         vmap->flags = VARMAP_THREAD_LOCAL;
+    } else if (var->type.storage == STORAGE_STATIC
+        || var->type.storage == STORAGE_GLOBAL) {
+        vmap->flags = VARMAP_STATIC;
     } else {
         vmap->flags = VARMAP_STACK;
         /* Adjust location on stack */
@@ -138,7 +129,7 @@ void cc_backend_add_stack_var(cc_context* ctx, const cc_ast_variable* var)
     }
 }
 
-cc_backend_varmap* cc_backend_find_stack_var(
+cc_backend_varmap* cc_backend_find_var_varmap(
     cc_context* ctx, const cc_ast_variable* var)
 {
     assert(var != NULL);
@@ -146,7 +137,7 @@ cc_backend_varmap* cc_backend_find_stack_var(
         if (ctx->backend_data->varmaps[i].var == var)
             return &ctx->backend_data->varmaps[i];
 
-    cc_diag_error(ctx, "No mapping for variable %s", var->name);
+    cc_diag_error(ctx, "No mapping for variable '%s'", var->name);
     return NULL;
 }
 
@@ -159,7 +150,7 @@ cc_backend_varmap cc_backend_get_node_varmap(
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
-        return *cc_backend_find_stack_var(ctx, var);
+        return *cc_backend_find_var_varmap(ctx, var);
     } break;
     case AST_NODE_LITERAL:
         vmap.flags = VARMAP_CONSTANT;
@@ -232,7 +223,7 @@ static void cc_backend_process_function(
         const cc_ast_variable* param = &var->type.data.func.params[i];
         ctx->backend_data->stack_frame_size
             += ctx->backend_data->get_sizeof(ctx, &param->type);
-        cc_backend_add_stack_var(ctx, param);
+        cc_backend_add_varmap(ctx, param);
     }
 
     ctx->backend_data->current_func_var = var;
@@ -246,7 +237,7 @@ static void cc_backend_process_function(
                 const cc_ast_variable* bvar = &var->body->data.block.vars[i];
                 ctx->backend_data->stack_frame_size
                     += ctx->backend_data->get_sizeof(ctx, &bvar->type);
-                cc_backend_add_stack_var(ctx, bvar);
+                cc_backend_add_varmap(ctx, bvar);
             }
         }
 
@@ -392,12 +383,14 @@ static void cc_backend_process_if(
     cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, child);
     cc_backend_process_node(ctx, node->data.if_expr.cond, &rvmap);
 
-    cc_backend_varmap lvmap = {0};
+    cc_backend_varmap lvmap = { 0 };
     lvmap.flags = VARMAP_CONSTANT;
     lvmap.constant = 1;
-    ctx->backend_data->gen_branch(ctx, node->data.if_expr.block, &lvmap, &rvmap, AST_BINOP_COND_EQ);
+    ctx->backend_data->gen_branch(
+        ctx, node->data.if_expr.block, &lvmap, &rvmap, AST_BINOP_COND_EQ);
     if (node->data.if_expr.tail_else) {
-        ctx->backend_data->gen_branch(ctx, node->data.if_expr.tail_else, &lvmap, &rvmap, AST_BINOP_COND_NEQ);
+        ctx->backend_data->gen_branch(ctx, node->data.if_expr.tail_else, &lvmap,
+            &rvmap, AST_BINOP_COND_NEQ);
     } else {
         assert(node->parent != NULL);
         ctx->backend_data->gen_jump(ctx, node->parent);
@@ -474,6 +467,14 @@ void cc_backend_process_node(
     case AST_NODE_BLOCK:
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
+            if (var->type.storage == STORAGE_STATIC
+                || var->type.storage == STORAGE_EXTERN
+                || var->type.storage == STORAGE_GLOBAL) {
+                cc_backend_add_varmap(ctx, var);
+            } else if (var->type.storage == STORAGE_AUTO) {
+                cc_backend_add_varmap(ctx, var);
+            }
+
             if (var->type.mode != TYPE_MODE_FUNCTION)
                 ctx->backend_data->map_variable(ctx, var);
         }

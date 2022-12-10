@@ -189,7 +189,7 @@ _Bool cc_as386_gen_epilogue(
             const cc_ast_variable* bvar = &node->data.block.vars[i];
             ctx->backend_data->stack_frame_size
                 += cc_as386_get_sizeof(ctx, &bvar->type);
-            cc_backend_add_stack_var(ctx, bvar);
+            cc_backend_add_varmap(ctx, bvar);
         }
     }
     fprintf(ctx->out, "#epilogue\n");
@@ -470,10 +470,10 @@ _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
     if (var->type.mode == TYPE_MODE_FUNCTION) {
         if (var->type.storage == STORAGE_STATIC) {
-            cc_backend_add_static_var(ctx, var);
+            cc_backend_add_varmap(ctx, var);
             fprintf(ctx->out, "%s:\n", var->name);
         } else if (var->type.storage == STORAGE_AUTO) {
-            cc_backend_add_static_var(ctx, var);
+            cc_backend_add_varmap(ctx, var);
             fprintf(ctx->out, ".global %s\n", var->name);
             fprintf(ctx->out, "%s:\n", var->name);
         }
@@ -481,11 +481,11 @@ _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
     }
 
     if (var->type.storage == STORAGE_STATIC) {
-        cc_backend_add_static_var(ctx, var);
+        cc_backend_add_varmap(ctx, var);
         fprintf(ctx->out, "%s:\n", var->name);
         fprintf(ctx->out, "\t.zero %u\n", cc_as386_get_sizeof(ctx, &var->type));
     } else if (var->type.storage == STORAGE_AUTO) {
-        cc_backend_add_stack_var(ctx, var);
+        cc_backend_add_varmap(ctx, var);
         fprintf(ctx->out, "#stack-var %s\n", var->name);
     }
     return true;
