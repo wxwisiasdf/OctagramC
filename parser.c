@@ -938,7 +938,7 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                     ctx, unop_node, &unop_node->data.unop.cast)) {
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
             } else { /* (unary-expresion) */
-                cc_parse_unary_expression(ctx, node);
+                cc_parse_expression(ctx, node);
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
                 return true;
             }
@@ -970,6 +970,10 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         cc_ast_node* expr_node = NULL;
         switch (ctok->type) {
         case LEXER_TOKEN_NUMBER:
+            cc_lex_token_consume(ctx);
+            expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+            break;
+        case LEXER_TOKEN_CHAR_LITERAL:
             cc_lex_token_consume(ctx);
             expr_node = cc_ast_create_literal(ctx, node, ctok->data);
             break;
@@ -1451,7 +1455,6 @@ ignore_missing_ident:
 
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LBRACKET) {
-        _Bool is_static = false;
         cc_lex_token_consume(ctx);
 
         var->type.n_cv_qual++; /* Increment for array (laundered) */
@@ -1464,16 +1467,16 @@ ignore_missing_ident:
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_static)
-            is_static = true;
+            var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
         while (cc_parse_type_qualifier(ctx, &var->type))
             ; /* Parse type qualifiers list */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_static)
-            is_static = true;
+            var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
 
         signed int r = 0;
         cc_parse_constant_expression(ctx, node, &r);
-        var->type.cv_qual[var->type.n_cv_qual].array_size = r;
+        var->type.cv_qual[var->type.n_cv_qual].array_size = (unsigned int)r;
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 
@@ -1582,7 +1585,9 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
             if (var != NULL) { /* Variable reference OR call/assignment */
                 cc_parse_expression(ctx, node);
+                printf("foundVar=%s\n", var->name);
             } else { /* Type for declaration within compound stmt */
+                printf("varNotFound=%s\n", ctok->data);
                 /* Implicit function declarations, where the prototype
                    is missing from the function and it's declared in place
                    this exception exists for some fucking reason??? */
@@ -1608,7 +1613,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 }
             }
         } break;
-        default: { /* Rest of cases now handled by declarator :3 */
+        default: { /* Rest of cases now handled by declarator :) */
             cc_ast_variable nvar = { 0 };
             if (!cc_parse_declarator(ctx, node, &nvar))
                 goto error_handle;
@@ -1626,11 +1631,16 @@ error_handle:
     return false;
 }
 
+static _Bool cc_parse_declaration(cc_context* ctx, cc_ast_node* node) { }
+
 static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
+
+    /* TODO: Handle cases such as:
+       typedef struct SomeThing {} NewName ident; */
 
     /* Declaration specifiers */
     cc_ast_variable var = { 0 };
@@ -1640,12 +1650,15 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
                             with the various elements. */
     decl_result = cc_parse_declarator(ctx, node, &var);
 
+    printf("var=%s,type=%s\n", var.name, var.type.name);
+
     /* A typedef can be treated as a variable UNTIL we exit the declarator
        parser loop. Once we exit it we will have to convert the variable
        into a typedef we can toy with.
 
        This state is updated accordingly on the type storage
        specifiers. */
+    _Bool is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
     if (ctx->is_parsing_typedef) {
         if (var.name == NULL) {
             cc_diag_error(ctx, "Anonymous typedef");
@@ -1656,8 +1669,8 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         cc_ast_copy_type(&ntpdef.type, &var.type); /* Copy type over */
         ntpdef.name = cc_strdup(var.name);
         cc_ast_add_block_typedef(node, &ntpdef);
-        ctx->is_parsing_typedef = false;
     }
+    ctx->is_parsing_typedef = false;
 
     if (!decl_result)
         goto error_handle;
@@ -1685,7 +1698,15 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
             break;
         case LEXER_TOKEN_LBRACE: /* Function body */
             cc_lex_token_consume(ctx);
-            assert(var.type.mode == TYPE_MODE_FUNCTION);
+            if (is_parsing_typedef) {
+                cc_diag_error(ctx, "Function definition after typedef");
+                goto error_handle;
+            }
+
+            if (var.type.mode != TYPE_MODE_FUNCTION) {
+                cc_diag_error(ctx, "Unexpected '}' on non-function type");
+                goto error_handle;
+            }
 
             /* All functions that are not prototypes are treated as a variable
                and all functions whose storage is extern are depromoted from
@@ -1721,7 +1742,10 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
             return true;
         }
     }
-    cc_ast_add_block_variable(node, &var);
+
+    /* Only treat as a variable iff we're NOT parsing a typedef */
+    if (!is_parsing_typedef)
+        cc_ast_add_block_variable(node, &var);
     return true;
 error_handle:
     cc_ast_destroy_var(&var, false);

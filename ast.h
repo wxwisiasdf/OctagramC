@@ -16,7 +16,8 @@ typedef struct cc_ast_type_cv {
     _Bool is_restrict;
     _Bool is_atomic;
     _Bool is_array; /* Treating this pointer as array? */
-    int array_size; /* Size of the array! */
+    _Bool is_static_array; /* If the given size of the array is an static */
+    unsigned int array_size; /* Size of the array! */
 } cc_ast_type_cv;
 
 enum cc_storage {
