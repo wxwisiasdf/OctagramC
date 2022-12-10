@@ -1293,11 +1293,18 @@ static _Bool cc_parse_declarator(
         /* No storage specified? set extern then */
         if (var->type.storage == STORAGE_AUTO)
             var->type.storage = STORAGE_EXTERN;
-        /* Fully variadic function (non-standard) */
+        
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ELLIPSIS) {
+            /* Fully variadic function (non-standard) */
             var->type.data.func.variadic = true;
             cc_lex_token_consume(ctx);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_void) {
+            /* func(void), functions taking no parameters at all */
+            cc_lex_token_consume(ctx);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         } else {
             cc_ast_variable virtual_param_var = { 0 };
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
