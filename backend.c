@@ -154,7 +154,7 @@ cc_backend_varmap* cc_backend_find_var_varmap(
 {
     for (size_t i = 0; i < ctx->backend_data->n_varmaps; i++) {
         cc_backend_varmap* vmap = &ctx->backend_data->varmaps[i];
-        if (!strcmp(vmap->var->name, var->name))
+        if (vmap->var->name != NULL && !strcmp(vmap->var->name, var->name))
             return vmap;
     }
 
@@ -399,18 +399,8 @@ static void cc_backend_process_if(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
 {
     assert(node->type == AST_NODE_IF);
-    const cc_ast_node* child = node->data.unop.child;
-
-    /*fprintf(ctx->out, "#backend-gen-unop\n");*/
-    if (node->data.unop.op == AST_UNOP_POSTDEC
-        || node->data.unop.op == AST_UNOP_POSTINC
-        || node->data.unop.op == AST_UNOP_PREDEC
-        || node->data.unop.op == AST_UNOP_PREINC) {
-        /*fprintf(ctx->out, "#todo-properly-do-post/prefix-inc/dec\n");*/
-        return;
-    }
-
-    cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, child);
+    cc_backend_varmap rvmap
+        = cc_backend_get_node_varmap(ctx, node->data.if_expr.cond);
     cc_backend_process_node(ctx, node->data.if_expr.cond, &rvmap);
 
     cc_backend_varmap lvmap = { 0 };

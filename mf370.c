@@ -203,7 +203,7 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     }
 
     if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC)
-    && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_STATIC)) {
+        && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_STATIC)) {
         cc_backend_varmap mvmap = { 0 };
         cc_backend_spill(ctx, 1);
         mvmap.regno = cc_backend_alloc_register(ctx);
