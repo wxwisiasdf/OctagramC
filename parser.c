@@ -233,13 +233,12 @@ static _Bool cc_parse_constant_expression(
 {
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     cc_parse_expression(ctx, const_expr); /* Parse like a normal expression */
-    if (!cc_ceval_constant_expression(ctx, const_expr)
-        || const_expr->type != AST_NODE_LITERAL) {
-        cc_ast_print(const_expr, 0);
+    cc_ast_literal literal = { 0 };
+    if (!cc_ceval_constant_expression(ctx, const_expr, &literal)) {
         cc_diag_error(ctx, "Unable to evaluate static expression");
         return false;
     }
-    *r = (signed int)const_expr->data.literal.value.s;
+    *r = (signed int)literal.value.s;
     return true;
 }
 
@@ -872,7 +871,6 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                 cc_ast_destroy_node(virtual_node, true);
                 goto error_handle;
             }
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         }
         ctx->declaration_ident_optional = old_v;
         if (deduce_required) {

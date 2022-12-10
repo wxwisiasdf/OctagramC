@@ -147,6 +147,14 @@ enum cc_ast_unop_type {
     AST_UNOP_PREDEC,
 };
 
+typedef struct cc_ast_literal {
+    _Bool is_signed;
+    union {
+        unsigned long long u;
+        signed long long s;
+    } value;
+} cc_ast_literal;
+
 typedef struct cc_ast_node {
     enum cc_ast_node_type type;
     struct cc_ast_node* parent;
@@ -154,13 +162,7 @@ typedef struct cc_ast_node {
     unsigned int label_id;
     unsigned int ref_count; /* Label ref_count */
     union {
-        struct {
-            _Bool is_signed;
-            union {
-                unsigned long long u;
-                signed long long s;
-            } value;
-        } literal;
+        cc_ast_literal literal;
         struct {
             char* data;
         } string_literal;

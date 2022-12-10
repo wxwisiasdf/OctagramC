@@ -5,12 +5,58 @@
 #include "optzer.h"
 #include <assert.h>
 
+static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
+{
+    if (node == NULL)
+        return (cc_ast_literal) {
+            .is_signed = false,
+            .value.u = 0,
+        };
+
+    cc_ast_literal lhs, rhs;
+    switch (node->type) {
+    case AST_NODE_BINOP:
+        lhs = cc_ceval_eval(ctx, node->data.binop.left);
+        rhs = cc_ceval_eval(ctx, node->data.binop.right);
+        switch (node->data.binop.op) {
+        case AST_BINOP_PLUS:
+            return (cc_ast_literal) { .is_signed = lhs.is_signed,
+                .value.u = lhs.value.u + rhs.value.u };
+        case AST_BINOP_MINUS:
+            return (cc_ast_literal) { .is_signed = lhs.is_signed,
+                .value.u = lhs.value.u - rhs.value.u };
+        case AST_BINOP_MUL:
+            return (cc_ast_literal) { .is_signed = lhs.is_signed,
+                .value.u = lhs.value.u * rhs.value.u };
+        case AST_BINOP_DIV:
+            return (cc_ast_literal) { .is_signed = lhs.is_signed,
+                .value.u = lhs.value.u / rhs.value.u };
+        default:
+            cc_diag_error(ctx, "Unrecognized binop %i", node->data.binop.op);
+            break;
+        }
+        break;
+    case AST_NODE_LITERAL:
+        return node->data.literal;
+    default:
+        break;
+    }
+
+    return (cc_ast_literal) {
+        .is_signed = false,
+        .value.u = 0,
+    };
+}
+
 /* Evaluate a constant expression, modifying the resulting AST node
    and (if it could be evaluated) reduced into a single literal node. */
-_Bool cc_ceval_constant_expression(cc_context* ctx, cc_ast_node* node)
+_Bool cc_ceval_constant_expression(
+    cc_context* ctx, cc_ast_node* node, cc_ast_literal* literal)
 {
-    cc_optimizer_expr_condense(&node, true); /* Condense and eliminate
+    cc_ast_node* tnode = node;
+    cc_optimizer_expr_condense(&tnode, true); /* Condense and eliminate
                                                 dead code */
+    *literal = cc_ceval_eval(ctx, node);
     return true;
 }
 

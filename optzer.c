@@ -20,6 +20,7 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, _Bool managed)
         cc_optimizer_expr_condense(&node->data.binop.right, true);
         if (node->ref_count) /* Do not remove nodes that are jumped into */
             return;
+
         /* No-op means we coalesce */
         if (node->data.binop.left != NULL && node->data.binop.right == NULL) {
             cc_ast_node new_node = *node->data.binop.left;
