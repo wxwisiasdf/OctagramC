@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -D_FORTIFY_SOURCE=2 -Wall -Wextra -pedantic -Wno-unused-parameter -Og -g
+CFLAGS = -std=c99 -D_FORTIFY_SOURCE=2 -DANSI_COLOUR=1 -Wall -Wextra -pedantic -Wno-unused-parameter -Og -g
 
 all: build
 

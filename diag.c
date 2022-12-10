@@ -10,10 +10,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef ANSI_COLOUR
+#undef ANSI_COLOUR
+#define ANSI_COLOUR(f) "\x1B[" #f "m"
+#else
+#define ANSI_COLOUR(f) 
+#endif
+
 static void cc_diag_print_diag(cc_context* ctx, cc_diag_info info,
     const char* severity, const char* fmt, va_list args)
 {
-    fprintf(stderr, "%s: %s:%zu: ", severity, info.filename, info.line);
+    fprintf(stderr, "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%zu: ", severity, info.filename, info.line);
     vfprintf(stderr, fmt, args);
 
     FILE* fp = fopen(info.filename, "rt");
@@ -34,8 +41,6 @@ static void cc_diag_print_diag(cc_context* ctx, cc_diag_info info,
     } else {
         fprintf(stderr, "\n<unable to open file>");
     }
-
-    abort();
 }
 
 /* Diagnostics */
