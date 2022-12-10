@@ -1509,6 +1509,73 @@ error_handle:
     return false;
 }
 
+/* Handles parsing of sucessive declarations, for example:
+   int i, j;
+   
+   To avoid code repetition inwithinhence our parsing code
+   as this is used by both compound and external declarations to declare
+   multiple variables at once. */
+static _Bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
+                                      cc_ast_variable *var,
+                                      _Bool *is_parsing_typedef)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+
+    /* TODO: Handle cases such as:
+       typedef struct SomeThing {} NewName ident; */
+
+    /* Declaration specifiers */
+    _Bool decl_result;
+comma_list_initializers: /* Jump here, reusing the variable's stack
+                            location **but** copying over the type
+                            with the various elements. */
+    decl_result = cc_parse_declarator(ctx, node, var);
+    printf("var=%s,type=%s\n", var->name, var->type.name);
+
+    /* A typedef can be treated as a variable UNTIL we exit the declarator
+       parser loop. Once we exit it we will have to convert the variable
+       into a typedef we can toy with.
+
+       This state is updated accordingly on the type storage
+       specifiers. */
+    *is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
+    if (ctx->is_parsing_typedef) {
+        if (var->name == NULL) {
+            cc_diag_error(ctx, "Anonymous typedef");
+            goto error_handle;
+        }
+
+        cc_ast_typedef ntpdef = { 0 };
+        cc_ast_copy_type(&ntpdef.type, &var->type); /* Copy type over */
+        ntpdef.name = cc_strdup(var->name);
+        cc_ast_add_block_typedef(node, &ntpdef);
+    }
+    ctx->is_parsing_typedef = false;
+
+    if (!decl_result)
+        goto error_handle;
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_COMMA) {
+        cc_lex_token_consume(ctx);
+
+        /* Save the type somewhere safe, destroy the var,
+            recreate the var with our type and destroy the type. */
+        cc_ast_type stype = { 0 };
+        cc_ast_copy_type(&stype, &var->type);
+        cc_ast_destroy_var(var, false);
+        memset(var, 0, sizeof(*var));
+        cc_ast_copy_type(&var->type, &stype);
+        cc_ast_destroy_type(&stype, false);
+        goto comma_list_initializers;
+    }
+    return true;
+error_handle:
+    return false;
+}
+
 static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
@@ -1607,17 +1674,23 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     return cc_parse_compund_statment(ctx, node);
                 } else {
                     cc_ast_variable nvar = { 0 };
-                    if (!cc_parse_declarator(ctx, node, &nvar))
-                        return false;
-                    cc_ast_add_block_variable(node, &nvar);
+                    _Bool is_parsing_typedef = false;
+                    if (!cc_parse_declarator_list(ctx, node, &nvar,
+                                                  &is_parsing_typedef))
+                        goto error_handle;
+                    if (!is_parsing_typedef)
+                        cc_ast_add_block_variable(node, &nvar);
                 }
             }
         } break;
         default: { /* Rest of cases now handled by declarator :) */
             cc_ast_variable nvar = { 0 };
-            if (!cc_parse_declarator(ctx, node, &nvar))
+            _Bool is_parsing_typedef = false;
+            if (!cc_parse_declarator_list(ctx, node, &nvar,
+                                            &is_parsing_typedef))
                 goto error_handle;
-            cc_ast_add_block_variable(node, &nvar);
+            if (!is_parsing_typedef)
+                cc_ast_add_block_variable(node, &nvar);
         } break;
         }
     } else {
@@ -1631,8 +1704,6 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_declaration(cc_context* ctx, cc_ast_node* node) { }
-
 static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
@@ -1644,51 +1715,11 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     /* Declaration specifiers */
     cc_ast_variable var = { 0 };
-    _Bool decl_result;
-comma_list_initializers: /* Jump here, reusing the variable's stack
-                            location **but** copying over the type
-                            with the various elements. */
-    decl_result = cc_parse_declarator(ctx, node, &var);
-
-    printf("var=%s,type=%s\n", var.name, var.type.name);
-
-    /* A typedef can be treated as a variable UNTIL we exit the declarator
-       parser loop. Once we exit it we will have to convert the variable
-       into a typedef we can toy with.
-
-       This state is updated accordingly on the type storage
-       specifiers. */
-    _Bool is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
-    if (ctx->is_parsing_typedef) {
-        if (var.name == NULL) {
-            cc_diag_error(ctx, "Anonymous typedef");
-            goto error_handle;
-        }
-
-        cc_ast_typedef ntpdef = { 0 };
-        cc_ast_copy_type(&ntpdef.type, &var.type); /* Copy type over */
-        ntpdef.name = cc_strdup(var.name);
-        cc_ast_add_block_typedef(node, &ntpdef);
-    }
-    ctx->is_parsing_typedef = false;
-
-    if (!decl_result)
-        goto error_handle;
+    _Bool is_parsing_typedef = false;
+    cc_parse_declarator_list(ctx, node, &var, &is_parsing_typedef);
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         switch (ctok->type) {
-        case LEXER_TOKEN_COMMA:
-            cc_lex_token_consume(ctx);
-
-            /* Save the type somewhere safe, destroy the var,
-               recreate the var with our type and destroy the type. */
-            cc_ast_type stype = { 0 };
-            cc_ast_copy_type(&stype, &var.type);
-            cc_ast_destroy_var(&var, false);
-            memset(&var, 0, sizeof(var));
-            cc_ast_copy_type(&var.type, &stype);
-            cc_ast_destroy_type(&stype, false);
-            goto comma_list_initializers;
         case LEXER_TOKEN_SEMICOLON: /* Prototype/declaration */
             /* Function prototype usually ends up with ");" */
             if ((ctok = cc_lex_token_peek(ctx, -1)) != NULL
