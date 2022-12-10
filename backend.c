@@ -361,7 +361,7 @@ static void cc_backend_process_binop(
     if (lhs->type == AST_NODE_BINOP)
         cc_backend_process_binop(ctx, lhs, &lvmap);
     else if (lhs->type == AST_NODE_UNOP)
-        cc_backend_process_unop(ctx, rhs, &lvmap);
+        cc_backend_process_unop(ctx, lhs, &lvmap);
 
     /*fprintf(ctx->out, "#backend-gen-binop\n");*/
 
@@ -399,8 +399,10 @@ static void cc_backend_process_if(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
 {
     assert(node->type == AST_NODE_IF);
-    cc_backend_varmap rvmap
-        = cc_backend_get_node_varmap(ctx, node->data.if_expr.cond);
+    cc_backend_spill(ctx, 1);
+    cc_backend_varmap rvmap = { 0 };
+    rvmap.flags = VARMAP_REGISTER;
+    rvmap.regno = cc_backend_alloc_register(ctx);
     cc_backend_process_node(ctx, node->data.if_expr.cond, &rvmap);
 
     cc_backend_varmap lvmap = { 0 };
@@ -415,7 +417,12 @@ static void cc_backend_process_if(
         assert(node->parent != NULL);
         ctx->backend_data->gen_jump(ctx, node->parent);
     }
+    cc_backend_free_register(ctx, rvmap.regno);
 
+    printf("\nBLOCK\n");
+    cc_ast_print(node->data.if_expr.block, 0);
+    printf("\n");
+    
     cc_backend_process_node(ctx, node->data.if_expr.block, ovmap);
     cc_backend_process_node(ctx, node->data.if_expr.tail_else, ovmap);
 }

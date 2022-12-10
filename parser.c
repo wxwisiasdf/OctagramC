@@ -900,16 +900,20 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-
+    
+    _Bool matched_any = false;
+    _Bool parent_rerouted = false;
     cc_ast_node* expr_node = NULL;
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_CHAR_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
@@ -924,20 +928,17 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         } else { /* Not a call, just a variable reference*/
             expr_node = cc_ast_create_var_ref(ctx, node, var);
         }
+        matched_any = true;
     }
-        goto finish_expr_setup;
+        break;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
-        goto finish_expr_setup;
+        matched_any = true;
+        break;
     default:
         expr_node = cc_ast_create_block(ctx, node);
         break;
-    }
-
-    if (expr_node == NULL) {
-        cc_ast_destroy_node(expr_node, true);
-        goto error_handle;
     }
 
     /* With postfix increment we will do a:
@@ -953,8 +954,10 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             expr_node->parent = pi_node->data.unop.child;
             cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
             cc_ast_add_block_node(node, pi_node);
+            parent_rerouted = true;
+            matched_any = true;
         }
-            return true;
+            break;
         /* Array accessor <expr>[<expr>] syntax */
         case LEXER_TOKEN_LBRACKET: {
             cc_lex_token_consume(ctx);
@@ -972,8 +975,10 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
                 arr_deref_node->data.unop.child, arr_index_node);
             cc_ast_add_block_node(node, arr_deref_node);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+            parent_rerouted = true;
+            matched_any = true;
         }
-            return true;
+            break;
         case LEXER_TOKEN_DOT:
         case LEXER_TOKEN_ARROW: {
             cc_lex_token_consume(ctx);
@@ -988,16 +993,20 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
                 ctx, accessor_node->data.binop.right, ctok->data);
             cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
             cc_ast_add_block_node(node, accessor_node);
+            parent_rerouted = true;
+            matched_any = true;
         }
-            return true;
+            break;
         default:
-            goto error_handle;
+            break;
         }
     }
 finish_expr_setup:
-    expr_node->parent = node;
-    cc_ast_add_block_node(node, expr_node);
-    return true;
+    if (!parent_rerouted) {
+        expr_node->parent = node;
+        cc_ast_add_block_node(node, expr_node);
+    }
+    return matched_any;
 error_handle:
     if (expr_node != NULL)
         cc_ast_destroy_node(expr_node, true);
