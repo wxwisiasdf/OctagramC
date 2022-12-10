@@ -13,7 +13,6 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +49,12 @@ int main(int argc, char** argv)
             target = TARGET_MF370;
         } else if (!strcmp(argv[i], "-gviz")) {
             target = TARGET_GRAPHVIZ;
+        } else if (!strcmp(argv[i], "-h")) {
+            printf("cc23 - A compiler for the C23 language, targeting 370 and 386\n");
+            printf("-386\tGenerate 386 code\n");
+            printf("-370\tGenerate 370 code\n");
+            printf("-graphviz\tGenerate graphviz graphs\n");
+            printf("-o [filename]\tSet output filename\n");
         } else {
             input_filename = argv[i];
 
