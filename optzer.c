@@ -8,7 +8,7 @@
 
 /* Condense/simplify expressions of an AST tree and remove redundancies
    Use funcbody to disallow block elimination on function bodies */
-void cc_optimizer_expr_condense(cc_ast_node** pnode, _Bool managed)
+void cc_optimizer_expr_condense(cc_ast_node** pnode, bool managed)
 {
     cc_ast_node* node = *pnode;
     if (node == NULL)

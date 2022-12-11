@@ -5,8 +5,8 @@ CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
 all: build
 
 run: build
-	valgrind --leak-check=full --track-origins=yes ./cc stt.c -370
-#	gdb --args ./cc stt.c -370
+#	valgrind --leak-check=full --track-origins=yes ./cc stt.c -370
+	gdb --args ./cc stt.c -370
 
 build: cc
 

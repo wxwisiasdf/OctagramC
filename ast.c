@@ -198,7 +198,7 @@ void cc_ast_add_call_param(
     call->data.call.params[call->data.call.n_params++] = *param;
 }
 
-void cc_ast_destroy_type(cc_ast_type* type, _Bool managed)
+void cc_ast_destroy_type(cc_ast_type* type, bool managed)
 {
     if (type == NULL)
         return;
@@ -222,7 +222,7 @@ void cc_ast_destroy_type(cc_ast_type* type, _Bool managed)
         cc_free(type);
 }
 
-void cc_ast_destroy_var(cc_ast_variable* var, _Bool managed)
+void cc_ast_destroy_var(cc_ast_variable* var, bool managed)
 {
     assert(var != NULL);
     cc_ast_destroy_type(&var->type, false);
@@ -231,7 +231,7 @@ void cc_ast_destroy_var(cc_ast_variable* var, _Bool managed)
         cc_free(var);
 }
 
-void cc_ast_destroy_node(cc_ast_node* node, _Bool managed)
+void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 {
     if (node == NULL)
         return;
@@ -442,7 +442,8 @@ void cc_ast_copy_type(
             cc_ast_copy_type(
                 dest->data.func.return_type, src->data.func.return_type);
         }
-    } else if (src->mode == AST_TYPE_MODE_STRUCT || src->mode == AST_TYPE_MODE_UNION) {
+    } else if (src->mode == AST_TYPE_MODE_STRUCT
+        || src->mode == AST_TYPE_MODE_UNION) {
         dest->data.s_or_u.n_members = src->data.s_or_u.n_members;
         dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
             sizeof(cc_ast_variable) * dest->data.s_or_u.n_members);
@@ -460,7 +461,8 @@ void cc_ast_copy_type(
 void cc_ast_add_type_member(
     cc_ast_type* restrict dest, const cc_ast_variable* restrict src)
 {
-    assert(dest->mode == AST_TYPE_MODE_STRUCT || dest->mode == AST_TYPE_MODE_UNION);
+    assert(dest->mode == AST_TYPE_MODE_STRUCT
+        || dest->mode == AST_TYPE_MODE_UNION);
     dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
         sizeof(*dest->data.s_or_u.members) * (dest->data.s_or_u.n_members + 1));
     dest->data.s_or_u.members[dest->data.s_or_u.n_members++] = *src;

@@ -26,8 +26,8 @@ typedef struct cc_backend_varmap {
 } cc_backend_varmap;
 
 typedef struct cc_backend_reginfo {
-    _Bool used;
-    _Bool spilled;
+    bool used;
+    bool spilled;
 } cc_backend_reginfo;
 
 typedef struct cc_backend_context {
@@ -44,24 +44,24 @@ typedef struct cc_backend_context {
                                       function */
     unsigned int min_stack_alignment; /* Minimum alignment for stack */
     unsigned int label_num; /* Label assignment numbers */
-    _Bool (*is_reserved)(unsigned int regno);
-    _Bool (*gen_mov)(cc_context* ctx, const cc_backend_varmap* lvmap,
+    bool (*is_reserved)(unsigned int regno);
+    bool (*gen_mov)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap);
-    _Bool (*gen_prologue)(
+    bool (*gen_prologue)(
         cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var);
-    _Bool (*gen_epilogue)(
+    bool (*gen_epilogue)(
         cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var);
-    _Bool (*gen_call)(cc_context* ctx, const cc_ast_node* node);
+    bool (*gen_call)(cc_context* ctx, const cc_ast_node* node);
     unsigned int (*get_sizeof)(cc_context* ctx, const cc_ast_type* type);
     cc_backend_varmap (*get_call_retval)(
         cc_context* ctx, const cc_ast_node* node);
-    _Bool (*gen_jump)(cc_context* ctx, const cc_ast_node* node);
-    _Bool (*gen_binop)(cc_context* ctx, const cc_backend_varmap* lvmap,
+    bool (*gen_jump)(cc_context* ctx, const cc_ast_node* node);
+    bool (*gen_binop)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap, enum cc_ast_binop_type type);
-    _Bool (*gen_unop)(cc_context* ctx, const cc_backend_varmap* lvmap,
+    bool (*gen_unop)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap, enum cc_ast_unop_type type);
-    _Bool (*map_variable)(cc_context* ctx, const cc_ast_variable* var);
-    _Bool (*gen_branch)(cc_context* ctx, const cc_ast_node* node,
+    bool (*map_variable)(cc_context* ctx, const cc_ast_variable* var);
+    bool (*gen_branch)(cc_context* ctx, const cc_ast_node* node,
         const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
         enum cc_ast_binop_type type);
     void (*deinit)(cc_context* ctx);

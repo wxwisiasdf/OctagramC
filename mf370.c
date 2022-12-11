@@ -79,7 +79,7 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
-_Bool cc_mf370_is_reserved_reg(unsigned int regno)
+bool cc_mf370_is_reserved_reg(unsigned int regno)
 {
     return regno == MF370_R14 || regno == MF370_R13;
 }
@@ -106,7 +106,7 @@ static void cc_mf370_print_varmap(
     }
 }
 
-_Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
+bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     const cc_backend_varmap* rvmap)
 {
     assert(
@@ -227,7 +227,7 @@ _Bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     return false;
 }
 
-_Bool cc_mf370_gen_epilogue(
+bool cc_mf370_gen_epilogue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     assert(var != NULL);
@@ -264,13 +264,13 @@ cc_backend_varmap cc_mf370_get_call_retval(
 }
 
 /* Generate a jump to the given node */
-_Bool cc_mf370_gen_jump(cc_context* ctx, const cc_ast_node* node)
+bool cc_mf370_gen_jump(cc_context* ctx, const cc_ast_node* node)
 {
     fprintf(ctx->out, "\tB\tL%i\n", node->label_id);
     return true;
 }
 
-_Bool cc_mf370_gen_call(cc_context* ctx, const cc_ast_node* node)
+bool cc_mf370_gen_call(cc_context* ctx, const cc_ast_node* node)
 {
     switch (node->type) {
     case AST_NODE_VARIABLE: {
@@ -285,7 +285,7 @@ _Bool cc_mf370_gen_call(cc_context* ctx, const cc_ast_node* node)
     return false;
 }
 
-_Bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
+bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     const cc_backend_varmap* rvmap, enum cc_ast_unop_type type)
 {
     if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC
@@ -321,7 +321,7 @@ _Bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-_Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
+bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     const cc_backend_varmap* rvmap, enum cc_ast_binop_type type)
 {
     if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC
@@ -448,7 +448,7 @@ _Bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-_Bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
+bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
     const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
     enum cc_ast_binop_type type)
 {
@@ -515,7 +515,7 @@ _Bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
     return false;
 }
 
-_Bool cc_mf370_gen_prologue(
+bool cc_mf370_gen_prologue(
     cc_context* ctx, const cc_ast_node* node, const cc_ast_variable* var)
 {
     fprintf(ctx->out, "* X-prologue\n");
@@ -534,7 +534,7 @@ _Bool cc_mf370_gen_prologue(
     return true;
 }
 
-_Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
+bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
         if (var->type.storage == AST_STORAGE_STATIC) {

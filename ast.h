@@ -11,12 +11,12 @@
 #define MAX_ARRAY_SIZE 65536
 
 typedef struct cc_ast_type_cv {
-    _Bool is_const : 1;
-    _Bool is_volatile : 1;
-    _Bool is_restrict : 1;
-    _Bool is_atomic : 1;
-    _Bool is_array : 1; /* Treating this pointer as array? */
-    _Bool is_static_array : 1; /* If the given size of the array is an static */
+    bool is_const : 1;
+    bool is_volatile : 1;
+    bool is_restrict : 1;
+    bool is_atomic : 1;
+    bool is_array : 1; /* Treating this pointer as array? */
+    bool is_static_array : 1; /* If the given size of the array is an static */
     unsigned int array_size; /* Size of the array! */
 } cc_ast_type_cv;
 
@@ -61,17 +61,17 @@ typedef struct cc_ast_type {
                         1 = <cv> <type> <ident>;
                         2 = <cv> *<cv> <type> <ident>;
                         and so on... */
-    _Bool is_signed;
-    _Bool is_longer; /* Is long-long? */
+    bool is_signed;
+    bool is_longer; /* Is long-long? */
     size_t bitint_bits; /* _BitInt bits */
     char* name; /* Name is optional for some types */
     union {
         struct {
-            _Bool no_return;
+            bool no_return;
             struct cc_ast_type* return_type;
             struct cc_ast_variable* params;
             size_t n_params;
-            _Bool variadic; /* Variadic functions */
+            bool variadic; /* Variadic functions */
         } func;
         struct {
             struct cc_ast_variable* members;
@@ -149,7 +149,7 @@ enum cc_ast_unop_type {
 };
 
 typedef struct cc_ast_literal {
-    _Bool is_signed;
+    bool is_signed;
     union {
         unsigned long u;
         signed long s;
@@ -170,8 +170,8 @@ typedef struct cc_ast_node {
         struct {
             char* name;
             unsigned int version; /* Used by SSA */
-            _Bool is_temporal;
-            _Bool is_field; /* Treating this variable as a field rather than a
+            bool is_temporal;
+            bool is_field; /* Treating this variable as a field rather than a
                                standalone thing. */
         } var;
         struct {
@@ -203,10 +203,10 @@ typedef struct cc_ast_node {
             size_t n_typedefs;
             struct cc_ast_type* types;
             size_t n_types;
-            _Bool is_func; /* Is this a function? (handling for return
+            bool is_func; /* Is this a function? (handling for return
                               and stuff) */
-            _Bool is_case; /* Switch statment cases */
-            _Bool is_default; /* Default switch case */
+            bool is_case; /* Switch statment cases */
+            bool is_default; /* Default switch case */
             signed int case_val; /* Case value */
         } block;
         struct {
@@ -255,9 +255,9 @@ void cc_ast_remove_block_node(cc_ast_node* block, size_t i);
 void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var);
 void cc_ast_add_call_param(
     cc_ast_node* restrict call, const cc_ast_node* restrict param);
-void cc_ast_destroy_type(cc_ast_type* type, _Bool managed);
-void cc_ast_destroy_var(cc_ast_variable* var, _Bool managed);
-void cc_ast_destroy_node(cc_ast_node* node, _Bool managed);
+void cc_ast_destroy_type(cc_ast_type* type, bool managed);
+void cc_ast_destroy_var(cc_ast_variable* var, bool managed);
+void cc_ast_destroy_node(cc_ast_node* node, bool managed);
 cc_ast_variable* cc_ast_find_variable(
     const char* name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);

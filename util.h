@@ -14,7 +14,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-void cc_alloc_init(_Bool track);
+void cc_alloc_init(bool track);
 void cc_alloc_deinit(void);
 void* cc_malloc(size_t size);
 void* cc_zalloc(size_t size);

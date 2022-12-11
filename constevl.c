@@ -50,7 +50,7 @@ static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
 
 /* Evaluate a constant expression, modifying the resulting AST node
    and (if it could be evaluated) reduced into a single literal node. */
-_Bool cc_ceval_constant_expression(
+bool cc_ceval_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* literal)
 {
     cc_ast_node* tnode = node;
@@ -63,7 +63,7 @@ _Bool cc_ceval_constant_expression(
 /* Deduces a type from a node, the type written into type is a non-owning
    view of the real type, hence use cc_ast_copy_type to safely obtain a
    owning version if desired. */
-_Bool cc_ceval_deduce_type(
+bool cc_ceval_deduce_type(
     cc_context* ctx, const cc_ast_node* node, cc_ast_type* type)
 {
     switch (node->type) {

@@ -10,17 +10,17 @@ static struct cc_alloc_context {
     struct cc_alloc_ptr {
         void* p;
         size_t size;
-        _Bool is_string;
+        bool is_string;
     } * ptrs;
     size_t n_ptrs;
-    _Bool active;
-    _Bool is_string;
+    bool active;
+    bool is_string;
 
     size_t total_normal;
     size_t total_strings;
 } g_alloc_ctx;
 
-void cc_alloc_init(_Bool track)
+void cc_alloc_init(bool track)
 {
     g_alloc_ctx.active = track;
     atexit(cc_alloc_deinit);

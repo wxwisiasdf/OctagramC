@@ -81,7 +81,7 @@ void cc_backend_reserve_reg(cc_context* ctx, unsigned int regno)
 
 unsigned int cc_backend_alloc_register(cc_context* ctx)
 {
-    _Bool spilled = false;
+    bool spilled = false;
 try_again:
     for (size_t i = 0; i < ctx->backend_data->n_regs; i++) {
         if (!ctx->backend_data->is_reserved(i)

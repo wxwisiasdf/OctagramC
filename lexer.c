@@ -243,7 +243,7 @@ int cc_lex_top(cc_context* ctx)
     return 0;
 }
 
-static void cc_lex_destroy_token(cc_lexer_token* tok, _Bool managed)
+static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
 {
     switch (tok->type) {
     case LEXER_TOKEN_IDENT:

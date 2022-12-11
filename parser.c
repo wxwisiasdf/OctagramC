@@ -24,16 +24,16 @@
         cc_lex_token_consume(ctx);                                             \
     } while (0)
 
-static _Bool cc_parse_declarator(
+static bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
-static _Bool cc_parse_expression(cc_context* ctx, cc_ast_node* node);
-static _Bool cc_parse_constant_expression(
+static bool cc_parse_expression(cc_context* ctx, cc_ast_node* node);
+static bool cc_parse_constant_expression(
     cc_context* ctx, cc_ast_node* node, signed int* r);
-static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
-static _Bool cc_parse_declaration_specifier(
+static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
+static bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
 
-static _Bool cc_parse_struct_or_union_specifier(
+static bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
@@ -124,13 +124,13 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_enum_specifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_enum_specifier(cc_context* ctx, cc_ast_type* type)
 {
     printf("unimplemented cc_parse_enum_specifier\n");
     return false;
 }
 
-static _Bool cc_parse_function_specifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_function_specifier(cc_context* ctx, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
@@ -149,7 +149,7 @@ static _Bool cc_parse_function_specifier(cc_context* ctx, cc_ast_type* type)
     return true;
 }
 
-static _Bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
@@ -174,7 +174,7 @@ static _Bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
     return true;
 }
 
-static _Bool cc_parse_typedef_name(
+static bool cc_parse_typedef_name(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
@@ -192,7 +192,7 @@ static _Bool cc_parse_typedef_name(
     return false;
 }
 
-static _Bool cc_parse_typeof_specifier(
+static bool cc_parse_typeof_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
@@ -201,7 +201,7 @@ static _Bool cc_parse_typeof_specifier(
 
     if (ctok->type == LEXER_TOKEN_typeof
         || ctok->type == LEXER_TOKEN_typeof_unqual) {
-        _Bool unqual = false;
+        bool unqual = false;
         if (ctok->type == LEXER_TOKEN_typeof_unqual)
             unqual = true;
         cc_lex_token_consume(ctx);
@@ -228,7 +228,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_constant_expression(
+static bool cc_parse_constant_expression(
     cc_context* ctx, cc_ast_node* node, signed int* r)
 {
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
@@ -242,7 +242,7 @@ static _Bool cc_parse_constant_expression(
     return true;
 }
 
-static _Bool cc_parse_type_specifier(
+static bool cc_parse_type_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
@@ -288,7 +288,7 @@ static _Bool cc_parse_type_specifier(
         type->bitint_bits = (size_t)bits;
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } break;
-    case LEXER_TOKEN__Bool:
+    case LEXER_TOKEN_bool:
         type->mode = AST_TYPE_MODE_BOOL;
         break;
     case LEXER_TOKEN__Complex:
@@ -319,8 +319,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_storage_class_specifier(
-    cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
@@ -352,9 +351,9 @@ static _Bool cc_parse_storage_class_specifier(
     return true;
 }
 
-static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
+static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
 
-static _Bool cc_parse_multiplicative_expression(
+static bool cc_parse_multiplicative_expression(
     cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
@@ -393,7 +392,7 @@ static _Bool cc_parse_multiplicative_expression(
     return false;
 }
 
-static _Bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -426,7 +425,7 @@ static _Bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -459,7 +458,7 @@ static _Bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -499,7 +498,7 @@ static _Bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -532,7 +531,7 @@ static _Bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_and_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_and_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -554,8 +553,7 @@ static _Bool cc_parse_and_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_exclusive_or_expression(
-    cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_exclusive_or_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -577,8 +575,7 @@ static _Bool cc_parse_exclusive_or_expression(
     return false;
 }
 
-static _Bool cc_parse_inclusive_or_expression(
-    cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_inclusive_or_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -600,7 +597,7 @@ static _Bool cc_parse_inclusive_or_expression(
     return false;
 }
 
-static _Bool cc_parse_logical_and_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_logical_and_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -622,7 +619,7 @@ static _Bool cc_parse_logical_and_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_logical_or_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_logical_or_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
@@ -644,7 +641,7 @@ static _Bool cc_parse_logical_or_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* expr = cc_ast_create_block(ctx, node);
@@ -682,7 +679,7 @@ error_handle:
    
    LHS can be specified with the lhs argument, in such a case a unary
    function won't do shit */
-static _Bool cc_parse_assignment_expression(
+static bool cc_parse_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_node* lhs)
 {
     const cc_lexer_token* ctok;
@@ -702,7 +699,7 @@ static _Bool cc_parse_assignment_expression(
         goto finish_true;
     /* Assignment operator */
     enum cc_ast_binop_type binop_type = AST_BINOP_NONE;
-    _Bool expand_expr = false;
+    bool expand_expr = false;
     switch (ctok->type) {
     case LEXER_TOKEN_ASSIGN:
         binop_type = AST_BINOP_ASSIGN;
@@ -786,7 +783,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
+static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
     const cc_ast_variable* var, cc_ast_node** expr_result)
 {
     const cc_lexer_token* ctok;
@@ -828,7 +825,7 @@ static _Bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
     return false;
 }
 
-static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
@@ -840,9 +837,9 @@ static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     /* This block is just a virtual block and will be destroyed
         once we finish evaluating our sizeof. */
     cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
-    _Bool old_v = ctx->declaration_ident_optional;
+    bool old_v = ctx->declaration_ident_optional;
     ctx->declaration_ident_optional = true;
-    _Bool deduce_required = true;
+    bool deduce_required = true;
 
     /* Parenthesis following means we can evaluate and obtain the size
         of a concise expression, otherwise we have to stick with another
@@ -895,14 +892,14 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
-    _Bool matched_any = false;
-    _Bool parent_rerouted = false;
+    bool matched_any = false;
+    bool parent_rerouted = false;
     cc_ast_node* expr_node = NULL;
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
@@ -1010,7 +1007,7 @@ error_handle:
 }
 
 /* TODO: Handle operator ordering and post/prefix inc/dec appropriately */
-static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if (cc_parse_unary_sizeof(ctx, node))
@@ -1090,7 +1087,7 @@ static _Bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         }
     }
 
-    _Bool has_match = false;
+    bool has_match = false;
     while (cc_parse_postfix_expression(ctx, node))
         has_match = true;
     return has_match;
@@ -1098,7 +1095,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_expression(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_expression(cc_context* ctx, cc_ast_node* node)
 {
     while (cc_parse_assignment_expression(ctx, node, NULL)) {
         const cc_lexer_token* ctok;
@@ -1112,11 +1109,11 @@ static _Bool cc_parse_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static _Bool cc_parse_declaration_specifier(
+static bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok;
-    _Bool qualified_once = false;
+    bool qualified_once = false;
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)
@@ -1142,7 +1139,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_statment(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
 
@@ -1175,7 +1172,7 @@ static _Bool cc_parse_statment(cc_context* ctx, cc_ast_node* node)
     return cc_parse_compund_statment(ctx, node);
 }
 
-static _Bool cc_parse_iteration_statment(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_iteration_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     /* for ( <expr> ; <expr>; <expr>) <secondary-block> */
@@ -1288,7 +1285,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     /* if ( <expr> ) <secondary-block> else <secondary-block> */
@@ -1347,7 +1344,7 @@ error_handle:
 }
 
 /* TODO: parse lbrace the brace thing for arrays wtf am i??? ?!?!?! */
-static _Bool cc_parse_declarator_assignment_expression(
+static bool cc_parse_declarator_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     cc_lexer_token* ctok;
@@ -1372,7 +1369,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_declarator(
+static bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     cc_parse_declaration_specifier(ctx, node, &var->type);
@@ -1544,8 +1541,8 @@ error_handle:
    To avoid code repetition inwithinhence our parsing code
    as this is used by both compound and external declarations to declare
    multiple variables at once. */
-static _Bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
-    cc_ast_variable* var, _Bool* is_parsing_typedef)
+static bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
+    cc_ast_variable* var, bool* is_parsing_typedef)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
@@ -1555,7 +1552,7 @@ static _Bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
        typedef struct SomeThing {} NewName ident; */
 
     /* Declaration specifiers */
-    _Bool decl_result;
+    bool decl_result;
 comma_list_initializers: /* Jump here, reusing the variable's stack
                             location **but** copying over the type
                             with the various elements. */
@@ -1606,7 +1603,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     assert(node != NULL);
@@ -1705,7 +1702,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     return cc_parse_compund_statment(ctx, node);
                 } else {
                     cc_ast_variable nvar = { 0 };
-                    _Bool is_parsing_typedef = false;
+                    bool is_parsing_typedef = false;
                     if (!cc_parse_declarator_list(
                             ctx, node, &nvar, &is_parsing_typedef))
                         goto error_handle;
@@ -1719,7 +1716,7 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                does NOT work, fallback to the declarator */
             if (!cc_parse_expression(ctx, node)) {
                 cc_ast_variable nvar = { 0 };
-                _Bool is_parsing_typedef = false;
+                bool is_parsing_typedef = false;
                 if (!cc_parse_declarator_list(
                         ctx, node, &nvar, &is_parsing_typedef))
                     goto error_handle;
@@ -1739,7 +1736,7 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
@@ -1750,7 +1747,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     /* Declaration specifiers */
     cc_ast_variable var = { 0 };
-    _Bool is_parsing_typedef = false;
+    bool is_parsing_typedef = false;
     cc_parse_declarator_list(ctx, node, &var, &is_parsing_typedef);
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
@@ -1788,7 +1785,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
             /* And variable for the function itself */
             var.body = cc_ast_create_block(ctx, node);
-            _Bool old_is_func_body = ctx->is_func_body;
+            bool old_is_func_body = ctx->is_func_body;
             ctx->is_func_body = true;
             while (cc_parse_compund_statment(ctx, var.body))
                 ;
@@ -1826,9 +1823,9 @@ error_handle:
     return false;
 }
 
-static _Bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
 {
-    _Bool has_match = false;
+    bool has_match = false;
     while (cc_parse_external_declaration(ctx, node))
         has_match = true;
     return has_match;

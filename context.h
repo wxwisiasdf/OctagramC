@@ -37,15 +37,15 @@ typedef struct cc_context {
     struct cc_ast_node* break_node; /* Node to jump to in break */
 
     /* State machine variables for parser, lexer, etc */
-    _Bool is_parsing_prototype; /* Allow ignoring missing identifiers on
+    bool is_parsing_prototype; /* Allow ignoring missing identifiers on
                                    parameters. */
-    _Bool is_parsing_typedef; /* Handling for typedefs */
-    _Bool declaration_ident_optional; /* alignas/alignof/sizeof type-name
+    bool is_parsing_typedef; /* Handling for typedefs */
+    bool declaration_ident_optional; /* alignas/alignof/sizeof type-name
                                          ignores/doesn't fail when no identifier
                                          is specified. */
     unsigned int error_cnt; /* Counter for errors */
-    _Bool print_ast; /* Printing of AST is allowed/disallowed */
-    _Bool is_func_body; /* Parsing assigning automatic storage to variables
+    bool print_ast; /* Printing of AST is allowed/disallowed */
+    bool is_func_body; /* Parsing assigning automatic storage to variables
                            if global or pertaining to the stack of a functor. */
 } cc_context;
 
