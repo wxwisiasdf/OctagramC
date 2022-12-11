@@ -71,7 +71,7 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, bool managed)
 
         /* Blocks of the form { <expr> } can be coalesced to simply form
            <expr> */
-        if (node->data.block.n_children == 1 && node->data.block.n_typedefs == 0
+        if (node->data.block.n_children == 1 && node->data.block.n_types == 0
             && node->data.block.n_vars == 0) {
             /* Copy <expr> over */
             cc_ast_node new_node = node->data.block.children[0];
@@ -87,38 +87,36 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, bool managed)
         }
 
         if (node->data.block.n_children == 0) {
-#if 0
             /* Block with no children nodes BUT with variables
                and both are blocks */
-            if (node->parent != NULL
-            && node->type == AST_NODE_BLOCK
-            && node->parent->type == AST_NODE_BLOCK) {
-                cc_ast_node *parent = node->parent;
+            if (node->parent != NULL && node->parent->type == AST_NODE_BLOCK) {
+                cc_ast_node* parent = node->parent;
 
                 /* Transfer children nodes to the upper node (parental) */
-                for (i = 0; i < node->data.block.n_vars; i++)
-                    cc_ast_add_block_variable(parent, &node->data.block.vars[i]);
-                node->data.block.n_vars = 0;
+                for (size_t i = 0; i < node->data.block.n_vars; i++)
+                    cc_ast_add_block_variable(
+                        parent, &node->data.block.vars[i]);
                 cc_free(node->data.block.vars);
                 node->data.block.vars = NULL;
+                node->data.block.n_vars = 0;
 
-                for (i = 0; i < node->data.block.n_typedefs; i++)
-                    cc_ast_add_block_typedef(parent, &node->data.block.typedefs[i]);
-                node->data.block.n_typedefs = 0;
-                cc_free(node->data.block.typedefs);
-                node->data.block.typedefs = NULL;
+                for (size_t i = 0; i < node->data.block.n_types; i++)
+                    cc_ast_add_block_type(parent, &node->data.block.types[i]);
+                cc_free(node->data.block.types);
+                node->data.block.types = NULL;
+                node->data.block.n_types = 0;
 
-                for (i = 0; i < node->data.block.n_children; i++)
-                    cc_ast_add_block_node(parent, &node->data.block.children[i]);
-                node->data.block.n_children = 0;
+                for (size_t i = 0; i < node->data.block.n_children; i++)
+                    cc_ast_add_block_node(
+                        parent, &node->data.block.children[i]);
                 cc_free(node->data.block.children);
                 node->data.block.children = NULL;
+                node->data.block.n_children = 0;
 
                 cc_ast_destroy_node(node, managed);
                 *pnode = NULL;
                 return;
             }
-#endif
         }
         break;
     case AST_NODE_CALL:
@@ -136,7 +134,7 @@ void cc_optimizer_expr_condense(cc_ast_node** pnode, bool managed)
         cc_optimizer_expr_condense(&node->data.if_expr.tail_else, true);
         break;
     case AST_NODE_RETURN:
-        cc_optimizer_expr_condense(&node->data.return_expr.value, true);
+        cc_optimizer_expr_condense(&node->data.return_expr, true);
         break;
     case AST_NODE_UNOP:
         cc_optimizer_expr_condense(&node->data.unop.child, true);

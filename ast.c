@@ -75,7 +75,7 @@ cc_ast_node* cc_ast_create_switch_expr(cc_context* ctx, cc_ast_node* parent)
 cc_ast_node* cc_ast_create_ret_expr(cc_context* ctx, cc_ast_node* parent)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_RETURN);
-    node->data.return_expr.value = cc_ast_create_block(ctx, node);
+    node->data.return_expr = cc_ast_create_block(ctx, node);
     return node;
 }
 
@@ -107,7 +107,7 @@ cc_ast_node* cc_ast_create_string_literal(
     cc_context* ctx, cc_ast_node* parent, const char* s)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_STRING_LITERAL);
-    node->data.string_literal.data = cc_strdup(s);
+    node->data.string_literal = cc_strdup(s);
     return node;
 }
 
@@ -124,7 +124,8 @@ cc_ast_node* cc_ast_create_jump(
     cc_context* ctx, cc_ast_node* parent, cc_ast_node* target)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_JUMP);
-    node->data.jump.label_id = target->label_id;
+    node->data.jump_label_id = target->label_id;
+    assert(target->ref_count < USHRT_MAX);
     target->ref_count++;
     return node;
 }
@@ -138,15 +139,6 @@ void cc_ast_add_block_node(
     block->data.block.children = cc_realloc(block->data.block.children,
         sizeof(cc_ast_node) * (block->data.block.n_children + 1));
     block->data.block.children[block->data.block.n_children++] = *child;
-}
-
-void cc_ast_add_block_typedef(cc_ast_node* block, const cc_ast_typedef* tpdef)
-{
-    assert(block != NULL && block->type == AST_NODE_BLOCK);
-    assert(tpdef->name != NULL);
-    block->data.block.typedefs = cc_realloc(block->data.block.typedefs,
-        sizeof(cc_ast_typedef) * (block->data.block.n_typedefs + 1));
-    block->data.block.typedefs[block->data.block.n_typedefs++] = *tpdef;
 }
 
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type)
@@ -242,7 +234,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 
     switch (node->type) {
     case AST_NODE_STRING_LITERAL:
-        cc_free(node->data.string_literal.data);
+        cc_free(node->data.string_literal);
         break;
     case AST_NODE_BINOP:
         cc_ast_destroy_node(node->data.binop.left, true);
@@ -264,7 +256,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
         cc_free(node->data.block.children);
         break;
     case AST_NODE_RETURN:
-        cc_ast_destroy_node(node->data.return_expr.value, true);
+        cc_ast_destroy_node(node->data.return_expr, true);
         break;
     case AST_NODE_VARIABLE:
         cc_free(node->data.var.name);
@@ -277,7 +269,6 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
         cc_free(node);
 }
 
-/* ========================================================================== */
 cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
 {
     if (node == NULL)
@@ -338,15 +329,15 @@ cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
     return cc_ast_find_label(name, node->parent);
 }
 
-cc_ast_typedef* cc_ast_find_typedef(const char* name, cc_ast_node* node)
+cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node)
 {
     if (node == NULL)
         return NULL;
     if (node->type == AST_NODE_BLOCK) {
-        for (size_t i = 0; i < node->data.block.n_typedefs; i++) {
-            cc_ast_typedef* tpdef = &node->data.block.typedefs[i];
-            if (!strcmp(tpdef->name, name))
-                return tpdef;
+        for (size_t i = 0; i < node->data.block.n_types; i++) {
+            cc_ast_type* type = &node->data.block.types[i];
+            if (type->is_typedef && !strcmp(type->name, name))
+                return type;
         }
     }
     return cc_ast_find_typedef(name, node->parent);
@@ -382,16 +373,13 @@ void cc_ast_copy_node(
         dest->data.literal = src->data.literal;
         break;
     case AST_NODE_STRING_LITERAL:
-        dest->data.string_literal.data
-            = cc_strdup(src->data.string_literal.data);
+        dest->data.string_literal = cc_strdup(src->data.string_literal);
         break;
     case AST_NODE_BINOP:
         cc_ast_copy_node(dest->data.binop.left, src->data.binop.left);
         cc_ast_copy_node(dest->data.binop.right, src->data.binop.right);
         break;
     case AST_NODE_BLOCK:
-        assert(
-            src->data.block.n_typedefs == 0); /* Don't know how to transfer */
         assert(src->data.block.n_vars == 0);
         assert(src->data.block.n_types == 0);
 
@@ -497,7 +485,7 @@ static void cc_ast_iterate_1(const cc_ast_node *node,
         cc_ast_iterate_1(node->data.if_expr.tail_else, filter, on_each, arg);
         break;
     case AST_NODE_RETURN:
-        cc_ast_iterate_1(node->data.return_expr.value, filter, on_each, arg);
+        cc_ast_iterate_1(node->data.return_expr, filter, on_each, arg);
         break;
     case AST_NODE_JUMP:
     case AST_NODE_STRING_LITERAL:
@@ -524,7 +512,7 @@ void cc_ast_iterate(const cc_ast_node *node,
 #endif
 
 cc_ast_node* cc_ast_find_label_id(
-    cc_context* ctx, cc_ast_node* node, unsigned int id)
+    cc_context* ctx, cc_ast_node* node, unsigned short id)
 {
     if (node == NULL)
         return NULL;
@@ -561,8 +549,7 @@ cc_ast_node* cc_ast_find_label_id(
             return fnode;
     } break;
     case AST_NODE_RETURN:
-        if ((fnode
-                = cc_ast_find_label_id(ctx, node->data.return_expr.value, id))
+        if ((fnode = cc_ast_find_label_id(ctx, node->data.return_expr, id))
             != NULL)
             return fnode;
         break;
@@ -594,7 +581,57 @@ cc_ast_node* cc_ast_find_label_id(
     return NULL;
 }
 
-void cc_ast_print(const cc_ast_node* node, int ident)
+void cc_ast_node_iter(cc_context* ctx, cc_ast_node* node,
+    void (*transform)(cc_context* ctx, cc_ast_node* node))
+{
+    if (node == NULL)
+        return;
+
+    switch (node->type) {
+    case AST_NODE_BINOP:
+        cc_ast_node_iter(ctx, node->data.binop.left, transform);
+        cc_ast_node_iter(ctx, node->data.binop.right, transform);
+        break;
+    case AST_NODE_BLOCK:
+        for (size_t i = 0; i < node->data.block.n_vars; i++) {
+            const cc_ast_variable* var = &node->data.block.vars[i];
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL)
+                cc_ast_node_iter(ctx, var->body, transform);
+        }
+        for (size_t i = 0; i < node->data.block.n_children; i++)
+            cc_ast_node_iter(ctx, &node->data.block.children[i], transform);
+        break;
+    case AST_NODE_CALL:
+        cc_ast_node_iter(ctx, node->data.call.call_expr, transform);
+        for (size_t i = 0; i < node->data.call.n_params; i++)
+            cc_ast_node_iter(ctx, &node->data.call.params[i], transform);
+        break;
+    case AST_NODE_SWITCH:
+        cc_ast_node_iter(ctx, node->data.switch_expr.control, transform);
+        cc_ast_node_iter(ctx, node->data.switch_expr.block, transform);
+        break;
+    case AST_NODE_IF:
+        cc_ast_node_iter(ctx, node->data.if_expr.cond, transform);
+        cc_ast_node_iter(ctx, node->data.if_expr.block, transform);
+        cc_ast_node_iter(ctx, node->data.if_expr.tail_else, transform);
+        break;
+    case AST_NODE_RETURN:
+        cc_ast_node_iter(ctx, node->data.return_expr, transform);
+        break;
+    case AST_NODE_UNOP:
+        cc_ast_node_iter(ctx, node->data.unop.child, transform);
+        break;
+    case AST_NODE_JUMP:
+    case AST_NODE_LITERAL:
+    case AST_NODE_STRING_LITERAL:
+    case AST_NODE_VARIABLE:
+        break;
+    default:
+        break;
+    }
+}
+
+void cc_ast_print(const cc_ast_node* node)
 {
     if (node == NULL) {
         printf("<null>");
@@ -606,7 +643,7 @@ void cc_ast_print(const cc_ast_node* node, int ident)
     switch (node->type) {
     case AST_NODE_BINOP:
         printf("<binop (");
-        cc_ast_print(node->data.binop.left, ident);
+        cc_ast_print(node->data.binop.left);
         printf(") ");
         switch (node->data.binop.op) {
         case AST_BINOP_NONE:
@@ -680,7 +717,7 @@ void cc_ast_print(const cc_ast_node* node, int ident)
             break;
         }
         printf(" (");
-        cc_ast_print(node->data.binop.right, ident);
+        cc_ast_print(node->data.binop.right);
         printf(")>");
         break;
     case AST_NODE_BLOCK:
@@ -689,9 +726,9 @@ void cc_ast_print(const cc_ast_node* node, int ident)
             printf("case(%lu,%s)", node->data.block.case_val.value.u,
                 node->data.block.is_default ? "default" : "case");
 
-        for (size_t i = 0; i < node->data.block.n_typedefs; i++) {
-            const cc_ast_typedef* tpdef = &node->data.block.typedefs[i];
-            printf("typedef %s;\n", tpdef->name);
+        for (size_t i = 0; i < node->data.block.n_types; i++) {
+            const cc_ast_type* type = &node->data.block.types[i];
+            printf("type %s;\n", type->name);
         }
 
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
@@ -703,45 +740,45 @@ void cc_ast_print(const cc_ast_node* node, int ident)
                     printf("%zu=%s, ", j, var->type.data.func.params[j].name);
                 printf(")");
                 if (var->body != NULL)
-                    cc_ast_print(var->body, ident + 1);
+                    cc_ast_print(var->body);
             }
             printf(";");
         }
 
         for (size_t i = 0; i < node->data.block.n_children; i++) {
-            cc_ast_print(&node->data.block.children[i], ident + 1);
+            cc_ast_print(&node->data.block.children[i]);
             printf(";");
         }
         printf("}");
         break;
     case AST_NODE_CALL:
         printf("<call (");
-        cc_ast_print(node->data.call.call_expr, 0);
+        cc_ast_print(node->data.call.call_expr);
         printf(") params(");
         for (size_t i = 0; i < node->data.call.n_params; i++) {
-            cc_ast_print(&node->data.call.params[i], 0);
+            cc_ast_print(&node->data.call.params[i]);
             printf("; ");
         }
         printf(")>");
         break;
     case AST_NODE_SWITCH:
         printf("<switch (");
-        cc_ast_print(node->data.switch_expr.control, 0);
+        cc_ast_print(node->data.switch_expr.control);
         printf(") block (");
-        cc_ast_print(node->data.switch_expr.block, 0);
+        cc_ast_print(node->data.switch_expr.block);
         printf(")>");
         break;
     case AST_NODE_IF:
         printf("<if (");
-        cc_ast_print(node->data.if_expr.cond, 0);
+        cc_ast_print(node->data.if_expr.cond);
         printf(") then (");
-        cc_ast_print(node->data.if_expr.block, 0);
+        cc_ast_print(node->data.if_expr.block);
         printf(") else (");
-        cc_ast_print(node->data.if_expr.tail_else, 0);
+        cc_ast_print(node->data.if_expr.tail_else);
         printf(")>");
         break;
     case AST_NODE_JUMP:
-        printf("<jump-to %u>", node->data.jump.label_id);
+        printf("<jump-to %u>", node->data.jump_label_id);
         break;
     case AST_NODE_LITERAL:
         if (node->data.literal.is_signed)
@@ -751,11 +788,11 @@ void cc_ast_print(const cc_ast_node* node, int ident)
         break;
     case AST_NODE_RETURN:
         printf("<return (");
-        cc_ast_print(node->data.return_expr.value, ident);
+        cc_ast_print(node->data.return_expr);
         printf(")>");
         break;
     case AST_NODE_STRING_LITERAL:
-        printf("<string-literal %s>", node->data.string_literal.data);
+        printf("<string-literal %s>", node->data.string_literal);
         break;
     case AST_NODE_UNOP:
         printf("<unop ");
@@ -791,7 +828,7 @@ void cc_ast_print(const cc_ast_node* node, int ident)
             printf("???");
             break;
         }
-        cc_ast_print(node->data.unop.child, 0);
+        cc_ast_print(node->data.unop.child);
         printf(">");
         break;
     case AST_NODE_VARIABLE: {

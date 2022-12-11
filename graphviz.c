@@ -122,9 +122,9 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
     case AST_NODE_JUMP:
         fprintf(ctx->out, "n%u [shape=Mdiamond];", node->label_id);
         fprintf(ctx->out, "n%u [label=\"jump %u\"];", node->label_id,
-            node->data.jump.label_id);
+            node->data.jump_label_id);
         fprintf(
-            ctx->out, "n%u -> n%u;", node->label_id, node->data.jump.label_id);
+            ctx->out, "n%u -> n%u;", node->label_id, node->data.jump_label_id);
         break;
     case AST_NODE_LITERAL:
         fprintf(ctx->out, "n%u [label=\"", node->label_id);
@@ -137,11 +137,11 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
     case AST_NODE_RETURN:
         fprintf(ctx->out, "n%u [shape=Mdiamond];", node->label_id);
         fprintf(ctx->out, "n%u [label=\"return\"];", node->label_id);
-        cc_graphviz_print(ctx, node->data.return_expr.value);
+        cc_graphviz_print(ctx, node->data.return_expr);
         break;
     case AST_NODE_STRING_LITERAL:
         fprintf(ctx->out, "n%u [label=\"\\\"%s\\\"\"];", node->label_id,
-            node->data.string_literal.data);
+            node->data.string_literal);
         break;
     case AST_NODE_UNOP:
         fprintf(ctx->out, "n%u [label=\"Unary ", node->label_id);

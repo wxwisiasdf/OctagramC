@@ -8,7 +8,7 @@
 
 /* AST Parsing */
 #define MAX_CV_QUALIFIERS 3
-#define MAX_ARRAY_SIZE 65535
+#define MAX_ARRAY_SIZE 65534
 
 typedef struct cc_ast_type_cv {
     bool is_const : 1;
@@ -52,19 +52,28 @@ enum cc_ast_type_mode {
     AST_TYPE_MODE_FUNCTION
 };
 
+typedef struct cc_ast_literal {
+    bool is_signed;
+    union {
+        unsigned long u;
+        signed long s;
+    } value;
+} cc_ast_literal;
+
 typedef struct cc_ast_type {
     enum cc_ast_type_mode mode;
     enum cc_ast_storage storage;
     cc_ast_type_cv cv_qual[MAX_CV_QUALIFIERS];
-    size_t n_cv_qual; /* Number of cv qualifiers
-                        0 = invalid
-                        1 = <cv> <type> <ident>;
-                        2 = <cv> *<cv> <type> <ident>;
-                        and so on... */
-    bool is_signed;
-    bool is_longer; /* Is long-long? */
-    size_t bitint_bits; /* _BitInt bits */
+    unsigned short n_cv_qual; /* Number of cv qualifiers
+                               0 = <cv> <type> <ident>;
+                               1 = <cv> *<cv> <type> <ident>;
+                               2 = <cv> *<cv> *<cv> <type> <ident>;
+                               and so on... */
+    bool is_signed : 1;
+    bool is_longer : 1; /* Is long-long or lon-double? */
+    bool is_typedef : 1; /* Set for typedefs */
     char* name; /* Name is optional for some types */
+    unsigned char bitint_bits; /* _BitInt bits */
     union {
         struct {
             bool no_return;
@@ -78,22 +87,16 @@ typedef struct cc_ast_type {
             size_t n_members;
         } s_or_u;
         struct {
-            signed long* elems;
-            size_t n_elem;
+            cc_ast_literal* elems;
+            size_t n_elems;
         } enumer;
     } data;
 } cc_ast_type;
-
-typedef struct cc_ast_typedef {
-    cc_ast_type type;
-    char* name;
-} cc_ast_typedef;
 
 typedef struct cc_ast_variable {
     cc_ast_type type;
     char* name;
     struct cc_ast_node* body; /* For functions */
-    unsigned int id;
 } cc_ast_variable;
 
 enum cc_ast_node_type {
@@ -108,7 +111,8 @@ enum cc_ast_node_type {
     AST_NODE_VARIABLE,
     AST_NODE_LITERAL,
     AST_NODE_STRING_LITERAL,
-    AST_NODE_SWITCH
+    AST_NODE_SWITCH,
+    AST_NODE_REGISTER
 };
 
 enum cc_ast_binop_type {
@@ -148,30 +152,30 @@ enum cc_ast_unop_type {
     AST_UNOP_PREDEC,
 };
 
-typedef struct cc_ast_literal {
-    bool is_signed;
-    union {
-        unsigned long u;
-        signed long s;
-    } value;
-} cc_ast_literal;
-
 typedef struct cc_ast_node {
     enum cc_ast_node_type type;
     struct cc_ast_node* parent;
     cc_diag_info info;
     unsigned short label_id;
-    unsigned int ref_count; /* Label ref_count */
+    unsigned short ref_count; /* Label ref_count */
     union {
         cc_ast_literal literal;
-        struct {
-            char* data;
-        } string_literal;
+        /* For pattern matching, we only use reg_group to specify which
+           group of registers are allowed to be matched.
+           
+           For non-pattern matching we specify reg_num for specifying
+           the hard register itself. */
+        unsigned short reg_num;
+        unsigned short reg_group;
+        unsigned short jump_label_id; /* Label Id to jump to */
+        char* string_literal;
+        char* label_name;
         struct {
             char* name;
             unsigned short version; /* Used by SSA */
-            bool is_temporal;
-            bool is_field; /* Treating this variable as a field rather than a
+            bool is_temporal : 1;
+            bool
+                is_field : 1; /* Treating this variable as a field rather than a
                                standalone thing. */
         } var;
         struct {
@@ -179,9 +183,6 @@ typedef struct cc_ast_node {
             struct cc_ast_node* params;
             size_t n_params;
         } call;
-        struct {
-            unsigned short label_id; /* Label Id to jump to */
-        } jump;
         struct {
             enum cc_ast_binop_type op;
             struct cc_ast_node* left;
@@ -199,8 +200,6 @@ typedef struct cc_ast_node {
             size_t n_children;
             struct cc_ast_variable* vars;
             size_t n_vars;
-            struct cc_ast_typedef* typedefs;
-            size_t n_typedefs;
             struct cc_ast_type* types;
             size_t n_types;
             bool is_func : 1; /* Is this a function? (handling for return
@@ -218,12 +217,7 @@ typedef struct cc_ast_node {
             struct cc_ast_node* control;
             struct cc_ast_node* block;
         } switch_expr;
-        struct {
-            struct cc_ast_node* value; /* Return value */
-        } return_expr;
-        struct {
-            char* name;
-        } label;
+        struct cc_ast_node* return_expr; /* Return value */
     } data;
 } cc_ast_node;
 
@@ -249,7 +243,6 @@ cc_ast_node* cc_ast_create_jump(
     cc_context* ctx, cc_ast_node* parent, cc_ast_node* target);
 void cc_ast_add_block_node(
     cc_ast_node* restrict block, const cc_ast_node* restrict child);
-void cc_ast_add_block_typedef(cc_ast_node* block, const cc_ast_typedef* tpdef);
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type);
 void cc_ast_remove_block_node(cc_ast_node* block, size_t i);
 void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var);
@@ -261,7 +254,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed);
 cc_ast_variable* cc_ast_find_variable(
     const char* name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
-cc_ast_typedef* cc_ast_find_typedef(const char* name, cc_ast_node* node);
+cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node);
 cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node);
 void cc_ast_copy_node(
     cc_ast_node* restrict dest, const cc_ast_node* restrict src);
@@ -275,7 +268,7 @@ void cc_ast_iterate(const cc_ast_node *node,
                     ...);
 #endif
 cc_ast_node* cc_ast_find_label_id(
-    cc_context* ctx, cc_ast_node* node, unsigned int id);
-void cc_ast_print(const cc_ast_node* node, int ident);
+    cc_context* ctx, cc_ast_node* node, unsigned short id);
+void cc_ast_print(const cc_ast_node* node);
 
 #endif

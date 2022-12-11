@@ -182,11 +182,11 @@ static bool cc_parse_typedef_name(
         return false;
 
     if (ctok->type == LEXER_TOKEN_IDENT) {
-        const cc_ast_typedef* tpdef = NULL;
+        const cc_ast_type* tpdef = NULL;
         if ((tpdef = cc_ast_find_typedef(ctok->data, node)) == NULL)
             return false;
         cc_lex_token_consume(ctx);
-        cc_ast_copy_type(type, &tpdef->type);
+        cc_ast_copy_type(type, tpdef);
         return true;
     }
     return false;
@@ -1390,7 +1390,7 @@ static bool cc_parse_declarator(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         break;
     case LEXER_TOKEN_IDENT: { /* <ident> <attr> */
-        const cc_ast_typedef* tpdef = cc_ast_find_typedef(ctok->data, node);
+        const cc_ast_type* tpdef = cc_ast_find_typedef(ctok->data, node);
         cc_lex_token_consume(ctx);
         if (tpdef == NULL) {
             if (var->name != NULL) {
@@ -1399,7 +1399,7 @@ static bool cc_parse_declarator(
             }
             var->name = cc_strdup(ctok->data);
         } else {
-            cc_ast_copy_type(&var->type, &tpdef->type);
+            cc_ast_copy_type(&var->type, tpdef);
         }
     } break;
     default:
@@ -1569,10 +1569,11 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
             goto error_handle;
         }
 
-        cc_ast_typedef ntpdef = { 0 };
-        cc_ast_copy_type(&ntpdef.type, &var->type); /* Copy type over */
+        cc_ast_type ntpdef = { 0 };
+        cc_ast_copy_type(&ntpdef, &var->type); /* Copy type over */
         ntpdef.name = cc_strdup(var->name);
-        cc_ast_add_block_typedef(node, &ntpdef);
+        ntpdef.is_typedef = true;
+        cc_ast_add_block_type(node, &ntpdef);
     }
     ctx->is_parsing_typedef = false;
 
@@ -1669,7 +1670,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_return: {
             cc_ast_node* ret_node = cc_ast_create_ret_expr(ctx, node);
             cc_lex_token_consume(ctx);
-            cc_parse_expression(ctx, ret_node->data.return_expr.value);
+            cc_parse_expression(ctx, ret_node->data.return_expr);
             cc_ast_add_block_node(node, ret_node);
         } break;
         case LEXER_TOKEN_IDENT: {

@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 
             if (ctx.print_ast) {
                 printf("\nUnoptimized\n");
-                cc_ast_print(ctx.root, 0);
+                cc_ast_print(ctx.root);
                 printf("\n");
             }
 
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 
             if (ctx.print_ast) {
                 printf("\nOptimized\n");
-                cc_ast_print(ctx.root, 0);
+                cc_ast_print(ctx.root);
                 printf("\n");
             }
 

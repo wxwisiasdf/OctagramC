@@ -21,14 +21,14 @@ static void cc_diag_print_diag(cc_context* ctx, cc_diag_info info,
     const char* severity, const char* fmt, va_list args)
 {
     fprintf(stderr,
-        "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%zu: ", severity,
+        "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%u: ", severity,
         info.filename, info.line);
     vfprintf(stderr, fmt, args);
 
     FILE* fp = fopen(info.filename, "rt");
     if (fp != NULL) {
         char tmpbuf[80];
-        size_t line = 0;
+        unsigned short line = 0;
         while (fgets(tmpbuf, sizeof(tmpbuf), fp) != NULL
             && line != info.line - 1) {
             size_t len = strlen(tmpbuf);
@@ -75,8 +75,6 @@ void cc_diag_error(cc_context* ctx, const char* fmt, ...)
     cc_diag_common(ctx, ANSI_COLOUR(31) "error" ANSI_COLOUR(0), fmt, args);
     va_end(args);
     ctx->error_cnt++;
-
-    abort();
 }
 
 void cc_diag_warning(cc_context* ctx, const char* fmt, ...)

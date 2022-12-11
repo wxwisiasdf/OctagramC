@@ -105,6 +105,7 @@ void cc_backend_add_varmap(cc_context* ctx, const cc_ast_variable* restrict var)
         sizeof(cc_backend_varmap) * (ctx->backend_data->n_varmaps + 1));
     cc_backend_varmap* vmap
         = &ctx->backend_data->varmaps[ctx->backend_data->n_varmaps++];
+    memset(vmap, 0, sizeof(*vmap));
 
     /* Populate variable mapping */
     vmap->var = var;
@@ -174,7 +175,7 @@ cc_backend_varmap cc_backend_get_node_varmap(
         return vmap;
     case AST_NODE_STRING_LITERAL:
         vmap.flags = VARMAP_LITERAL;
-        vmap.data = cc_strdup(node->data.string_literal.data);
+        vmap.data = cc_strdup(node->data.string_literal);
         vmap.n_data = strlen(vmap.data + 1);
         return vmap;
     case AST_NODE_CALL:
@@ -218,7 +219,7 @@ void cc_backend_map_variables(cc_context* ctx, const cc_ast_node* node)
         cc_backend_map_variables(ctx, node->data.call.call_expr);
     } break;
     case AST_NODE_RETURN:
-        cc_backend_map_variables(ctx, node->data.return_expr.value);
+        cc_backend_map_variables(ctx, node->data.return_expr);
         break;
     case AST_NODE_IF:
         cc_backend_map_variables(ctx, node->data.if_expr.cond);
@@ -416,7 +417,7 @@ static void cc_backend_process_if(
     cc_backend_free_register(ctx, rvmap.regno);
 
     printf("\nBLOCK\n");
-    cc_ast_print(node->data.if_expr.block, 0);
+    cc_ast_print(node->data.if_expr.block);
     printf("\n");
 
     cc_backend_process_node(ctx, node->data.if_expr.block, ovmap);
@@ -457,7 +458,7 @@ static const cc_ast_node** cc_ast_collect_cases(
         cc_ast_collect_cases(node->data.if_expr.tail_else, list, n_list);
         break;
     case AST_NODE_RETURN:
-        cc_ast_collect_cases(node->data.return_expr.value, list, n_list);
+        cc_ast_collect_cases(node->data.return_expr, list, n_list);
         break;
     case AST_NODE_UNOP:
         cc_ast_collect_cases(node->data.unop.child, list, n_list);
@@ -516,15 +517,15 @@ void cc_backend_process_node(
         cc_backend_process_call(ctx, node);
         break;
     case AST_NODE_RETURN:
-        ctx->backend_data->gen_prologue(ctx, node->data.return_expr.value,
-            ctx->backend_data->current_func_var);
+        ctx->backend_data->gen_prologue(
+            ctx, node->data.return_expr, ctx->backend_data->current_func_var);
         break;
     case AST_NODE_IF:
         cc_backend_process_if(ctx, node, ovmap);
         break;
     case AST_NODE_JUMP: {
         cc_ast_node* fnode
-            = cc_ast_find_label_id(ctx, ctx->root, node->data.jump.label_id);
+            = cc_ast_find_label_id(ctx, ctx->root, node->data.jump_label_id);
         if (fnode == NULL) {
             cc_diag_error(ctx, "Jump label is out of reach");
             break;
@@ -563,7 +564,7 @@ void cc_backend_process_node(
     } break;
     default:
         if (ovmap == NULL) {
-            cc_ast_print(node, 0);
+            cc_ast_print(node);
             cc_diag_error(ctx, "Node without specified varmap for output");
             break;
         }

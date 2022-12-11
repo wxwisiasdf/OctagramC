@@ -6,12 +6,12 @@
 #include <stddef.h>
 
 enum cc_backend_varmap_flags {
-    VARMAP_REGISTER,
-    VARMAP_CONSTANT,
-    VARMAP_STACK,
-    VARMAP_STATIC,
-    VARMAP_THREAD_LOCAL,
-    VARMAP_LITERAL,
+    VARMAP_REGISTER = 0x01,
+    VARMAP_CONSTANT = 0x02,
+    VARMAP_STACK = 0x04,
+    VARMAP_STATIC = 0x08,
+    VARMAP_THREAD_LOCAL = 0x10,
+    VARMAP_LITERAL = 0x20,
 };
 
 typedef struct cc_backend_varmap {
@@ -87,5 +87,34 @@ void cc_backend_process_node(
 void cc_backend_init(
     cc_context* ctx, const char* reg_names[], unsigned int n_regs);
 void cc_backend_deinit(cc_context* ctx);
+
+#define PATMAT_NODE_BASE(t)                                                    \
+    .type = (t), .parent = NULL, .info = { 0 }, .label_id = 0, .ref_count = 0
+
+#define PATMAT_NODE_BINOP(t, l, r, b)                                          \
+    &((cc_ast_node) { PATMAT_NODE_BASE(AST_NODE_BINOP),                        \
+        .data.binop = { .op = (t), .left = (l), .right = (r), .bits = (b) } })
+
+#define PATMAT_NODE_UNOP(t, c, b)                                              \
+    &((cc_ast_node) { PATMAT_NODE_BASE(AST_NODE_UNOP),                         \
+        .data.unop = { .op = (t), .child = (c), .bits = (b) } })
+
+#define PATMAT_NODE_VARIABLE()                                                 \
+    &((cc_ast_node) { PATMAT_NODE_BASE(AST_NODE_VARIABLE), .data.var = { 0 } })
+
+#define PATMAT_NODE_REGISTER(r)                                                \
+    &((cc_ast_node) {                                                          \
+        PATMAT_NODE_BASE(AST_NODE_REGISTER), .data.reg_group = (r) })
+
+#define PATMAT_NODE_CALL(e)                                                    \
+    &((cc_ast_node) { PATMAT_NODE_BASE(AST_NODE_CALL),                         \
+        .data.call = { .call_expr = (e), .params = NULL, .n_params = 0 } })
+
+#define PATMAT_
+
+typedef struct cc_backend_pattern {
+    const char* insn_fmt;
+    cc_ast_node* node;
+} cc_backend_pattern;
 
 #endif

@@ -6,8 +6,8 @@
 
 typedef struct cc_diag_info {
     char* filename;
-    size_t line;
-    size_t column; /* Only used by tokens */
+    unsigned short line;
+    unsigned short column; /* Only used by tokens */
 } cc_diag_info;
 
 void cc_diag_error(cc_context* ctx, const char* fmt, ...);
