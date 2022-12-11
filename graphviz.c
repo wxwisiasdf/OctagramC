@@ -129,9 +129,9 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
     case AST_NODE_LITERAL:
         fprintf(ctx->out, "n%u [label=\"", node->label_id);
         if (node->data.literal.is_signed)
-            fprintf(ctx->out, "%lli", node->data.literal.value.s);
+            fprintf(ctx->out, "%li", node->data.literal.value.s);
         else
-            fprintf(ctx->out, "%llu", node->data.literal.value.u);
+            fprintf(ctx->out, "%lu", node->data.literal.value.u);
         fprintf(ctx->out, "\"];");
         break;
     case AST_NODE_RETURN:

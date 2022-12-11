@@ -151,15 +151,10 @@ enum cc_ast_unop_type {
 typedef struct cc_ast_literal {
     _Bool is_signed;
     union {
-        unsigned long long u;
-        signed long long s;
+        unsigned long u;
+        signed long s;
     } value;
 } cc_ast_literal;
-
-typedef struct cc_ast_primitive_type {
-    unsigned int access_size; /* Size of access, in bits */
-    
-} cc_ast_primitive_type;
 
 typedef struct cc_ast_node {
     enum cc_ast_node_type type;
@@ -191,11 +186,13 @@ typedef struct cc_ast_node {
             enum cc_ast_binop_type op;
             struct cc_ast_node* left;
             struct cc_ast_node* right;
+            unsigned short bits; /* Bits for operation */
         } binop;
         struct {
             enum cc_ast_unop_type op;
             struct cc_ast_node* child;
             cc_ast_type cast; /* Cast type */
+            unsigned short bits; /* Bits for operation */
         } unop;
         struct {
             struct cc_ast_node* children;

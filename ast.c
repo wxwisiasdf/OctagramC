@@ -741,9 +741,9 @@ void cc_ast_print(const cc_ast_node* node, int ident)
         break;
     case AST_NODE_LITERAL:
         if (node->data.literal.is_signed)
-            printf("<literal %lli>", node->data.literal.value.s);
+            printf("<literal %li>", node->data.literal.value.s);
         else
-            printf("<literal %llu>", node->data.literal.value.u);
+            printf("<literal %lu>", node->data.literal.value.u);
         break;
     case AST_NODE_RETURN:
         printf("<return (");
