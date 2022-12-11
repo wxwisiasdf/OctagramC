@@ -445,6 +445,18 @@ void cc_ast_copy_type(
             if (src_param->name)
                 dest_param->name = cc_strdup(src_param->name);
         }
+    } else if (src->mode == AST_TYPE_MODE_ENUM) {
+        dest->data.enumer.n_elems = src->data.enumer.n_elems;
+        dest->data.enumer.elems = cc_realloc(dest->data.enumer.elems,
+            sizeof(cc_ast_variable) * dest->data.enumer.n_elems);
+
+        for (size_t i = 0; i < dest->data.enumer.n_elems; i++) {
+            const cc_ast_enum_member* src_member = &src->data.enumer.elems[i];
+            cc_ast_enum_member* dest_member = &dest->data.enumer.elems[i];
+            if (src_member->name)
+                dest_member->name = cc_strdup(src_member->name);
+            dest_member->literal = src_member->literal;
+        }
     }
 }
 

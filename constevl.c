@@ -137,6 +137,7 @@ static cc_ast_literal cc_ceval_eval_1(
     case AST_NODE_RETURN:
         return cc_ceval_eval_1(ctx, node->data.return_expr, list, n_list);
     default:
+        cc_ast_print(node);
         cc_diag_error(ctx, "Unknown node %i", node->type);
         break;
     }

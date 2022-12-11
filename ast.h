@@ -62,6 +62,11 @@ typedef struct cc_ast_literal {
     } value;
 } cc_ast_literal;
 
+typedef struct cc_ast_enum_member {
+    char *name;
+    cc_ast_literal literal;
+} cc_ast_enum_member;
+
 typedef struct cc_ast_type {
     enum cc_ast_type_mode mode;
     enum cc_ast_storage storage;
@@ -89,7 +94,7 @@ typedef struct cc_ast_type {
             size_t n_members;
         } s_or_u;
         struct {
-            cc_ast_literal* elems;
+            cc_ast_enum_member* elems;
             size_t n_elems;
         } enumer;
     } data;

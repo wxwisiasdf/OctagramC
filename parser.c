@@ -32,6 +32,9 @@ static bool cc_parse_constant_expression(
 static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
 static bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
+static bool cc_parse_assignment_expression(
+    cc_context* ctx, cc_ast_node* node, cc_ast_node* lhs);
+static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
 
 static bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
@@ -124,9 +127,97 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_enum_specifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_enum_specifier(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
-    printf("unimplemented cc_parse_enum_specifier\n");
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+    || ctok->type != LEXER_TOKEN_enum)
+        return false;
+
+    cc_lex_token_consume(ctx);
+    
+    type->mode = AST_TYPE_MODE_ENUM;
+    /* TODO: Attributes */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_IDENT) {
+        cc_lex_token_consume(ctx);
+        type->name = cc_strdup(ctok->data);
+    }
+
+    /* Enum without brace means declaration of a variable OR forward
+       declaration... */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+        || ctok->type != LEXER_TOKEN_LBRACE) {
+        cc_ast_type* enum_type = cc_ast_find_type(type->name, node);
+        if (enum_type != NULL) { /* We're using an already existing type? */
+            if (type->name != NULL) {
+                cc_free(type->name);
+                type->name = NULL;
+            }
+            cc_ast_copy_type(type, enum_type);
+        } else { /* Not an existing type, forward declaration... */
+            /* ... */
+        }
+        return true;
+    }
+
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACE, "Expected '{'");
+
+    /* TODO: Attributes */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_RBRACE)
+        goto empty_memberlist;
+    
+    /* Syntax is <ident> = <const-expr> , */
+    cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
+    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_IDENT) {
+        cc_lex_token_consume(ctx);
+        cc_ast_enum_member member = { 0 };
+        member.name = cc_strdup(ctok->data);
+        /* Assignment of enumerator value. */
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_ASSIGN) {
+            cc_lex_token_consume(ctx);
+
+            cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
+            /* Parse like a normal expression */
+            cc_parse_unary_expression(ctx, const_expr);
+            if (!cc_ceval_constant_expression(ctx, const_expr, &member.literal)) {
+                cc_diag_error(ctx, "Unable to evaluate constant expression");
+                return false;
+            }
+            seq_literal = member.literal;
+            if (member.literal.is_float) {
+                cc_diag_warning(ctx, "Floating enumerator values will be truncated");
+                member.literal.is_float = false;
+                member.literal.is_signed = false;
+                member.literal.value.s = (signed long)member.literal.value.d;
+            }
+        }
+
+        type->data.enumer.elems = cc_realloc(type->data.enumer.elems, sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
+        type->data.enumer.elems[type->data.enumer.n_elems++] = member;
+
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COMMA, "Expected ','");
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_RBRACE)
+            break;
+        
+        if (seq_literal.is_signed)
+            seq_literal.value.s++;
+        else
+            seq_literal.value.u++;
+    }
+
+empty_memberlist:
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+    /* We will add non-anonymous enums. */
+    if (type->name != NULL) /* Non-anonymous enum */
+        cc_ast_add_block_type(node, type);
+    return true;
+error_handle:
     return false;
 }
 
@@ -232,7 +323,8 @@ static bool cc_parse_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* r)
 {
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
-    cc_parse_expression(ctx, const_expr); /* Parse like a normal expression */
+    /* Parse like a normal expression */
+    cc_parse_expression(ctx, const_expr);
     if (!cc_ceval_constant_expression(ctx, const_expr, r)) {
         cc_diag_error(ctx, "Unable to evaluate static expression");
         return false;
@@ -305,8 +397,7 @@ static bool cc_parse_type_specifier(
     case LEXER_TOKEN_union:
         return cc_parse_struct_or_union_specifier(ctx, node, type);
     case LEXER_TOKEN_enum:
-        cc_lex_token_consume(ctx);
-        return cc_parse_enum_specifier(ctx, type);
+        return cc_parse_enum_specifier(ctx, node, type);
     default:
         return cc_parse_typedef_name(ctx, node, type)
             || cc_parse_typeof_specifier(ctx, node, type);
@@ -348,8 +439,6 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
     cc_lex_token_consume(ctx);
     return true;
 }
-
-static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
 
 static bool cc_parse_multiplicative_expression(
     cc_context* ctx, cc_ast_node* node)
@@ -1656,23 +1745,23 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             return true;
         case LEXER_TOKEN_continue: {
             cc_lex_token_consume(ctx);
-            cc_ast_node* continue_node
-                = cc_ast_create_jump(ctx, node, ctx->continue_node);
-            if (continue_node == NULL) {
+            if (ctx->continue_node == NULL) {
                 cc_diag_error(
                     ctx, "Continue not within lexicographical context");
                 goto error_handle;
             }
+            cc_ast_node* continue_node
+                = cc_ast_create_jump(ctx, node, ctx->continue_node);
             cc_ast_add_block_node(node, continue_node);
         } break;
         case LEXER_TOKEN_break: {
             cc_lex_token_consume(ctx);
-            cc_ast_node* break_node
-                = cc_ast_create_jump(ctx, node, ctx->break_node);
-            if (break_node == NULL) {
+            if (ctx->break_node == NULL) {
                 cc_diag_error(ctx, "Break not within lexicographical context");
                 goto error_handle;
             }
+            cc_ast_node* break_node
+                = cc_ast_create_jump(ctx, node, ctx->break_node);
             cc_ast_add_block_node(node, break_node);
         } break;
         case LEXER_TOKEN_return: {
@@ -1726,8 +1815,15 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 if (!cc_parse_declarator_list(
                         ctx, node, &nvar, &is_parsing_typedef))
                     goto error_handle;
-                if (!is_parsing_typedef)
+                if (!is_parsing_typedef) {
+                    if (nvar.name == NULL) {
+                        cc_diag_warning(ctx, "Anonymous variable declared on external block");
+                        cc_ast_destroy_var(&nvar, false);
+                        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
+                        goto error_handle;
+                    }
                     cc_ast_add_block_variable(node, &nvar);
+                }
             }
         } break;
         }
@@ -1773,7 +1869,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             if (var.type.mode != AST_TYPE_MODE_FUNCTION) {
-                cc_diag_error(ctx, "Unexpected '}' on non-function type");
+                cc_diag_error(ctx, "Unexpected '{' on non-function type");
                 goto error_handle;
             }
 

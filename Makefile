@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
-	-pedantic -Wno-unused-parameter -O0 -g -fsanitize=undefined
+	-pedantic -Wno-unused-parameter -O0 -g
 
 all: build
 
