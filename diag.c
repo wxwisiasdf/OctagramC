@@ -53,7 +53,7 @@ static void cc_diag_common(
         const cc_lexer_token* tok = &ctx->tokens[ctx->c_token];
         cc_diag_print_diag(ctx, tok->info, severity, fmt, args);
     } else if (ctx->stage == STAGE_LEXER) {
-        if (ctx->n_diag_infos) {
+        if (ctx->n_tokens > 0) {
             cc_diag_print_diag(
                 ctx, ctx->tokens[ctx->n_tokens - 1].info, severity, fmt, args);
         } else {

@@ -322,7 +322,7 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
-    
+
     switch (ctok->type) {
     case LEXER_TOKEN_extern:
         type->storage = AST_STORAGE_EXTERN;
@@ -1779,7 +1779,8 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
             /* All functions that are not prototypes are treated as a variable. */
             if (var.type.storage == AST_STORAGE_EXTERN) {
-                cc_diag_warning(ctx, "Function '%s' declared extern but defined here", var.name);
+                cc_diag_warning(ctx,
+                    "Function '%s' declared extern but defined here", var.name);
                 var.type.storage = AST_STORAGE_AUTO;
             }
 

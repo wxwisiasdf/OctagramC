@@ -133,9 +133,8 @@ void cc_optimizer_expr_condense(
         /* Consteval the calls to functions */
         if (node->data.call.call_expr != NULL
             && node->data.call.call_expr->type == AST_NODE_VARIABLE) {
-            cc_ast_variable* var
-                = cc_ast_find_variable(node->data.call.call_expr->data.var.name,
-                    node);
+            cc_ast_variable* var = cc_ast_find_variable(
+                node->data.call.call_expr->data.var.name, node);
             if (var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION
                 && var->type.storage == AST_STORAGE_CONSTEXPR) {
                 /* Replace the call with the new constexpr-ed literal result */

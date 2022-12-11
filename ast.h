@@ -53,10 +53,12 @@ enum cc_ast_type_mode {
 };
 
 typedef struct cc_ast_literal {
-    bool is_signed;
+    bool is_signed : 1;
+    bool is_float : 1;
     union {
         unsigned long u;
         signed long s;
+        double d;
     } value;
 } cc_ast_literal;
 
