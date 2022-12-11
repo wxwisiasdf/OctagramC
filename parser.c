@@ -185,10 +185,15 @@ static bool cc_parse_enum_specifier(
             /* Parse like a normal expression */
             cc_parse_unary_expression(ctx, const_expr);
             if (!cc_ceval_constant_expression(
-                    ctx, const_expr, &member.literal)) {
+                    ctx, &const_expr, &member.literal)) {
                 cc_diag_error(ctx, "Unable to evaluate constant expression");
+                if (const_expr != NULL)
+                    cc_ast_destroy_node(const_expr, true);
                 return false;
             }
+            if (const_expr != NULL)
+                cc_ast_destroy_node(const_expr, true);
+
             seq_literal = member.literal;
             if (member.literal.is_float) {
                 cc_diag_warning(
@@ -339,12 +344,14 @@ static bool cc_parse_constant_expression(
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     /* Parse like a normal expression */
     cc_parse_expression(ctx, const_expr);
-    if (!cc_ceval_constant_expression(ctx, const_expr, r)) {
+    if (!cc_ceval_constant_expression(ctx, &const_expr, r)) {
         cc_diag_error(ctx, "Unable to evaluate constant expression");
-        cc_ast_destroy_node(const_expr, true);
+        if (const_expr != NULL)
+            cc_ast_destroy_node(const_expr, true);
         return false;
     }
-    cc_ast_destroy_node(const_expr, true);
+    if (const_expr != NULL)
+        cc_ast_destroy_node(const_expr, true);
     return true;
 }
 

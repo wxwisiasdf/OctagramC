@@ -88,6 +88,7 @@ void cc_optimizer_expr_condense(
             return;
         }
 
+#if 0
         if (node->data.block.n_children == 0) {
             /* Block with no children nodes BUT with variables
                and both are blocks */
@@ -120,6 +121,7 @@ void cc_optimizer_expr_condense(
                 return;
             }
         }
+#endif
         break;
     case AST_NODE_CALL:
         cc_optimizer_expr_condense(ctx, &node->data.call.call_expr, true);
