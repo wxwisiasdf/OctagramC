@@ -200,6 +200,14 @@ static bool cc_parse_enum_specifier(
         type->data.enumer.elems = cc_realloc(type->data.enumer.elems, sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
+        /* Enumerator members are globally visible as constexpr
+            evaluatible variables on the global context. */
+        cc_ast_variable var = {0};
+        cc_ast_copy_type(&var.type, type);
+        var.type.storage = AST_STORAGE_CONSTEXPR;
+        var.name = cc_strdup(member.name);
+        cc_ast_add_block_variable(node, &var);
+
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COMMA, "Expected ','");
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE)
