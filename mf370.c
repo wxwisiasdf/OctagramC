@@ -95,7 +95,7 @@ static void cc_mf370_print_varmap(
         fprintf(ctx->out, "%u(R1)", vmap->offset);
         break;
     case VARMAP_CONSTANT:
-        fprintf(ctx->out, "=F'%08lu'", vmap->constant);
+        fprintf(ctx->out, "=F'%08lu'", vmap->literal.value.u);
         break;
     case VARMAP_STATIC:
         fprintf(ctx->out, "=V(%s)", cc_mf370_logical_label(vmap->var->name));
@@ -119,7 +119,7 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
 
     /* Constant 0 */
     if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_CONSTANT
-        && rvmap->constant == 0) {
+        && rvmap->literal.value.u == 0) {
         fprintf(ctx->out, "\tL\t%s,=F'0'\n", reg_names[lvmap->regno]);
         return true;
     }
@@ -165,8 +165,8 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     }
 
     if (lvmap->flags == VARMAP_LITERAL || rvmap->flags == VARMAP_LITERAL) {
-        unsigned int branch_label_id = cc_backend_get_labelnum(ctx);
-        unsigned int literal_label_id = cc_backend_get_labelnum(ctx);
+        unsigned short branch_label_id = cc_ast_alloc_label_id(ctx);
+        unsigned short literal_label_id = cc_ast_alloc_label_id(ctx);
 
         fprintf(ctx->out, "\tB\tL%i\n", branch_label_id);
         fprintf(ctx->out, "L%i\tDS\t0H\n", literal_label_id);
@@ -399,10 +399,10 @@ bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     case AST_BINOP_LTE:
     case AST_BINOP_COND_EQ:
     case AST_BINOP_COND_NEQ: {
-        unsigned int branch_lnum = cc_backend_get_labelnum(ctx);
-        unsigned int finish_lnum = cc_backend_get_labelnum(ctx);
-        cc_backend_varmap constant = { 0 };
-        constant.flags = VARMAP_CONSTANT;
+        unsigned short branch_lnum = cc_ast_alloc_label_id(ctx);
+        unsigned short finish_lnum = cc_ast_alloc_label_id(ctx);
+        cc_backend_varmap literal = { 0 };
+        literal.flags = VARMAP_CONSTANT;
 
         const char* jmp_insn = "B";
         switch (type) {
@@ -431,13 +431,19 @@ bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         fprintf(ctx->out, "\tCR\t%s, %s\n", reg_names[lvmap->regno],
             reg_names[rvmap->regno]);
         fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, branch_lnum);
-        constant.constant = 1ul;
-        ctx->backend_data->gen_mov(ctx, lvmap, &constant);
+        literal.literal = (cc_ast_literal) {
+            .is_signed = false,
+            .value.u = 1,
+        };
+        ctx->backend_data->gen_mov(ctx, lvmap, &literal);
         fprintf(ctx->out, "\tB\tL%u\n", finish_lnum);
 
         fprintf(ctx->out, "L%u\tDS\t0H\n", branch_lnum);
-        constant.constant = 0ul;
-        ctx->backend_data->gen_mov(ctx, lvmap, &constant);
+        literal.literal = (cc_ast_literal) {
+            .is_signed = false,
+            .value.u = 0,
+        };
+        ctx->backend_data->gen_mov(ctx, lvmap, &literal);
 
         fprintf(ctx->out, "L%u\tDS\t0H\n", finish_lnum);
     } break;

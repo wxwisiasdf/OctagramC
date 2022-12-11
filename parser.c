@@ -28,7 +28,7 @@ static bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
 static bool cc_parse_expression(cc_context* ctx, cc_ast_node* node);
 static bool cc_parse_constant_expression(
-    cc_context* ctx, cc_ast_node* node, signed int* r);
+    cc_context* ctx, cc_ast_node* node, cc_ast_literal* r);
 static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
 static bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
@@ -94,13 +94,13 @@ static bool cc_parse_struct_or_union_specifier(
             virtual_member.type.bitint_bits = 0;
 
             /* Constexpression follows, evaluate it nicely :) */
-            signed int result = 0;
-            cc_parse_constant_expression(ctx, node, &result);
-            if (result <= 0) {
-                cc_diag_error(ctx, "Invalid number of bits %li", result);
+            cc_ast_literal literal = { 0 };
+            cc_parse_constant_expression(ctx, node, &literal);
+            if (literal.is_signed && literal.value.s < 0) {
+                cc_diag_error(ctx, "Number of bits can't be negative");
                 goto error_handle;
             }
-            virtual_member.type.bitint_bits = result;
+            virtual_member.type.bitint_bits = literal.value.u;
         }
         cc_ast_add_type_member(type, &virtual_member);
 
@@ -229,16 +229,14 @@ error_handle:
 }
 
 static bool cc_parse_constant_expression(
-    cc_context* ctx, cc_ast_node* node, signed int* r)
+    cc_context* ctx, cc_ast_node* node, cc_ast_literal* r)
 {
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     cc_parse_expression(ctx, const_expr); /* Parse like a normal expression */
-    cc_ast_literal literal = { 0 };
-    if (!cc_ceval_constant_expression(ctx, const_expr, &literal)) {
+    if (!cc_ceval_constant_expression(ctx, const_expr, r)) {
         cc_diag_error(ctx, "Unable to evaluate static expression");
         return false;
     }
-    *r = (signed int)literal.value.s;
     return true;
 }
 
@@ -278,17 +276,17 @@ static bool cc_parse_type_specifier(
         type->is_signed = false;
         break;
     case LEXER_TOKEN__BitInt: {
-        int bits;
         type->mode = AST_TYPE_MODE_BITINT;
         ctok = cc_lex_token_consume(ctx);
         ctok = cc_lex_token_consume(ctx);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
-        cc_parse_constant_expression(ctx, node, &bits);
-        type->bitint_bits = (size_t)bits;
+        cc_ast_literal literal = { 0 };
+        cc_parse_constant_expression(ctx, node, &literal);
+        type->bitint_bits = literal.value.u;
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } break;
-    case LEXER_TOKEN_bool:
+    case LEXER_TOKEN__Bool:
         type->mode = AST_TYPE_MODE_BOOL;
         break;
     case LEXER_TOKEN__Complex:
@@ -1500,9 +1498,9 @@ ignore_missing_ident:
             && ctok->type == LEXER_TOKEN_static)
             var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
 
-        signed int r = 0;
-        cc_parse_constant_expression(ctx, node, &r);
-        var->type.cv_qual[var->type.n_cv_qual].array_size = (unsigned int)r;
+        cc_ast_literal literal = { 0 };
+        cc_parse_constant_expression(ctx, node, &literal);
+        var->type.cv_qual[var->type.n_cv_qual].array_size = literal.value.u;
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 
@@ -1614,14 +1612,13 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_case: {
             cc_ast_node* block_node = cc_ast_create_block(ctx, node);
             cc_lex_token_consume(ctx);
-            signed int r = 0;
-            cc_parse_constant_expression(ctx, node, &r);
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
-            cc_parse_statment(ctx, block_node);
 
-            block_node->data.block.case_val = r;
             block_node->data.block.is_case = true;
             block_node->ref_count++; /* Referenced by switch node */
+            cc_parse_constant_expression(
+                ctx, node, &block_node->data.block.case_val);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
+            cc_parse_statment(ctx, block_node);
             cc_ast_add_block_node(node, block_node);
         }
             return true;

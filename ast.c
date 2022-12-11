@@ -5,15 +5,17 @@
 #include "optzer.h"
 #include "util.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-unsigned int cc_ast_alloc_label_id(void)
+unsigned short cc_ast_alloc_label_id(cc_context* ctx)
 {
-    static unsigned int label_id = 0;
-    return label_id++;
+    if ((ctx->label_id + 1) >= USHRT_MAX)
+        cc_diag_warning(ctx, "Ran out of labels to assign");
+    return ctx->label_id++;
 }
 
 static cc_ast_node* cc_ast_create_any(
@@ -22,7 +24,7 @@ static cc_ast_node* cc_ast_create_any(
     cc_ast_node* node = cc_zalloc(sizeof(cc_ast_node));
     node->parent = parent;
     node->type = type;
-    node->label_id = cc_ast_alloc_label_id();
+    node->label_id = cc_ast_alloc_label_id(ctx);
 
     node->info = ctx->tokens[ctx->c_token].info;
     node->info.filename = cc_strdup(ctx->tokens[ctx->c_token].info.filename);
@@ -684,7 +686,7 @@ void cc_ast_print(const cc_ast_node* node, int ident)
     case AST_NODE_BLOCK:
         printf("{ ");
         if (node->data.block.is_case)
-            printf("case(%u,%s)", node->data.block.case_val,
+            printf("case(%lu,%s)", node->data.block.case_val.value.u,
                 node->data.block.is_default ? "default" : "case");
 
         for (size_t i = 0; i < node->data.block.n_typedefs; i++) {

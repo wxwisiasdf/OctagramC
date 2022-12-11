@@ -8,7 +8,7 @@
 
 /* AST Parsing */
 #define MAX_CV_QUALIFIERS 3
-#define MAX_ARRAY_SIZE 65536
+#define MAX_ARRAY_SIZE 65535
 
 typedef struct cc_ast_type_cv {
     bool is_const : 1;
@@ -17,7 +17,7 @@ typedef struct cc_ast_type_cv {
     bool is_atomic : 1;
     bool is_array : 1; /* Treating this pointer as array? */
     bool is_static_array : 1; /* If the given size of the array is an static */
-    unsigned int array_size; /* Size of the array! */
+    unsigned short array_size; /* Size of the array! */
 } cc_ast_type_cv;
 
 enum cc_ast_storage {
@@ -160,7 +160,7 @@ typedef struct cc_ast_node {
     enum cc_ast_node_type type;
     struct cc_ast_node* parent;
     cc_diag_info info;
-    unsigned int label_id;
+    unsigned short label_id;
     unsigned int ref_count; /* Label ref_count */
     union {
         cc_ast_literal literal;
@@ -169,7 +169,7 @@ typedef struct cc_ast_node {
         } string_literal;
         struct {
             char* name;
-            unsigned int version; /* Used by SSA */
+            unsigned short version; /* Used by SSA */
             bool is_temporal;
             bool is_field; /* Treating this variable as a field rather than a
                                standalone thing. */
@@ -180,7 +180,7 @@ typedef struct cc_ast_node {
             size_t n_params;
         } call;
         struct {
-            unsigned int label_id; /* Label Id to jump to */
+            unsigned short label_id; /* Label Id to jump to */
         } jump;
         struct {
             enum cc_ast_binop_type op;
@@ -203,11 +203,11 @@ typedef struct cc_ast_node {
             size_t n_typedefs;
             struct cc_ast_type* types;
             size_t n_types;
-            bool is_func; /* Is this a function? (handling for return
+            bool is_func : 1; /* Is this a function? (handling for return
                               and stuff) */
-            bool is_case; /* Switch statment cases */
-            bool is_default; /* Default switch case */
-            signed int case_val; /* Case value */
+            bool is_case : 1; /* Switch statment cases */
+            bool is_default : 1; /* Default switch case */
+            cc_ast_literal case_val; /* Case value */
         } block;
         struct {
             struct cc_ast_node* cond;
@@ -227,7 +227,7 @@ typedef struct cc_ast_node {
     } data;
 } cc_ast_node;
 
-unsigned int cc_ast_alloc_label_id(void);
+unsigned short cc_ast_alloc_label_id(cc_context* ctx);
 cc_ast_node* cc_ast_create_block(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_binop_expr(
     cc_context* ctx, cc_ast_node* parent, enum cc_ast_binop_type type);

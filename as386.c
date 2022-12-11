@@ -74,7 +74,10 @@ static void cc_as386_print_varmap(
         fprintf(ctx->out, "%%gs::%s@ntpoff", vmap->var->name);
         break;
     case VARMAP_CONSTANT:
-        fprintf(ctx->out, "$%lu", vmap->constant);
+        if (vmap->literal.is_signed)
+            fprintf(ctx->out, "$%li", vmap->literal.value.s);
+        else
+            fprintf(ctx->out, "$%lu", vmap->literal.value.u);
         break;
     default:
         cc_diag_error(ctx, "Invalid varmap %i", vmap->flags);
@@ -95,7 +98,7 @@ bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
 
     /* Constant 0 */
     if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_CONSTANT
-        && rvmap->constant == 0) {
+        && rvmap->literal.value.u == 0) {
         fprintf(ctx->out, "\txorl\t%s, %s\n", reg_names[lvmap->regno],
             reg_names[lvmap->regno]);
         return true;
@@ -133,8 +136,8 @@ bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     }
 
     if (lvmap->flags == VARMAP_LITERAL || rvmap->flags == VARMAP_LITERAL) {
-        unsigned int branch_label_id = cc_backend_get_labelnum(ctx);
-        unsigned int literal_label_id = cc_backend_get_labelnum(ctx);
+        unsigned short branch_label_id = cc_ast_alloc_label_id(ctx);
+        unsigned short literal_label_id = cc_ast_alloc_label_id(ctx);
 
         fprintf(ctx->out, "\tjmp\tL%i\n", branch_label_id);
         fprintf(ctx->out, "L%i:\n", literal_label_id);
@@ -348,10 +351,10 @@ bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
     case AST_BINOP_LTE:
     case AST_BINOP_COND_EQ:
     case AST_BINOP_COND_NEQ: {
-        unsigned int branch_lnum = cc_backend_get_labelnum(ctx);
-        unsigned int finish_lnum = cc_backend_get_labelnum(ctx);
-        cc_backend_varmap constant = { 0 };
-        constant.flags = VARMAP_CONSTANT;
+        unsigned short branch_lnum = cc_ast_alloc_label_id(ctx);
+        unsigned short finish_lnum = cc_ast_alloc_label_id(ctx);
+        cc_backend_varmap literal = { 0 };
+        literal.flags = VARMAP_CONSTANT;
 
         const char* jmp_insn = "jmp";
         switch (type) {
@@ -380,14 +383,19 @@ bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         fprintf(ctx->out, "\tcmp\t%s, %s\n", reg_names[lvmap->regno],
             reg_names[rvmap->regno]);
         fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, branch_lnum);
-        constant.constant = 1ul;
-        ctx->backend_data->gen_mov(ctx, lvmap, &constant);
+        literal.literal = (cc_ast_literal) {
+            .is_signed = false,
+            .value.u = 1,
+        };
+        ctx->backend_data->gen_mov(ctx, lvmap, &literal);
         fprintf(ctx->out, "\tjmp\tL%u\n", finish_lnum);
 
         fprintf(ctx->out, "L%u:\n", branch_lnum);
-        constant.constant = 0ul;
-        ctx->backend_data->gen_mov(ctx, lvmap, &constant);
-
+        literal.literal = (cc_ast_literal) {
+            .is_signed = false,
+            .value.u = 0,
+        };
+        ctx->backend_data->gen_mov(ctx, lvmap, &literal);
         fprintf(ctx->out, "L%u:\n", finish_lnum);
     } break;
     default:

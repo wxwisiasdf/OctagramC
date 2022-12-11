@@ -8,11 +8,6 @@
 #include <assert.h>
 #include <string.h>
 
-unsigned int cc_backend_get_labelnum(cc_context* ctx)
-{
-    return ctx->backend_data->label_num++;
-}
-
 void cc_backend_spill_reg(cc_context* ctx, unsigned int regno)
 {
     cc_backend_varmap ltmp = { 0 }, rtmp = { 0 };
@@ -175,7 +170,7 @@ cc_backend_varmap cc_backend_get_node_varmap(
     } break;
     case AST_NODE_LITERAL:
         vmap.flags = VARMAP_CONSTANT;
-        vmap.constant = node->data.literal.value.u;
+        vmap.literal = node->data.literal;
         return vmap;
     case AST_NODE_STRING_LITERAL:
         vmap.flags = VARMAP_LITERAL;
@@ -407,7 +402,8 @@ static void cc_backend_process_if(
 
     cc_backend_varmap lvmap = { 0 };
     lvmap.flags = VARMAP_CONSTANT;
-    lvmap.constant = 1;
+    lvmap.literal.is_signed = false;
+    lvmap.literal.value.u = 1;
     ctx->backend_data->gen_branch(
         ctx, node->data.if_expr.block, &lvmap, &rvmap, AST_BINOP_COND_EQ);
     if (node->data.if_expr.tail_else) {
@@ -554,7 +550,7 @@ void cc_backend_process_node(
             } else {
                 cc_backend_varmap onevmap = { 0 };
                 onevmap.flags = VARMAP_CONSTANT;
-                onevmap.constant = list[i]->data.block.case_val;
+                onevmap.literal = list[i]->data.block.case_val;
                 ctx->backend_data->gen_branch(
                     ctx, list[i], &vmap, &onevmap, AST_BINOP_COND_EQ);
             }
@@ -581,7 +577,6 @@ void cc_backend_init(
     cc_context* ctx, const char* reg_names[], unsigned int n_regs)
 {
     ctx->backend_data = cc_zalloc(sizeof(cc_backend_context));
-    ctx->backend_data->label_num = cc_ast_alloc_label_id();
 
     ctx->backend_data->reg_names = reg_names;
     ctx->backend_data->regs = cc_zalloc(sizeof(cc_backend_reginfo) * n_regs);

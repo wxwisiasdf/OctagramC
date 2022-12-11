@@ -19,7 +19,7 @@ typedef struct cc_backend_varmap {
     enum cc_backend_varmap_flags flags;
     unsigned int regno; /* Register number */
     unsigned int offset; /* Stack offset (if stack based) */
-    unsigned long constant;
+    cc_ast_literal literal;
     char* data;
     size_t n_data;
     unsigned int depth; /* Depth at which the varmap was made */
@@ -43,7 +43,6 @@ typedef struct cc_backend_context {
     unsigned int stack_frame_size; /* Size of the frame for the current
                                       function */
     unsigned int min_stack_alignment; /* Minimum alignment for stack */
-    unsigned int label_num; /* Label assignment numbers */
     bool (*is_reserved)(unsigned int regno);
     bool (*gen_mov)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap);
@@ -68,7 +67,7 @@ typedef struct cc_backend_context {
     const cc_ast_variable* current_func_var;
 } cc_backend_context;
 
-unsigned int cc_backend_get_labelnum(cc_context* ctx);
+unsigned short cc_ast_alloc_label_id(cc_context* ctx);
 void cc_backend_spill_reg(cc_context* ctx, unsigned int regno);
 void cc_backend_unspill_reg(cc_context* ctx, unsigned int regno);
 void cc_backend_spill(cc_context* ctx, unsigned int num);
