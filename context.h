@@ -11,6 +11,7 @@ enum cc_stage {
     STAGE_AST,
 };
 
+/* State machine variables for parser, lexer, etc */
 typedef struct cc_context {
     FILE* fp;
     FILE* out;
@@ -29,18 +30,17 @@ typedef struct cc_context {
     struct cc_backend_context* backend_data;
     struct cc_ast_node* continue_node; /* Node to jump to in continue */
     struct cc_ast_node* break_node; /* Node to jump to in break */
-    /* State machine variables for parser, lexer, etc */
+    unsigned int error_cnt; /* Counter for errors */
+    unsigned int label_id; /* Label Id assignation */
     bool is_parsing_prototype; /* Allow ignoring missing identifiers on
                                    parameters. */
     bool is_parsing_typedef; /* Handling for typedefs */
     bool declaration_ident_optional; /* alignas/alignof/sizeof type-name
                                          ignores/doesn't fail when no identifier
                                          is specified. */
-    unsigned int error_cnt; /* Counter for errors */
     bool print_ast; /* Printing of AST is allowed/disallowed */
     bool is_func_body; /* Parsing assigning automatic storage to variables
                            if global or pertaining to the stack of a functor. */
-    unsigned int label_id; /* Label Id assignation */
 } cc_context;
 
 #endif

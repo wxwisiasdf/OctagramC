@@ -416,10 +416,6 @@ static void cc_backend_process_if(
     }
     cc_backend_free_register(ctx, rvmap.regno);
 
-    printf("\nBLOCK\n");
-    cc_ast_print(node->data.if_expr.block);
-    printf("\n");
-
     cc_backend_process_node(ctx, node->data.if_expr.block, ovmap);
     cc_backend_process_node(ctx, node->data.if_expr.tail_else, ovmap);
 }

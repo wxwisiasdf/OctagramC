@@ -12,8 +12,6 @@ static const char* lexer_token_match[] = { LEXER_TOKEN_LIST };
 #undef LEXER_TOKEN_LIST_1
 #undef LEXER_TOKEN_LIST
 
-/* ========================================================================== */
-/* Lexer and tokenizer */
 static char* cc_lex_get_logical_line(cc_context* ctx)
 {
     size_t total_len = 0;
