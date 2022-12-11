@@ -132,11 +132,11 @@ static bool cc_parse_enum_specifier(
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
-    || ctok->type != LEXER_TOKEN_enum)
+        || ctok->type != LEXER_TOKEN_enum)
         return false;
 
     cc_lex_token_consume(ctx);
-    
+
     type->mode = AST_TYPE_MODE_ENUM;
     /* TODO: Attributes */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -168,11 +168,11 @@ static bool cc_parse_enum_specifier(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_RBRACE)
         goto empty_memberlist;
-    
+
     /* Syntax is <ident> = <const-expr> , */
     cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_IDENT) {
+        && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
         cc_ast_enum_member member = { 0 };
         member.name = cc_strdup(ctok->data);
@@ -184,25 +184,28 @@ static bool cc_parse_enum_specifier(
             cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
             /* Parse like a normal expression */
             cc_parse_unary_expression(ctx, const_expr);
-            if (!cc_ceval_constant_expression(ctx, const_expr, &member.literal)) {
+            if (!cc_ceval_constant_expression(
+                    ctx, const_expr, &member.literal)) {
                 cc_diag_error(ctx, "Unable to evaluate constant expression");
                 return false;
             }
             seq_literal = member.literal;
             if (member.literal.is_float) {
-                cc_diag_warning(ctx, "Floating enumerator values will be truncated");
+                cc_diag_warning(
+                    ctx, "Floating enumerator values will be truncated");
                 member.literal.is_float = false;
                 member.literal.is_signed = false;
                 member.literal.value.s = (signed long)member.literal.value.d;
             }
         }
 
-        type->data.enumer.elems = cc_realloc(type->data.enumer.elems, sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
+        type->data.enumer.elems = cc_realloc(type->data.enumer.elems,
+            sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
         /* Enumerator members are globally visible as constexpr
             evaluatible variables on the global context. */
-        cc_ast_variable var = {0};
+        cc_ast_variable var = { 0 };
         cc_ast_copy_type(&var.type, type);
         var.type.storage = AST_STORAGE_CONSTEXPR;
         var.name = cc_strdup(member.name);
@@ -212,7 +215,7 @@ static bool cc_parse_enum_specifier(
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE)
             break;
-        
+
         if (seq_literal.is_signed)
             seq_literal.value.s++;
         else
@@ -330,13 +333,18 @@ error_handle:
 static bool cc_parse_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* r)
 {
+    /* Loosely parent-linked to node, however not actually aded to node
+       as a children since this is a virtual node to serve as an
+       intermediare and facilitate execution. */
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     /* Parse like a normal expression */
     cc_parse_expression(ctx, const_expr);
     if (!cc_ceval_constant_expression(ctx, const_expr, r)) {
-        cc_diag_error(ctx, "Unable to evaluate static expression");
+        cc_diag_error(ctx, "Unable to evaluate constant expression");
+        cc_ast_destroy_node(const_expr, true);
         return false;
     }
+    cc_ast_destroy_node(const_expr, true);
     return true;
 }
 
@@ -888,26 +896,24 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
 
         /* Collect arguments (they can be optional) */
         cc_ast_node* call_node = cc_ast_create_call(ctx, node);
-        cc_ast_node* virtual_node = cc_ast_create_block(ctx, call_node);
         cc_ast_node* left_node
             = cc_ast_create_var_ref(ctx, call_node->data.call.call_expr, var);
 
         /* Left side node (simple ident) */
         cc_ast_add_block_node(call_node->data.call.call_expr, left_node);
 
+        cc_ast_node* virtual_node = cc_ast_create_block(ctx, call_node);
         while (cc_parse_assignment_expression(ctx, virtual_node, NULL)) {
             cc_ast_add_call_param(call_node, virtual_node);
-            cc_free(virtual_node);
-
             virtual_node = cc_ast_create_block(ctx, call_node);
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_COMMA) {
                 cc_lex_token_consume(ctx);
                 continue;
             }
-            cc_ast_destroy_node(virtual_node, true);
             break;
         }
+        cc_ast_destroy_node(virtual_node, true);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         *expr_result = call_node;
@@ -1825,9 +1831,11 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     goto error_handle;
                 if (!is_parsing_typedef) {
                     if (nvar.name == NULL) {
-                        cc_diag_warning(ctx, "Anonymous variable declared on external block");
+                        cc_diag_warning(ctx,
+                            "Anonymous variable declared on external block");
                         cc_ast_destroy_var(&nvar, false);
-                        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
+                        CC_PARSE_EXPECT(
+                            ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
                         goto error_handle;
                     }
                     cc_ast_add_block_variable(node, &nvar);

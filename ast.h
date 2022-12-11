@@ -63,7 +63,7 @@ typedef struct cc_ast_literal {
 } cc_ast_literal;
 
 typedef struct cc_ast_enum_member {
-    char *name;
+    char* name;
     cc_ast_literal literal;
 } cc_ast_enum_member;
 

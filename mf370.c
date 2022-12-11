@@ -77,13 +77,15 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     case AST_TYPE_MODE_STRUCT: {
         size_t total = 0;
         for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
-            total += ctx->backend_data->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+            total += ctx->backend_data->get_sizeof(
+                ctx, &type->data.s_or_u.members[i].type);
         return total;
     }
     case AST_TYPE_MODE_UNION: {
         size_t upper_lim = 0;
         for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
-            size_t count = ctx->backend_data->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+            size_t count = ctx->backend_data->get_sizeof(
+                ctx, &type->data.s_or_u.members[i].type);
             upper_lim = count > upper_lim ? count : upper_lim;
         }
         return upper_lim;
