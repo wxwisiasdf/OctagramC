@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node);
 bool cc_ceval_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* literal);
 bool cc_ceval_deduce_type(

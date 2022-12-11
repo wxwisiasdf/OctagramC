@@ -322,22 +322,22 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
-    type->storage = AST_STORAGE_AUTO;
+    
     switch (ctok->type) {
     case LEXER_TOKEN_extern:
-        type->storage |= AST_STORAGE_EXTERN;
+        type->storage = AST_STORAGE_EXTERN;
         break;
     case LEXER_TOKEN_static:
-        type->storage |= AST_STORAGE_STATIC;
+        type->storage = AST_STORAGE_STATIC;
         break;
     case LEXER_TOKEN_register:
-        type->storage |= AST_STORAGE_REGISTER;
+        type->storage = AST_STORAGE_REGISTER;
         break;
     case LEXER_TOKEN_thread_local:
-        type->storage |= AST_STORAGE_THREAD_LOCAL;
+        type->storage = AST_STORAGE_THREAD_LOCAL;
         break;
     case LEXER_TOKEN_constexpr:
-        type->storage |= AST_STORAGE_CONSTEXPR;
+        type->storage = AST_STORAGE_CONSTEXPR;
         break;
     case LEXER_TOKEN_typedef:
         ctx->is_parsing_typedef = true;
@@ -814,6 +814,9 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         *expr_result = call_node;
+
+        if (var->type.mode != AST_TYPE_MODE_FUNCTION)
+            cc_diag_error(ctx, "Calling non-function variable");
         return true;
     error_handle:
         cc_ast_destroy_node(call_node, true);
@@ -920,7 +923,10 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
 
         if (cc_parse_unary_call(ctx, node, var, &expr_node)) {
             /* Parsed the call.. */
-        } else { /* Not a call, just a variable reference*/
+        } else { /* Not a call, just a variable reference */
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION)
+                cc_diag_error(
+                    ctx, "Expected call for function '%s()'", var->name);
             expr_node = cc_ast_create_var_ref(ctx, node, var);
         }
         matched_any = true;
@@ -1112,6 +1118,7 @@ static bool cc_parse_declaration_specifier(
 {
     const cc_lexer_token* ctok;
     bool qualified_once = false;
+    type->storage = AST_STORAGE_AUTO;
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)
@@ -1423,8 +1430,9 @@ ignore_missing_ident:
         cc_lex_token_consume(ctx);
         var->type.mode = AST_TYPE_MODE_FUNCTION;
         /* No storage specified? set extern then */
-        if (var->type.storage == AST_STORAGE_AUTO)
+        /*if (var->type.storage == AST_STORAGE_AUTO) {
             var->type.storage = AST_STORAGE_EXTERN;
+        }*/
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ELLIPSIS) {
@@ -1769,11 +1777,11 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
                 goto error_handle;
             }
 
-            /* All functions that are not prototypes are treated as a variable
-               and all functions whose storage is extern are depromoted from
-               extern into auto automatically. */
-            if (var.type.storage == AST_STORAGE_EXTERN)
+            /* All functions that are not prototypes are treated as a variable. */
+            if (var.type.storage == AST_STORAGE_EXTERN) {
+                cc_diag_warning(ctx, "Function '%s' declared extern but defined here", var.name);
                 var.type.storage = AST_STORAGE_AUTO;
+            }
 
             /* Variable for the function prototype (then replaced) */
             cc_ast_variable prot_var = { 0 };

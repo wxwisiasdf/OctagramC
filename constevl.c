@@ -3,9 +3,16 @@
 #include "ast.h"
 #include "context.h"
 #include "optzer.h"
+#include "util.h"
 #include <assert.h>
+#include <string.h>
 
-static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
+typedef struct cc_ceval_io {
+    const char *name; /* View of name, non-owning */
+    cc_ast_literal literal;
+} cc_ceval_io;
+
+static cc_ast_literal cc_ceval_eval_1(cc_context* ctx, cc_ast_node* node, cc_ceval_io **list, size_t *n_list)
 {
     if (node == NULL)
         return (cc_ast_literal) {
@@ -15,6 +22,12 @@ static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
 
     cc_ast_literal lhs, rhs;
     switch (node->type) {
+    case AST_NODE_VARIABLE:
+        for (size_t i = 0; i < *n_list; i++)
+            if (!strcmp((*list)[i].name, node->data.var.name))
+                return (*list)[i].literal;
+        cc_diag_warning(ctx, "Unable to constexpr variable, defaulting to 0");
+        break;
     case AST_NODE_BINOP:
         lhs = cc_ceval_eval(ctx, node->data.binop.left);
         rhs = cc_ceval_eval(ctx, node->data.binop.right);
@@ -38,6 +51,24 @@ static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
         break;
     case AST_NODE_LITERAL:
         return node->data.literal;
+    case AST_NODE_CALL: {
+        assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
+        cc_ast_variable* var
+            = cc_ast_find_variable(node->data.call.call_expr->data.var.name,
+                node);
+        assert(var != NULL);
+
+        assert(var->type.data.func.n_params == node->data.call.n_params);
+        for (size_t i = 0; i < var->type.data.func.n_params; i++) {
+            *list = cc_realloc(*list, sizeof(**list) * (*n_list + 1));
+            (*list)[*n_list].name = var->type.data.func.params->name;
+            (*list)[*n_list].literal = cc_ceval_eval(ctx, &node->data.call.params[i]);
+            (*n_list)++;
+        }
+        return cc_ceval_eval_1(ctx, var->body, list, n_list);
+    }
+    case AST_NODE_RETURN:
+        return cc_ceval_eval_1(ctx, node->data.return_expr, list, n_list);
     default:
         break;
     }
@@ -48,13 +79,20 @@ static cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
     };
 }
 
+cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
+{
+    cc_ceval_io *list = NULL;
+    size_t n_list = 0;
+    return cc_ceval_eval_1(ctx, node, &list, &n_list);
+}
+
 /* Evaluate a constant expression, modifying the resulting AST node
    and (if it could be evaluated) reduced into a single literal node. */
 bool cc_ceval_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* literal)
 {
     cc_ast_node* tnode = node;
-    cc_optimizer_expr_condense(&tnode, true); /* Condense and eliminate
+    cc_optimizer_expr_condense(ctx, &tnode, true); /* Condense and eliminate
                                                 dead code */
     *literal = cc_ceval_eval(ctx, node);
     return true;

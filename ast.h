@@ -21,7 +21,7 @@ typedef struct cc_ast_type_cv {
 } cc_ast_type_cv;
 
 enum cc_ast_storage {
-    AST_STORAGE_AUTO = 0,
+    AST_STORAGE_AUTO,
     AST_STORAGE_EXTERN,
     AST_STORAGE_STATIC,
     AST_STORAGE_REGISTER,
