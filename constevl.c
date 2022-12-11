@@ -75,11 +75,11 @@ _Bool cc_ceval_deduce_type(
     case AST_NODE_STRING_LITERAL:
         type->n_cv_qual = 1;
         type->cv_qual[0].is_const = true;
-        type->mode = TYPE_MODE_CHAR;
+        type->mode = AST_TYPE_MODE_CHAR;
         return true;
     case AST_NODE_LITERAL:
         /* TODO: Literals with suffixes like zu, u, ul, etc */
-        type->mode = TYPE_MODE_INT;
+        type->mode = AST_TYPE_MODE_INT;
         return true;
     case AST_NODE_BINOP:
         /* Assignments promote to their lvalue type */

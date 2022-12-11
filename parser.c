@@ -43,11 +43,11 @@ static _Bool cc_parse_struct_or_union_specifier(
     switch (ctok->type) {
     case LEXER_TOKEN_struct:
         cc_lex_token_consume(ctx);
-        type->mode = TYPE_MODE_STRUCT;
+        type->mode = AST_TYPE_MODE_STRUCT;
         break;
     case LEXER_TOKEN_union:
         cc_lex_token_consume(ctx);
-        type->mode = TYPE_MODE_UNION;
+        type->mode = AST_TYPE_MODE_UNION;
         break;
     default:
         assert(0);
@@ -90,7 +90,7 @@ static _Bool cc_parse_struct_or_union_specifier(
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COLON) {
             cc_lex_token_consume(ctx);
-            virtual_member.type.mode = TYPE_MODE_BITINT;
+            virtual_member.type.mode = AST_TYPE_MODE_BITINT;
             virtual_member.type.bitint_bits = 0;
 
             /* Constexpression follows, evaluate it nicely :) */
@@ -137,7 +137,7 @@ static _Bool cc_parse_function_specifier(cc_context* ctx, cc_ast_type* type)
         return false;
     switch (ctok->type) {
     case LEXER_TOKEN_inline:
-        type->storage |= STORAGE_INLINE;
+        type->storage |= AST_STORAGE_INLINE;
         break;
     case LEXER_TOKEN__Noreturn:
         type->data.func.no_return = true;
@@ -248,28 +248,28 @@ static _Bool cc_parse_type_specifier(
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
-    type->mode = TYPE_MODE_INT;
+    type->mode = AST_TYPE_MODE_INT;
     switch (ctok->type) {
     case LEXER_TOKEN_void:
-        type->mode = TYPE_MODE_VOID;
+        type->mode = AST_TYPE_MODE_VOID;
         break;
     case LEXER_TOKEN_char:
-        type->mode = TYPE_MODE_CHAR;
+        type->mode = AST_TYPE_MODE_CHAR;
         break;
     case LEXER_TOKEN_short:
-        type->mode = TYPE_MODE_SHORT;
+        type->mode = AST_TYPE_MODE_SHORT;
         break;
     case LEXER_TOKEN_int:
-        type->mode = TYPE_MODE_INT;
+        type->mode = AST_TYPE_MODE_INT;
         break;
     case LEXER_TOKEN_long:
-        type->mode = TYPE_MODE_LONG;
+        type->mode = AST_TYPE_MODE_LONG;
         break;
     case LEXER_TOKEN_float:
-        type->mode = TYPE_MODE_FLOAT;
+        type->mode = AST_TYPE_MODE_FLOAT;
         break;
     case LEXER_TOKEN_double:
-        type->mode = TYPE_MODE_DOUBLE;
+        type->mode = AST_TYPE_MODE_DOUBLE;
         break;
     case LEXER_TOKEN_signed:
         type->is_signed = true;
@@ -279,7 +279,7 @@ static _Bool cc_parse_type_specifier(
         break;
     case LEXER_TOKEN__BitInt: {
         int bits;
-        type->mode = TYPE_MODE_BITINT;
+        type->mode = AST_TYPE_MODE_BITINT;
         ctok = cc_lex_token_consume(ctx);
         ctok = cc_lex_token_consume(ctx);
 
@@ -289,19 +289,19 @@ static _Bool cc_parse_type_specifier(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } break;
     case LEXER_TOKEN__Bool:
-        type->mode = TYPE_MODE_BOOL;
+        type->mode = AST_TYPE_MODE_BOOL;
         break;
     case LEXER_TOKEN__Complex:
-        type->mode = TYPE_MODE__COMPLEX;
+        type->mode = AST_TYPE_MODE__COMPLEX;
         break;
     case LEXER_TOKEN__Decimal32:
-        type->mode = TYPE_MODE__DECIMAL32;
+        type->mode = AST_TYPE_MODE__DECIMAL32;
         break;
     case LEXER_TOKEN__Decimal64:
-        type->mode = TYPE_MODE__DECIMAL64;
+        type->mode = AST_TYPE_MODE__DECIMAL64;
         break;
     case LEXER_TOKEN__Decimal128:
-        type->mode = TYPE_MODE__DECIMAL128;
+        type->mode = AST_TYPE_MODE__DECIMAL128;
         break;
     case LEXER_TOKEN_struct:
     case LEXER_TOKEN_union:
@@ -325,22 +325,22 @@ static _Bool cc_parse_storage_class_specifier(
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
-    type->storage = STORAGE_AUTO;
+    type->storage = AST_STORAGE_AUTO;
     switch (ctok->type) {
     case LEXER_TOKEN_extern:
-        type->storage |= STORAGE_EXTERN;
+        type->storage |= AST_STORAGE_EXTERN;
         break;
     case LEXER_TOKEN_static:
-        type->storage |= STORAGE_STATIC;
+        type->storage |= AST_STORAGE_STATIC;
         break;
     case LEXER_TOKEN_register:
-        type->storage |= STORAGE_REGISTER;
+        type->storage |= AST_STORAGE_REGISTER;
         break;
     case LEXER_TOKEN_thread_local:
-        type->storage |= STORAGE_THREAD_LOCAL;
+        type->storage |= AST_STORAGE_THREAD_LOCAL;
         break;
     case LEXER_TOKEN_constexpr:
-        type->storage |= STORAGE_CONSTEXPR;
+        type->storage |= AST_STORAGE_CONSTEXPR;
         break;
     case LEXER_TOKEN_typedef:
         ctx->is_parsing_typedef = true;
@@ -859,7 +859,7 @@ static _Bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
             goto error_handle;
         }
         /* Type can be deduced from variable alone */
-        if (virtual_var.type.mode != TYPE_MODE_NONE) {
+        if (virtual_var.type.mode != AST_TYPE_MODE_NONE) {
             cc_ast_copy_type(&virtual_type, &virtual_var.type);
             deduce_required = false;
         }
@@ -900,7 +900,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     _Bool matched_any = false;
     _Bool parent_rerouted = false;
     cc_ast_node* expr_node = NULL;
@@ -929,8 +929,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             expr_node = cc_ast_create_var_ref(ctx, node, var);
         }
         matched_any = true;
-    }
-        break;
+    } break;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
@@ -956,8 +955,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(node, pi_node);
             parent_rerouted = true;
             matched_any = true;
-        }
-            break;
+        } break;
         /* Array accessor <expr>[<expr>] syntax */
         case LEXER_TOKEN_LBRACKET: {
             cc_lex_token_consume(ctx);
@@ -977,8 +975,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
             parent_rerouted = true;
             matched_any = true;
-        }
-            break;
+        } break;
         case LEXER_TOKEN_DOT:
         case LEXER_TOKEN_ARROW: {
             cc_lex_token_consume(ctx);
@@ -995,8 +992,7 @@ static _Bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(node, accessor_node);
             parent_rerouted = true;
             matched_any = true;
-        }
-            break;
+        } break;
         default:
             break;
         }
@@ -1413,7 +1409,7 @@ static _Bool cc_parse_declarator(
     } break;
     default:
         if (ctx->is_parsing_prototype || ctx->declaration_ident_optional) {
-            if (var->type.mode == TYPE_MODE_NONE) {
+            if (var->type.mode == AST_TYPE_MODE_NONE) {
                 cc_diag_error(ctx, "Unable to disambiguate");
                 cc_lex_token_consume(ctx);
                 goto error_handle;
@@ -1430,10 +1426,10 @@ ignore_missing_ident:
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
         cc_lex_token_consume(ctx);
-        var->type.mode = TYPE_MODE_FUNCTION;
+        var->type.mode = AST_TYPE_MODE_FUNCTION;
         /* No storage specified? set extern then */
-        if (var->type.storage == STORAGE_AUTO)
-            var->type.storage = STORAGE_EXTERN;
+        if (var->type.storage == AST_STORAGE_AUTO)
+            var->type.storage = AST_STORAGE_EXTERN;
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ELLIPSIS) {
@@ -1597,8 +1593,8 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         cc_ast_copy_type(&stype, &var->type);
         /* Assign global storage to the variable if it is not inside a
            function body. */
-        if (!ctx->is_func_body && var->type.storage == STORAGE_AUTO)
-            var->type.storage = STORAGE_GLOBAL;
+        if (!ctx->is_func_body && var->type.storage == AST_STORAGE_AUTO)
+            var->type.storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);
@@ -1698,13 +1694,13 @@ static _Bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                     cc_ast_variable nvar = { 0 };
                     nvar.name = cc_strdup(ctok->data);
-                    nvar.type.mode = TYPE_MODE_FUNCTION;
-                    nvar.type.storage = STORAGE_EXTERN;
+                    nvar.type.mode = AST_TYPE_MODE_FUNCTION;
+                    nvar.type.storage = AST_STORAGE_EXTERN;
                     /* Variadic, basically meaning we have no fucking idea */
                     nvar.type.data.func.variadic = true;
                     nvar.type.data.func.return_type
                         = cc_zalloc(sizeof(cc_ast_type));
-                    nvar.type.data.func.return_type->mode = TYPE_MODE_INT;
+                    nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
                     cc_ast_add_block_variable(node, &nvar);
                     return cc_parse_compund_statment(ctx, node);
                 } else {
@@ -1763,7 +1759,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             /* Function prototype usually ends up with ");" */
             if ((ctok = cc_lex_token_peek(ctx, -1)) != NULL
                 && ctok->type == LEXER_TOKEN_RPAREN)
-                var.type.mode = TYPE_MODE_FUNCTION;
+                var.type.mode = AST_TYPE_MODE_FUNCTION;
             cc_lex_token_consume(ctx);
             break;
         case LEXER_TOKEN_LBRACE: /* Function body */
@@ -1773,7 +1769,7 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
                 goto error_handle;
             }
 
-            if (var.type.mode != TYPE_MODE_FUNCTION) {
+            if (var.type.mode != AST_TYPE_MODE_FUNCTION) {
                 cc_diag_error(ctx, "Unexpected '}' on non-function type");
                 goto error_handle;
             }
@@ -1781,8 +1777,8 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             /* All functions that are not prototypes are treated as a variable
                and all functions whose storage is extern are depromoted from
                extern into auto automatically. */
-            if (var.type.storage == STORAGE_EXTERN)
-                var.type.storage = STORAGE_AUTO;
+            if (var.type.storage == AST_STORAGE_EXTERN)
+                var.type.storage = AST_STORAGE_AUTO;
 
             /* Variable for the function prototype (then replaced) */
             cc_ast_variable prot_var = { 0 };
@@ -1820,8 +1816,8 @@ static _Bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     if (!is_parsing_typedef) {
         /* Automatically give variables globality-scope if they don't
            have any other linkage specifiers. */
-        if (var.type.storage == STORAGE_AUTO)
-            var.type.storage = STORAGE_GLOBAL;
+        if (var.type.storage == AST_STORAGE_AUTO)
+            var.type.storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, &var);
     }
     return true;

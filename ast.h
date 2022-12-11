@@ -20,41 +20,41 @@ typedef struct cc_ast_type_cv {
     unsigned int array_size; /* Size of the array! */
 } cc_ast_type_cv;
 
-enum cc_storage {
-    STORAGE_AUTO = 0,
-    STORAGE_EXTERN,
-    STORAGE_STATIC,
-    STORAGE_REGISTER,
-    STORAGE_CONSTEXPR,
-    STORAGE_GLOBAL,
-    STORAGE_THREAD_LOCAL = 0x40,
-    STORAGE_INLINE = 0x80,
+enum cc_ast_storage {
+    AST_STORAGE_AUTO = 0,
+    AST_STORAGE_EXTERN,
+    AST_STORAGE_STATIC,
+    AST_STORAGE_REGISTER,
+    AST_STORAGE_CONSTEXPR,
+    AST_STORAGE_GLOBAL,
+    AST_STORAGE_THREAD_LOCAL = 0x40,
+    AST_STORAGE_INLINE = 0x80,
 };
 
 enum cc_ast_type_mode {
-    TYPE_MODE_NONE,
-    TYPE_MODE_VOID,
-    TYPE_MODE_CHAR,
-    TYPE_MODE_SHORT,
-    TYPE_MODE_INT,
-    TYPE_MODE_LONG,
-    TYPE_MODE_FLOAT,
-    TYPE_MODE_DOUBLE,
-    TYPE_MODE_BITINT,
-    TYPE_MODE_BOOL,
-    TYPE_MODE__COMPLEX,
-    TYPE_MODE__DECIMAL32,
-    TYPE_MODE__DECIMAL64,
-    TYPE_MODE__DECIMAL128,
-    TYPE_MODE_STRUCT,
-    TYPE_MODE_UNION,
-    TYPE_MODE_ENUM,
-    TYPE_MODE_FUNCTION
+    AST_TYPE_MODE_NONE,
+    AST_TYPE_MODE_VOID,
+    AST_TYPE_MODE_CHAR,
+    AST_TYPE_MODE_SHORT,
+    AST_TYPE_MODE_INT,
+    AST_TYPE_MODE_LONG,
+    AST_TYPE_MODE_FLOAT,
+    AST_TYPE_MODE_DOUBLE,
+    AST_TYPE_MODE_BITINT,
+    AST_TYPE_MODE_BOOL,
+    AST_TYPE_MODE__COMPLEX,
+    AST_TYPE_MODE__DECIMAL32,
+    AST_TYPE_MODE__DECIMAL64,
+    AST_TYPE_MODE__DECIMAL128,
+    AST_TYPE_MODE_STRUCT,
+    AST_TYPE_MODE_UNION,
+    AST_TYPE_MODE_ENUM,
+    AST_TYPE_MODE_FUNCTION
 };
 
 typedef struct cc_ast_type {
     enum cc_ast_type_mode mode;
-    enum cc_storage storage;
+    enum cc_ast_storage storage;
     cc_ast_type_cv cv_qual[MAX_CV_QUALIFIERS];
     size_t n_cv_qual; /* Number of cv qualifiers
                         0 = invalid
@@ -155,6 +155,11 @@ typedef struct cc_ast_literal {
         signed long long s;
     } value;
 } cc_ast_literal;
+
+typedef struct cc_ast_primitive_type {
+    unsigned int access_size; /* Size of access, in bits */
+    
+} cc_ast_primitive_type;
 
 typedef struct cc_ast_node {
     enum cc_ast_node_type type;

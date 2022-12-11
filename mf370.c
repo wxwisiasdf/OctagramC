@@ -60,17 +60,17 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
         return sizeof_ptr;
 
     switch (type->mode) {
-    case TYPE_MODE_CHAR:
+    case AST_TYPE_MODE_CHAR:
         return 1;
-    case TYPE_MODE_BOOL:
+    case AST_TYPE_MODE_BOOL:
         return 1;
-    case TYPE_MODE_INT:
+    case AST_TYPE_MODE_INT:
         return 4;
-    case TYPE_MODE_SHORT:
+    case AST_TYPE_MODE_SHORT:
         return 2;
-    case TYPE_MODE_LONG:
+    case AST_TYPE_MODE_LONG:
         return 8;
-    case TYPE_MODE_FUNCTION:
+    case AST_TYPE_MODE_FUNCTION:
         return sizeof_ptr;
     default:
         break;
@@ -536,25 +536,25 @@ _Bool cc_mf370_gen_prologue(
 
 _Bool cc_mf370_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
-    if (var->type.mode == TYPE_MODE_FUNCTION) {
-        if (var->type.storage == STORAGE_STATIC) {
+    if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
+        if (var->type.storage == AST_STORAGE_STATIC) {
 
-        } else if (var->type.storage == STORAGE_AUTO) {
+        } else if (var->type.storage == AST_STORAGE_AUTO) {
 
-        } else if (var->type.storage == STORAGE_EXTERN) {
+        } else if (var->type.storage == AST_STORAGE_EXTERN) {
             fprintf(
                 ctx->out, "\tEXTRN\t%s\n", cc_mf370_logical_label(var->name));
         }
         return true;
     }
 
-    if (var->type.storage == STORAGE_STATIC) {
+    if (var->type.storage == AST_STORAGE_STATIC) {
         fprintf(ctx->out, "* X-static-var %s\n", var->name);
         fprintf(ctx->out, "%s\tDS\t%uH\n", cc_mf370_logical_label(var->name),
             cc_mf370_get_sizeof(ctx, &var->type));
-    } else if (var->type.storage == STORAGE_AUTO) {
+    } else if (var->type.storage == AST_STORAGE_AUTO) {
         fprintf(ctx->out, "* X-stack-var %s\n", var->name);
-    } else if (var->type.storage == STORAGE_GLOBAL) {
+    } else if (var->type.storage == AST_STORAGE_GLOBAL) {
         fprintf(ctx->out, "* X-global-var %s\n", var->name);
         fprintf(ctx->out, "%s\tDS\t%uH\n", cc_mf370_logical_label(var->name),
             cc_mf370_get_sizeof(ctx, &var->type));

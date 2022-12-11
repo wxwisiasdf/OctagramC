@@ -150,7 +150,7 @@ void cc_ast_add_block_typedef(cc_ast_node* block, const cc_ast_typedef* tpdef)
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type)
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
-    assert(type->mode != TYPE_MODE_NONE);
+    assert(type->mode != AST_TYPE_MODE_NONE);
     assert(type->name != NULL);
     block->data.block.types = cc_realloc(block->data.block.types,
         sizeof(cc_ast_type) * (block->data.block.n_types + 1));
@@ -203,7 +203,7 @@ void cc_ast_destroy_type(cc_ast_type* type, _Bool managed)
     if (type == NULL)
         return;
     switch (type->mode) {
-    case TYPE_MODE_FUNCTION:
+    case AST_TYPE_MODE_FUNCTION:
         if (type->data.func.params != NULL) {
             for (size_t i = 0; i < type->data.func.n_params; i++) {
                 cc_ast_destroy_type(&type->data.func.params[i].type, false);
@@ -288,7 +288,7 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
                 return var;
 
             /* Check parameters for functions */
-            if (var->type.mode == TYPE_MODE_FUNCTION) {
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
                 for (size_t j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
                     /* Unnamed parameters are supported and valid */
@@ -318,7 +318,7 @@ cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
             /* Check parameters for functions */
-            if (var->type.mode == TYPE_MODE_FUNCTION) {
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
                 cc_ast_node* fnode = cc_ast_find_label(name, var->body);
                 if (fnode != NULL)
                     return fnode;
@@ -422,7 +422,7 @@ void cc_ast_copy_type(
     if (src->name != NULL)
         dest->name = cc_strdup(src->name);
 
-    if (src->mode == TYPE_MODE_FUNCTION) { /* Make copies of things */
+    if (src->mode == AST_TYPE_MODE_FUNCTION) { /* Make copies of things */
         dest->data.func.n_params = src->data.func.n_params;
         dest->data.func.params = cc_realloc(dest->data.func.params,
             sizeof(cc_ast_variable) * dest->data.func.n_params);
@@ -442,7 +442,7 @@ void cc_ast_copy_type(
             cc_ast_copy_type(
                 dest->data.func.return_type, src->data.func.return_type);
         }
-    } else if (src->mode == TYPE_MODE_STRUCT || src->mode == TYPE_MODE_UNION) {
+    } else if (src->mode == AST_TYPE_MODE_STRUCT || src->mode == AST_TYPE_MODE_UNION) {
         dest->data.s_or_u.n_members = src->data.s_or_u.n_members;
         dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
             sizeof(cc_ast_variable) * dest->data.s_or_u.n_members);
@@ -460,7 +460,7 @@ void cc_ast_copy_type(
 void cc_ast_add_type_member(
     cc_ast_type* restrict dest, const cc_ast_variable* restrict src)
 {
-    assert(dest->mode == TYPE_MODE_STRUCT || dest->mode == TYPE_MODE_UNION);
+    assert(dest->mode == AST_TYPE_MODE_STRUCT || dest->mode == AST_TYPE_MODE_UNION);
     dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
         sizeof(*dest->data.s_or_u.members) * (dest->data.s_or_u.n_members + 1));
     dest->data.s_or_u.members[dest->data.s_or_u.n_members++] = *src;
@@ -540,7 +540,7 @@ cc_ast_node* cc_ast_find_label_id(
     case AST_NODE_BLOCK:
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-            if (var->type.mode == TYPE_MODE_FUNCTION && var->body != NULL
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL
                 && (fnode = cc_ast_find_label_id(ctx, var->body, id)) != NULL)
                 return fnode;
         }
@@ -693,7 +693,7 @@ void cc_ast_print(const cc_ast_node* node, int ident)
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
             printf("var %s", var->name);
-            if (var->type.mode == TYPE_MODE_FUNCTION) {
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
                 printf("(");
                 for (size_t j = 0; j < var->type.data.func.n_params; j++)
                     printf("%zu=%s, ", j, var->type.data.func.params[j].name);
@@ -797,10 +797,10 @@ void cc_ast_print(const cc_ast_node* node, int ident)
             node->data.var.is_field ? node->data.var.name : var->name);
         if (!node->data.var.is_field) {
             switch (var->type.mode) {
-            case TYPE_MODE_FUNCTION:
+            case AST_TYPE_MODE_FUNCTION:
                 printf("(fn)");
                 break;
-            case TYPE_MODE_INT:
+            case AST_TYPE_MODE_INT:
                 printf("(int)");
                 break;
             default:

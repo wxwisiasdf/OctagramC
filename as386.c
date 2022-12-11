@@ -36,17 +36,17 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
         return sizeof_ptr;
 
     switch (type->mode) {
-    case TYPE_MODE_CHAR:
+    case AST_TYPE_MODE_CHAR:
         return 1;
-    case TYPE_MODE_BOOL:
+    case AST_TYPE_MODE_BOOL:
         return 1;
-    case TYPE_MODE_INT:
+    case AST_TYPE_MODE_INT:
         return 4;
-    case TYPE_MODE_SHORT:
+    case AST_TYPE_MODE_SHORT:
         return 2;
-    case TYPE_MODE_LONG:
+    case AST_TYPE_MODE_LONG:
         return 8;
-    case TYPE_MODE_FUNCTION:
+    case AST_TYPE_MODE_FUNCTION:
         return sizeof_ptr;
     default:
         break;
@@ -468,11 +468,11 @@ _Bool cc_as386_gen_prologue(
 
 _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
 {
-    if (var->type.mode == TYPE_MODE_FUNCTION) {
-        if (var->type.storage == STORAGE_STATIC) {
+    if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
+        if (var->type.storage == AST_STORAGE_STATIC) {
             cc_backend_add_varmap(ctx, var);
             fprintf(ctx->out, "%s:\n", var->name);
-        } else if (var->type.storage == STORAGE_AUTO) {
+        } else if (var->type.storage == AST_STORAGE_AUTO) {
             cc_backend_add_varmap(ctx, var);
             fprintf(ctx->out, ".global %s\n", var->name);
             fprintf(ctx->out, "%s:\n", var->name);
@@ -480,11 +480,11 @@ _Bool cc_as386_map_variable(cc_context* ctx, const cc_ast_variable* var)
         return true;
     }
 
-    if (var->type.storage == STORAGE_STATIC) {
+    if (var->type.storage == AST_STORAGE_STATIC) {
         cc_backend_add_varmap(ctx, var);
         fprintf(ctx->out, "%s:\n", var->name);
         fprintf(ctx->out, "\t.zero %u\n", cc_as386_get_sizeof(ctx, &var->type));
-    } else if (var->type.storage == STORAGE_AUTO) {
+    } else if (var->type.storage == AST_STORAGE_AUTO) {
         cc_backend_add_varmap(ctx, var);
         fprintf(ctx->out, "#stack-var %s\n", var->name);
     }

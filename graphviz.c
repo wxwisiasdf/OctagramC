@@ -96,7 +96,7 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
             node->label_id);
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            if (var->type.mode == TYPE_MODE_FUNCTION)
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION)
                 if (var->body != NULL)
                     cc_graphviz_print(ctx, var->body);
         }
