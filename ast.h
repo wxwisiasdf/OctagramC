@@ -181,9 +181,7 @@ typedef struct cc_ast_node {
             char* name;
             unsigned short version; /* Used by SSA */
             bool is_temporal : 1;
-            bool
-                is_field : 1; /* Treating this variable as a field rather than a
-                               standalone thing. */
+            bool is_field : 1; /* Treating this variable as a field */
         } var;
         struct {
             struct cc_ast_node* call_expr;

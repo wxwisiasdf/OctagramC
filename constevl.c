@@ -18,7 +18,7 @@ static cc_ast_literal cc_ceval_eval_1(
     if (node == NULL)
         goto error_handle;
 
-    cc_ast_literal lhs, rhs;
+    cc_ast_literal lhs, rhs, child;
     switch (node->type) {
     case AST_NODE_VARIABLE:
         for (size_t i = 0; i < *n_list; i++)
@@ -31,24 +31,24 @@ static cc_ast_literal cc_ceval_eval_1(
         rhs = cc_ceval_eval_1(ctx, node->data.binop.right, list, n_list);
         switch (node->data.binop.op) {
 #define CEVAL_CONDITIONAL(type, op)                                            \
-    case type:                                                                 \
-        if (lhs.is_float && rhs.is_float)                                      \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.d = lhs.value.d > rhs.value.d };                        \
-        else if (!lhs.is_float && rhs.is_float)                                \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.u > rhs.value.d };                        \
-        else if (lhs.is_float && !rhs.is_float)                                \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.d > rhs.value.u };                        \
-        else if (!lhs.is_float && !rhs.is_float)                               \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.u > rhs.value.u };                        \
-        break
+case type: {                                                               \
+    if (lhs.is_float && rhs.is_float)                                      \
+        return (cc_ast_literal) { .is_signed = false,                      \
+            .is_float = false,                                             \
+            .value.d = lhs.value.d op rhs.value.d };                        \
+    else if (!lhs.is_float && rhs.is_float)                                \
+        return (cc_ast_literal) { .is_signed = false,                      \
+            .is_float = false,                                             \
+            .value.u = lhs.value.u op rhs.value.d };                        \
+    else if (lhs.is_float && !rhs.is_float)                                \
+        return (cc_ast_literal) { .is_signed = false,                      \
+            .is_float = false,                                             \
+            .value.u = lhs.value.d op rhs.value.u };                        \
+    else if (!lhs.is_float && !rhs.is_float)                               \
+        return (cc_ast_literal) { .is_signed = false,                      \
+            .is_float = false,                                             \
+            .value.u = lhs.value.u op rhs.value.u };                        \
+} break
             CEVAL_CONDITIONAL(AST_BINOP_PLUS, +);
             CEVAL_CONDITIONAL(AST_BINOP_MINUS, -);
             CEVAL_CONDITIONAL(AST_BINOP_MUL, *);
@@ -61,16 +61,15 @@ static cc_ast_literal cc_ceval_eval_1(
             CEVAL_CONDITIONAL(AST_BINOP_COND_NEQ, !=);
             CEVAL_CONDITIONAL(AST_BINOP_AND, &&);
             CEVAL_CONDITIONAL(AST_BINOP_OR, ||);
+#undef CEVAL_CONDITIONAL
         case AST_BINOP_MOD:
             if ((lhs.is_float && rhs.is_float)
                 || (!lhs.is_float && rhs.is_float)
                 || (lhs.is_float && !rhs.is_float))
                 cc_diag_error(ctx, "Modulous on float literal");
-            else if (!lhs.is_float && !rhs.is_float)
-                return (cc_ast_literal) { .is_signed = lhs.is_signed,
-                    .is_float = false,
-                    .value.u = lhs.value.u % rhs.value.u };
-            break;
+            return (cc_ast_literal) { .is_signed = lhs.is_signed,
+                .is_float = false,
+                .value.u = lhs.value.u % rhs.value.u };
         default:
             cc_diag_error(ctx, "Unrecognized binop %i", node->data.binop.op);
             break;
@@ -95,6 +94,85 @@ static cc_ast_literal cc_ceval_eval_1(
     }
     case AST_NODE_RETURN:
         return cc_ceval_eval_1(ctx, node->data.return_expr, list, n_list);
+    case AST_NODE_UNOP:
+        child = cc_ceval_eval_1(ctx, node->data.unop.child, list, n_list);
+        switch (node->data.unop.op) {
+        case AST_UNOP_CAST:
+            switch (node->data.unop.cast.mode) {
+            case AST_TYPE_MODE_CHAR:
+                if (node->data.unop.cast.is_signed)
+                    return (cc_ast_literal) { .is_float = false,
+                        .is_signed = child.is_signed,
+                        .value.s
+                        = (signed char)(child.is_float ? child.value.d
+                                                       : child.value.s) };
+                return (cc_ast_literal) { .is_float = false,
+                    .is_signed = child.is_signed,
+                    .value.s
+                    = (unsigned char)(child.is_float ? child.value.d
+                                                     : child.value.u) };
+            case AST_TYPE_MODE_SHORT:
+                if (node->data.unop.cast.is_signed)
+                    return (cc_ast_literal) { .is_float = false,
+                        .is_signed = child.is_signed,
+                        .value.s
+                        = (signed short)(child.is_float ? child.value.d
+                                                        : child.value.s) };
+                return (cc_ast_literal) { .is_float = false,
+                    .is_signed = child.is_signed,
+                    .value.s
+                    = (unsigned short)(child.is_float ? child.value.d
+                                                      : child.value.u) };
+            case AST_TYPE_MODE_INT:
+                if (node->data.unop.cast.is_signed)
+                    return (cc_ast_literal) { .is_float = false,
+                        .is_signed = child.is_signed,
+                        .value.s
+                        = (signed int)(child.is_float ? child.value.d
+                                                      : child.value.s) };
+                return (cc_ast_literal) { .is_float = false,
+                    .is_signed = child.is_signed,
+                    .value.s = (unsigned int)(child.is_float ? child.value.d
+                                                             : child.value.u) };
+            case AST_TYPE_MODE_LONG:
+                if (node->data.unop.cast.is_signed)
+                    return (cc_ast_literal) { .is_float = false,
+                        .is_signed = child.is_signed,
+                        .value.s
+                        = (signed long)(child.is_float ? child.value.d
+                                                       : child.value.s) };
+                return (cc_ast_literal) { .is_float = false,
+                    .is_signed = child.is_signed,
+                    .value.s
+                    = (unsigned long)(child.is_float ? child.value.d
+                                                     : child.value.u) };
+            case AST_TYPE_MODE_FLOAT:
+                return (cc_ast_literal) { .is_float = true,
+                    .is_signed = child.is_signed,
+                    .value.d = (float)(child.is_float
+                            ? child.value.d
+                            : (child.is_signed ? child.value.s
+                                               : (float)child.value.u)) };
+            case AST_TYPE_MODE_DOUBLE:
+                return (cc_ast_literal) { .is_float = true,
+                    .is_signed = child.is_signed,
+                    .value.d = (double)(child.is_float
+                            ? child.value.d
+                            : (child.is_signed ? child.value.s
+                                               : (double)child.value.u)) };
+            default:
+                cc_ast_print(node);
+                cc_diag_error(
+                    ctx, "Unknown unop %i for consteval", node->data.unop.op);
+                break;
+            }
+            break;
+        default:
+            break;
+        }
+        cc_ast_print(node);
+        cc_diag_error(ctx, "Unknown node %i for consteval", node->type);
+        break;
     default:
         cc_ast_print(node);
         cc_diag_error(ctx, "Unknown node %i for consteval", node->type);
@@ -202,4 +280,15 @@ size_t cc_ceval_get_field_offset(
     cc_context* ctx, const cc_ast_type* type, const cc_ast_node* node)
 {
     return 0;
+}
+
+bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
+{
+    switch (node->type) {
+    case AST_NODE_LITERAL:
+        return true;
+    default:
+        return false;
+    }
+    return false;
 }

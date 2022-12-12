@@ -13,5 +13,6 @@ bool cc_ceval_deduce_type(
     cc_context* ctx, const cc_ast_node* node, cc_ast_type* type);
 size_t cc_ceval_get_field_offset(
     cc_context* ctx, const cc_ast_type* type, const cc_ast_node* node);
+bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node);
 
 #endif

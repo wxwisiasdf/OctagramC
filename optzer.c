@@ -40,6 +40,20 @@ void cc_optimizer_expr_condense(
             **pnode = new_node;
             return;
         }
+
+        /* Binop operation between two constants */
+        assert(node->data.binop.left != NULL && node->data.binop.right != NULL);
+        if (cc_ceval_is_const(ctx, node->data.binop.left)
+        && cc_ceval_is_const(ctx, node->data.binop.right))
+        {
+            cc_ast_node new_node = {0};
+            new_node.type = AST_NODE_LITERAL;
+            new_node.data.literal = cc_ceval_eval(ctx, node);
+            new_node.parent = node->parent;
+            node->data.binop.right = NULL;
+            cc_ast_destroy_node(node, false);
+            **pnode = new_node;
+        }
         break;
     case AST_NODE_BLOCK:
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
