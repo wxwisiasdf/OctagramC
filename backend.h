@@ -82,8 +82,10 @@ cc_backend_varmap* cc_backend_find_var_varmap(
 cc_backend_varmap cc_backend_get_node_varmap(
     cc_context* ctx, const cc_ast_node* node);
 void cc_backend_map_variables(cc_context* ctx, const cc_ast_node* node);
+void cc_backend_process_binop(
+    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);
 void cc_backend_process_node(
-    cc_context* ctx, const cc_ast_node* node, cc_backend_varmap* ovmap);
+    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);
 void cc_backend_init(
     cc_context* ctx, const char* reg_names[], unsigned int n_regs);
 void cc_backend_deinit(cc_context* ctx);

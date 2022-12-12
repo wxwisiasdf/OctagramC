@@ -361,7 +361,6 @@ static bool cc_parse_type_specifier(
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
-    type->mode = AST_TYPE_MODE_INT;
     switch (ctok->type) {
     case LEXER_TOKEN_void:
         type->mode = AST_TYPE_MODE_VOID;

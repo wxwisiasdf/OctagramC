@@ -310,10 +310,26 @@ static void cc_backend_process_unop(
 
     cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, child);
     cc_backend_varmap lvmap = *ovmap;
+    switch (child->type) {
+    case AST_NODE_BINOP:
+        cc_backend_process_binop(ctx, child, &rvmap);
+        break;
+    case AST_NODE_UNOP:
+        cc_backend_process_unop(ctx, child, &rvmap);
+        break;
+    case AST_NODE_VARIABLE:
+    case AST_NODE_LITERAL:
+        ctx->backend_data->gen_mov(ctx, &lvmap, &rvmap);
+        break;
+    default:
+        cc_ast_print(node);
+        cc_diag_error(ctx, "Incomprehensible unop");
+        break;
+    }
     ctx->backend_data->gen_unop(ctx, &lvmap, &rvmap, node->data.unop.op);
 }
 
-static void cc_backend_process_binop(
+void cc_backend_process_binop(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
 {
     assert(node->type == AST_NODE_BINOP);
@@ -471,7 +487,7 @@ static const cc_ast_node** cc_ast_collect_cases(
 }
 
 void cc_backend_process_node(
-    cc_context* ctx, const cc_ast_node* node, cc_backend_varmap* ovmap)
+    cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
 {
     if (node == NULL)
         return;

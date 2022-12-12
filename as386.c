@@ -161,6 +161,8 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
         return sizeof_ptr;
 
     switch (type->mode) {
+    case AST_TYPE_MODE_VOID:
+        return 0;
     case AST_TYPE_MODE_CHAR:
         return 1;
     case AST_TYPE_MODE_BOOL:
@@ -194,7 +196,7 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     default:
         break;
     }
-    cc_diag_error(ctx, "Unknown sizeof for %i", type->mode);
+    cc_diag_error(ctx, "Unknown sizeof for %i(*%i)", type->mode, type->n_cv_qual);
     return 0;
 }
 

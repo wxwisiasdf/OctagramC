@@ -116,7 +116,7 @@ static void cc_mf370_print_varmap(
         fprintf(ctx->out, "=F'%08lu'", vmap->literal.value.u);
         break;
     case VARMAP_STATIC:
-        fprintf(ctx->out, "=V(%s)", cc_mf370_logical_label(vmap->var->name));
+        fprintf(ctx->out, "=A(%s)", cc_mf370_logical_label(vmap->var->name));
         break;
     default:
         cc_diag_error(ctx, "Invalid varmap %i", vmap->flags);
@@ -187,24 +187,31 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         unsigned short literal_label_id = cc_ast_alloc_label_id(ctx);
 
         fprintf(ctx->out, "\tB\tL%i\n", branch_label_id);
-        fprintf(ctx->out, "L%i\tDS\t0H\n", literal_label_id);
+        fprintf(ctx->out, "L%u\tDS\t0H\n", literal_label_id);
         if (lvmap->flags == VARMAP_LITERAL)
             fprintf(ctx->out, "\tDC\tC'%s'\n", lvmap->data);
         if (rvmap->flags == VARMAP_LITERAL)
             fprintf(ctx->out, "\tDC\tC'%s'\n", rvmap->data);
-        fprintf(ctx->out, "L%i\tDS\t0H\n", branch_label_id);
+        fprintf(ctx->out, "L%u\tDS\t0H\n", branch_label_id);
 
         if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_LITERAL) {
-            fprintf(ctx->out, "\tL\t%s,L%i\n", reg_names[lvmap->regno],
+            fprintf(ctx->out, "\tL\t%s,=A(L%i)\n", reg_names[lvmap->regno],
                 literal_label_id);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_REGISTER) {
-            fprintf(ctx->out, "\tL\t%s, L%i\n", reg_names[rvmap->regno],
+            fprintf(ctx->out, "\tL\t%s,=A(L%i)\n", reg_names[rvmap->regno],
                 literal_label_id);
         } else if (lvmap->flags == VARMAP_STACK
             && rvmap->flags == VARMAP_LITERAL) {
-            fprintf(ctx->out, "\tL\tL%i,%u(R13)\n", literal_label_id,
+            cc_backend_varmap mvmap = { 0 };
+            cc_backend_spill(ctx, 1);
+            mvmap.regno = cc_backend_alloc_register(ctx);
+            mvmap.flags = VARMAP_REGISTER;
+            fprintf(ctx->out, "\tL\t%s,=A(L%i)\n", reg_names[mvmap.regno],
+                literal_label_id);
+            fprintf(ctx->out, "\tST\t%s,%u(R13)\n", reg_names[mvmap.regno],
                 lvmap->offset);
+            cc_backend_free_register(ctx, mvmap.regno);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_STACK) {
             cc_backend_varmap mvmap = { 0 };
@@ -213,7 +220,7 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
             mvmap.flags = VARMAP_REGISTER;
             fprintf(ctx->out, "\tLA\t%s,%u(R13)\n", reg_names[mvmap.regno],
                 rvmap->offset);
-            fprintf(ctx->out, "\tST\t%s,=V(L%i)\n", reg_names[mvmap.regno],
+            fprintf(ctx->out, "\tST\t%s,=A(L%i)\n", reg_names[mvmap.regno],
                 literal_label_id);
             cc_backend_free_register(ctx, mvmap.regno);
         }
@@ -319,15 +326,14 @@ bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
         nlvmap.regno = cc_backend_alloc_register(ctx);
         nlvmap.flags = VARMAP_REGISTER;
         fprintf(ctx->out, "\tLA\t");
-        cc_mf370_print_varmap(ctx, rvmap);
+        cc_mf370_print_varmap(ctx, &nlvmap);
         fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, &nlvmap);
+        cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, "\n");
-
-        fprintf(ctx->out, "\tL\t(");
-        cc_mf370_print_varmap(ctx, &nlvmap);
-        fprintf(ctx->out, "),");
+        fprintf(ctx->out, "\tL\t");
         cc_mf370_print_varmap(ctx, lvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, "\n");
     } break;
     case AST_UNOP_REF:
@@ -377,7 +383,7 @@ bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         default:
             break;
         }
-        fprintf(ctx->out, "\t%sl\t", insn);
+        fprintf(ctx->out, "\t%sR\t", insn);
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, lvmap);

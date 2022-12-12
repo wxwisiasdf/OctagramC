@@ -810,7 +810,7 @@ void cc_ast_print(const cc_ast_node* node)
         printf("<unop ");
         switch (node->data.unop.op) {
         case AST_UNOP_CAST:
-            printf("cast");
+            printf("cast(mode=%i)", node->data.unop.cast.mode);
             break;
         case AST_UNOP_COND_NOT:
             printf("!");
