@@ -111,12 +111,20 @@ cc_ast_node* cc_ast_create_string_literal(
     return node;
 }
 
-cc_ast_node* cc_ast_create_literal(
+cc_ast_node* cc_ast_create_literal_from_str(
     cc_context* ctx, cc_ast_node* parent, const char* s)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
     /* TODO: Better parsing of the literals into integers */
     node->data.literal.value.s = atoi(s);
+    return node;
+}
+
+cc_ast_node* cc_ast_create_literal(
+    cc_context* ctx, cc_ast_node* parent, cc_ast_literal literal)
+{
+    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
+    node->data.literal = literal;
     return node;
 }
 
@@ -276,7 +284,6 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
     if (node->type == AST_NODE_BLOCK) {
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-
             if (var->name != NULL && !strcmp(var->name, name))
                 return var;
 
@@ -468,6 +475,15 @@ void cc_ast_add_type_member(
     dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
         sizeof(*dest->data.s_or_u.members) * (dest->data.s_or_u.n_members + 1));
     dest->data.s_or_u.members[dest->data.s_or_u.n_members++] = *src;
+}
+
+bool cc_ast_is_field_of(const cc_ast_type *type, const char *field)
+{
+    assert(type->mode == AST_TYPE_MODE_STRUCT || type->mode == AST_TYPE_MODE_UNION);
+    for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
+        if (!strcmp(type->data.s_or_u.members[i].name, field))
+            return true;
+    return false;
 }
 
 #if 0
@@ -745,7 +761,34 @@ void cc_ast_print(const cc_ast_node* node)
 
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            printf("var %s", var->name);
+            const char *storage_name = "(storage)";
+            switch (var->type.storage) {
+            case AST_STORAGE_AUTO:
+                storage_name = "auto";
+                break;
+            case AST_STORAGE_CONSTEXPR:
+                storage_name = "constexpr";
+                break;
+            case AST_STORAGE_EXTERN:
+                storage_name = "extern";
+                break;
+            case AST_STORAGE_GLOBAL:
+                storage_name = "global";
+                break;
+            case AST_STORAGE_INLINE:
+                storage_name = "inline";
+                break;
+            case AST_STORAGE_REGISTER:
+                storage_name = "register";
+                break;
+            case AST_STORAGE_STATIC:
+                storage_name = "static";
+                break;
+            case AST_STORAGE_THREAD_LOCAL:
+                storage_name = "thread_local";
+                break;
+            }
+            printf("var %s %s", var->name, storage_name);
             if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
                 printf("(");
                 for (size_t j = 0; j < var->type.data.func.n_params; j++)

@@ -419,7 +419,8 @@ bool cc_as386_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
 }
 
 bool cc_as386_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
-    const cc_backend_varmap* rvmap, enum cc_ast_binop_type type)
+    const cc_backend_varmap* rvmap, enum cc_ast_binop_type type,
+    const cc_backend_varmap *ovmap)
 {
     if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC
             || lvmap->flags == VARMAP_THREAD_LOCAL)

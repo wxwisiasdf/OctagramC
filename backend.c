@@ -378,20 +378,20 @@ void cc_backend_process_binop(
     /*fprintf(ctx->out, "#backend-gen-binop\n");*/
 
     if (!ctx->backend_data->gen_binop(
-            ctx, &lvmap, &rvmap, node->data.binop.op)) {
+            ctx, &lvmap, &rvmap, node->data.binop.op, ovmap)) {
         cc_backend_spill_reg(ctx, 2);
         cc_backend_varmap nrvmap = { 0 };
         nrvmap.regno = cc_backend_alloc_register(ctx);
         nrvmap.flags = VARMAP_REGISTER;
         ctx->backend_data->gen_mov(ctx, &nrvmap, &rvmap);
         if (!ctx->backend_data->gen_binop(
-                ctx, &lvmap, &nrvmap, node->data.binop.op)) {
+                ctx, &lvmap, &nrvmap, node->data.binop.op, ovmap)) {
             cc_backend_varmap nlvmap = { 0 };
             nlvmap.regno = cc_backend_alloc_register(ctx);
             nlvmap.flags = VARMAP_REGISTER;
             ctx->backend_data->gen_mov(ctx, &nlvmap, &lvmap);
             if (!ctx->backend_data->gen_binop(
-                    ctx, &nlvmap, &nrvmap, node->data.binop.op)) {
+                    ctx, &nlvmap, &nrvmap, node->data.binop.op, ovmap)) {
                 cc_diag_error(ctx, "Impossible to reload\n");
                 return;
             }

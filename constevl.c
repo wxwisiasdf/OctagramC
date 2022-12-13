@@ -20,12 +20,16 @@ static cc_ast_literal cc_ceval_eval_1(
 
     cc_ast_literal lhs, rhs, child;
     switch (node->type) {
-    case AST_NODE_VARIABLE:
+    case AST_NODE_VARIABLE: {
         for (size_t i = 0; i < *n_list; i++)
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
+        const cc_ast_variable *var = cc_ast_find_variable(node->data.var.name, node);
+        if (var != NULL && var->type.storage == AST_STORAGE_CONSTEXPR
+        && var->initializer != NULL)
+            return cc_ceval_eval_1(ctx, var->initializer, list, n_list);
         cc_diag_warning(ctx, "Unable to constexpr variable, defaulting to 0");
-        break;
+    } break;
     case AST_NODE_BINOP:
         lhs = cc_ceval_eval_1(ctx, node->data.binop.left, list, n_list);
         rhs = cc_ceval_eval_1(ctx, node->data.binop.right, list, n_list);
@@ -287,6 +291,11 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     switch (node->type) {
     case AST_NODE_LITERAL:
         return true;
+    case AST_NODE_VARIABLE:
+        const cc_ast_variable *var = cc_ast_find_variable(node->data.var.name, node);
+        if (var->type.storage == AST_STORAGE_CONSTEXPR)
+            return true;
+        return false;
     default:
         return false;
     }

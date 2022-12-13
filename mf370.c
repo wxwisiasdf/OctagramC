@@ -113,7 +113,12 @@ static void cc_mf370_print_varmap(
         fprintf(ctx->out, "%u(R1)", vmap->offset);
         break;
     case VARMAP_CONSTANT:
-        fprintf(ctx->out, "=F'%08lu'", vmap->literal.value.u);
+        if (vmap->literal.is_float)
+            fprintf(ctx->out, "=D'%lf'", vmap->literal.value.d);
+        else if(vmap->literal.is_signed)
+            fprintf(ctx->out, "=F'%li'", vmap->literal.value.s);
+        else
+            fprintf(ctx->out, "=F'%li'", vmap->literal.value.u);
         break;
     case VARMAP_STATIC:
         fprintf(ctx->out, "=A(%s)", cc_mf370_logical_label(vmap->var->name));
@@ -345,8 +350,9 @@ bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
     return true;
 }
 
-bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
-    const cc_backend_varmap* rvmap, enum cc_ast_binop_type type)
+bool cc_mf370_gen_binop(cc_context* ctx,
+    const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap, enum cc_ast_binop_type type,
+    const cc_backend_varmap *ovmap)
 {
     if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC
             || lvmap->flags == VARMAP_THREAD_LOCAL)
@@ -383,11 +389,43 @@ bool cc_mf370_gen_binop(cc_context* ctx, const cc_backend_varmap* lvmap,
         default:
             break;
         }
-        fprintf(ctx->out, "\t%sR\t", insn);
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, "\n");
+
+        cc_backend_varmap mlvmap = *lvmap;
+        cc_backend_varmap mrvmap = *rvmap;
+        if (mrvmap.flags != VARMAP_REGISTER || mrvmap.flags != VARMAP_CONSTANT) {
+            cc_backend_spill(ctx, 1);
+            mrvmap.flags = VARMAP_REGISTER;
+            mrvmap.regno = cc_backend_alloc_register(ctx);
+            ctx->backend_data->gen_mov(ctx, &mrvmap, rvmap);
+            cc_backend_free_register(ctx, mrvmap.regno);
+        }
+
+        bool lvmap_loaded = false;
+        if (mlvmap.flags != VARMAP_REGISTER) {
+            cc_backend_spill(ctx, 1);
+            mlvmap.flags = VARMAP_REGISTER;
+            mlvmap.regno = cc_backend_alloc_register(ctx);
+            ctx->backend_data->gen_mov(ctx, &mlvmap, lvmap);
+            cc_backend_free_register(ctx, mlvmap.regno);
+            lvmap_loaded = true;
+        }
+
+        if (mlvmap.flags == VARMAP_REGISTER
+            && mrvmap.flags == VARMAP_REGISTER) {
+            fprintf(ctx->out, "\t%sR\t", insn);
+            cc_mf370_print_varmap(ctx, &mlvmap);
+            fprintf(ctx->out, ",");
+            cc_mf370_print_varmap(ctx, &mrvmap);
+            fprintf(ctx->out, "\n");
+        } else if (mlvmap.flags == VARMAP_REGISTER
+            && mrvmap.flags == VARMAP_LITERAL) {
+            fprintf(ctx->out, "\t%sR\t", insn);
+            cc_mf370_print_varmap(ctx, &mlvmap);
+            fprintf(ctx->out, ",");
+            cc_mf370_print_varmap(ctx, &mrvmap);
+            fprintf(ctx->out, "\n");
+        }
+        ctx->backend_data->gen_mov(ctx, ovmap, &mlvmap);
     } break;
     case AST_BINOP_MUL:
         fprintf(ctx->out, "\tMR\t");

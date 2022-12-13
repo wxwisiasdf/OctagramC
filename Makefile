@@ -5,19 +5,19 @@ CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
 all: build
 
 run: build
-	valgrind --leak-check=full --track-origins=yes ./cc hello.in -370 -print-ast
-#	gdb --args ./cc stt.c -370 -print-ast
+	valgrind --leak-check=full --track-origins=yes ./occ hello.in -370 -print-ast
+#	gdb --args ./occ stt.c -370 -print-ast
 
-build: cc
+build: occ
 
 clean:
 	$(RM) *.o
-	$(RM) cc
+	$(RM) occ
 
 .PHONY: build all
 
 # ==============================================================================
-cc: as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
+occ: as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
 	graphviz.c backend.o mf370.o
 	$(CC) $(CFLAGS) $^ -o $@
 

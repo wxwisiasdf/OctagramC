@@ -56,7 +56,8 @@ typedef struct cc_backend_context {
         cc_context* ctx, const cc_ast_node* node);
     bool (*gen_jump)(cc_context* ctx, const cc_ast_node* node);
     bool (*gen_binop)(cc_context* ctx, const cc_backend_varmap* lvmap,
-        const cc_backend_varmap* rvmap, enum cc_ast_binop_type type);
+        const cc_backend_varmap* rvmap, enum cc_ast_binop_type type,
+        const cc_backend_varmap *ovmap);
     bool (*gen_unop)(cc_context* ctx, const cc_backend_varmap* lvmap,
         const cc_backend_varmap* rvmap, enum cc_ast_unop_type type);
     bool (*map_variable)(cc_context* ctx, const cc_ast_variable* var);

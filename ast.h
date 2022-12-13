@@ -103,7 +103,8 @@ typedef struct cc_ast_type {
 typedef struct cc_ast_variable {
     cc_ast_type type;
     char* name;
-    struct cc_ast_node* body; /* For functions */
+    struct cc_ast_node* body; /* For functions. */
+    struct cc_ast_node* initializer; /* Initializer for constexpr and such. */
 } cc_ast_variable;
 
 enum cc_ast_node_type {
@@ -165,6 +166,7 @@ typedef struct cc_ast_node {
     cc_diag_info info;
     unsigned short label_id;
     unsigned short ref_count; /* Label ref_count */
+    unsigned short size_type; /* Size to operate upon */
     union {
         cc_ast_literal literal;
         /* For pattern matching, we only use reg_group to specify which
@@ -242,8 +244,10 @@ cc_ast_node* cc_ast_create_field_ref(
 cc_ast_node* cc_ast_create_call(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_string_literal(
     cc_context* ctx, cc_ast_node* parent, const char* s);
-cc_ast_node* cc_ast_create_literal(
+cc_ast_node* cc_ast_create_literal_from_str(
     cc_context* ctx, cc_ast_node* parent, const char* s);
+cc_ast_node* cc_ast_create_literal(
+    cc_context* ctx, cc_ast_node* parent, cc_ast_literal literal);
 cc_ast_node* cc_ast_create_jump(
     cc_context* ctx, cc_ast_node* parent, cc_ast_node* target);
 void cc_ast_add_block_node(
@@ -275,5 +279,6 @@ void cc_ast_iterate(const cc_ast_node *node,
 cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned short id);
 void cc_ast_print(const cc_ast_node* node);
+bool cc_ast_is_field_of(const cc_ast_type *type, const char *field);
 
 #endif

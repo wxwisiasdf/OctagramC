@@ -7,6 +7,7 @@
 #include "diag.h"
 #include "lexer.h"
 #include "util.h"
+#include "optzer.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -166,8 +167,10 @@ static bool cc_parse_enum_specifier(
 
     /* TODO: Attributes */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_RBRACE)
+        && ctok->type == LEXER_TOKEN_RBRACE) {
+        cc_diag_warning(ctx, "Empty enumerator");
         goto empty_memberlist;
+    }
 
     /* Syntax is <ident> = <const-expr> , */
     cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
@@ -177,6 +180,7 @@ static bool cc_parse_enum_specifier(
         cc_ast_enum_member member = { 0 };
         member.name = cc_strdup(ctok->data);
         /* Assignment of enumerator value. */
+        member.literal = seq_literal;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ASSIGN) {
             cc_lex_token_consume(ctx);
@@ -203,29 +207,44 @@ static bool cc_parse_enum_specifier(
                 member.literal.value.s = (signed long)member.literal.value.d;
             }
         }
+        if (seq_literal.is_signed)
+            seq_literal.value.s++;
+        else
+            seq_literal.value.u++;
+
+        /* Enumerator members are globally visible as constexpr
+            evaluatible variables on the global context. */
+        cc_ast_variable var = { 0 };
+        var.type.mode = AST_TYPE_MODE_INT;
+        /* Override type specification and enable constexpr evaluation */
+        var.type.storage = AST_STORAGE_CONSTEXPR;
+        var.name = cc_strdup(member.name);
+        var.initializer = cc_ast_create_literal(ctx, node, member.literal);
+        cc_ast_add_block_variable(node, &var);
 
         type->data.enumer.elems = cc_realloc(type->data.enumer.elems,
             sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
-        /* Enumerator members are globally visible as constexpr
-            evaluatible variables on the global context. */
-        cc_ast_variable var = { 0 };
-        cc_ast_copy_type(&var.type, type);
-        var.type.storage = AST_STORAGE_CONSTEXPR;
-        var.name = cc_strdup(member.name);
-        cc_ast_add_block_variable(node, &var);
-
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COMMA, "Expected ','");
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE)
             break;
-
-        if (seq_literal.is_signed)
-            seq_literal.value.s++;
-        else
-            seq_literal.value.u++;
     }
+
+    for (size_t i = 0; i < type->data.enumer.n_elems; i++)
+        for (size_t j = 0; j < type->data.enumer.n_elems; j++)
+            if (i != j
+                && !memcmp(&type->data.enumer.elems[i].literal,
+                    &type->data.enumer.elems[j].literal,
+                    sizeof(cc_ast_literal))) {
+                cc_diag_error(ctx,
+                    "Enumerator elements '%s' and '%s' with same value",
+                    type->data.enumer.elems[i].name,
+                    type->data.enumer.elems[j].name);
+                CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+                goto error_handle;
+            }
 
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
@@ -995,7 +1014,8 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     /* TODO: Better way to convert our numbers into strings */
     static char numbuf[80];
     snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
-    cc_ast_node* literal_node = cc_ast_create_literal(ctx, node, numbuf);
+    cc_ast_node* literal_node
+        = cc_ast_create_literal_from_str(ctx, node, numbuf);
     cc_ast_add_block_node(node, literal_node);
     return true;
 error_handle:
@@ -1014,12 +1034,12 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
         matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_CHAR_LITERAL:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal(ctx, node, ctok->data);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
         matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_IDENT: {
@@ -1102,6 +1122,13 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(node, accessor_node);
             parent_rerouted = true;
             matched_any = true;
+
+            cc_ast_type type;
+            cc_ceval_deduce_type(ctx, expr_node, &type);
+            if (!cc_ast_is_field_of(&type, var_node->data.var.name)) {
+                cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
+                    var_node->data.var.name, type.name);
+            }
         } break;
         default:
             break;
@@ -1132,14 +1159,14 @@ static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_PLUS: /* Prefix +*/
             cc_lex_token_consume(ctx);
             binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_PLUS);
-            literal_node
-                = cc_ast_create_literal(ctx, binop_node->data.binop.left, "0");
+            literal_node = cc_ast_create_literal_from_str(
+                ctx, binop_node->data.binop.left, "0");
             break;
         case LEXER_TOKEN_MINUS: /* Prefix - */
             cc_lex_token_consume(ctx);
             binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_MINUS);
-            literal_node
-                = cc_ast_create_literal(ctx, binop_node->data.binop.left, "0");
+            literal_node = cc_ast_create_literal_from_str(
+                ctx, binop_node->data.binop.left, "0");
             break;
         case LEXER_TOKEN_INCREMENT: /* Prefix ++ */
             cc_lex_token_consume(ctx);
@@ -1447,6 +1474,24 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
         ctx->continue_node = NULL;
         /* Body of the switch - <secondary-block> */
         cc_parse_statment(ctx, switch_node->data.switch_expr.block);
+
+        /* Diagnostis for uncovered cases iff the element is an enumerator */
+        cc_ast_type type = { 0 };
+
+        cc_ast_node *tnode = switch_node->data.switch_expr.control;
+        cc_optimizer_expr_condense(ctx, &tnode, false);
+        if (tnode == NULL) {
+            cc_diag_error(ctx, "Empty controlling expression");
+            goto error_handle;
+        }
+
+        if(!cc_ceval_deduce_type(ctx, switch_node->data.switch_expr.control, &type)) {
+            cc_diag_error(ctx, "Unable to deduce type of switch");
+            cc_ast_destroy_node(end_node, true);
+            cc_ast_destroy_node(switch_node, true);
+            goto error_handle;
+        }
+
         ctx->break_node = old_break_node;
         ctx->continue_node = old_continue_node;
 
