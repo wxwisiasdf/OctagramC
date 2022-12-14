@@ -1,5 +1,5 @@
-cc
 *.o
 *.out
 .vscode/
 *.S
+occ

@@ -389,23 +389,6 @@ void cc_backend_process_binop(
 
     cc_backend_varmap lvmap = cc_backend_get_node_varmap(ctx, lhs);
     cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, rhs);
-
-    if (node->data.binop.op == AST_BINOP_ASSIGN) {
-        if (lhs->type == AST_NODE_VARIABLE) {
-            ctx->backend_data->gen_mov(ctx, &lvmap, &rvmap);
-        } else if (lhs->type == AST_NODE_BINOP) { /* Computed address */
-            cc_backend_process_binop(ctx, lhs, &lvmap);
-        } else if (lhs->type == AST_NODE_UNOP) {
-            cc_backend_process_unop(ctx, lhs, &lvmap);
-        } else if (lhs->type == AST_NODE_BLOCK) {
-            /* TODO: Process block */
-        } else {
-            cc_diag_error(ctx, "Unknown assignment LHS %i", lhs->type);
-            return;
-        }
-        return;
-    }
-
     if (rhs->type == AST_NODE_BINOP)
         cc_backend_process_binop(ctx, rhs, &rvmap);
     else if (rhs->type == AST_NODE_UNOP)
