@@ -82,6 +82,9 @@ cc_backend_varmap* cc_backend_find_var_varmap(
     cc_context* ctx, const cc_ast_variable* restrict var);
 cc_backend_varmap cc_backend_get_node_varmap(
     cc_context* ctx, const cc_ast_node* node);
+void cc_backend_destroy_varmap(
+    cc_context* ctx, cc_backend_varmap* vmap, bool managed);
+cc_backend_varmap cc_backend_varmap_reg(cc_context* ctx);
 void cc_backend_map_variables(cc_context* ctx, const cc_ast_node* node);
 void cc_backend_process_binop(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap);

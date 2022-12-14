@@ -312,11 +312,7 @@ bool cc_as386_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     }
 
     if (lvmap->flags == VARMAP_STACK && rvmap->flags == VARMAP_STACK) {
-        cc_backend_varmap mvmap = { 0 };
-        cc_backend_spill(ctx, 1);
-        mvmap.regno = cc_backend_alloc_register(ctx);
-        mvmap.flags = VARMAP_REGISTER;
-
+        cc_backend_varmap mvmap = cc_backend_varmap_reg(ctx);
         fprintf(ctx->out, "\tmovl\t-%u(%%ebp), %s\n", rvmap->offset,
             reg_names[mvmap.regno]);
         fprintf(ctx->out, "\tmovl\t%s, -%u(%%ebp)\n", reg_names[mvmap.regno],
@@ -393,10 +389,7 @@ bool cc_as386_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
 
     switch (type) {
     case AST_UNOP_DEREF: {
-        cc_backend_spill(ctx, 1);
-        cc_backend_varmap nlvmap = { 0 };
-        nlvmap.regno = cc_backend_alloc_register(ctx);
-        nlvmap.flags = VARMAP_REGISTER;
+        cc_backend_varmap nlvmap = cc_backend_varmap_reg(ctx);
         fprintf(ctx->out, "\tleal\t");
         cc_as386_print_varmap(ctx, rvmap);
         fprintf(ctx->out, ", ");

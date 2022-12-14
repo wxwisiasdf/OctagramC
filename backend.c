@@ -182,17 +182,33 @@ cc_backend_varmap cc_backend_get_node_varmap(
         return ctx->backend_data->get_call_retval(ctx, node);
     case AST_NODE_BINOP: /* Allocate register for result of operation */
     case AST_NODE_UNOP:
-        cc_backend_spill(ctx, 1);
-        vmap.regno = cc_backend_alloc_register(ctx);
-        vmap.flags = VARMAP_REGISTER;
-        return vmap;
     case AST_NODE_BLOCK:
-        return vmap;
+        return cc_backend_varmap_reg(ctx);
     default:
         cc_diag_error(ctx, "Unrecognizable AST node %i", node->type);
         break;
     }
     return vmap;
+}
+
+void cc_backend_destroy_varmap(
+    cc_context* ctx, cc_backend_varmap* vmap, bool managed)
+{
+    if (vmap->flags == VARMAP_REGISTER)
+        cc_backend_free_register(ctx, vmap->regno);
+
+    if (managed)
+        cc_free(vmap);
+}
+
+/* Obtain a varmap that allocates from a register */
+cc_backend_varmap cc_backend_varmap_reg(cc_context* ctx)
+{
+    cc_backend_spill(ctx, 1); /* Ensure atleast 1 register is available */
+    return (cc_backend_varmap){
+        .flags = VARMAP_REGISTER,
+        .regno = cc_backend_alloc_register(ctx),
+    };
 }
 
 /* Dump all the statics of this function, do not enter subfunctions/lambdas
@@ -280,13 +296,13 @@ static void cc_backend_process_call(cc_context* ctx, const cc_ast_node* node)
         cc_ceval_deduce_type(ctx, param_node, &param_type);
 
         cc_backend_varmap pvmap = cc_backend_get_node_varmap(ctx, param_node);
-
         cc_backend_varmap svmap = { 0 };
         svmap.flags = VARMAP_STACK;
         svmap.offset = ctx->backend_data->stack_frame_size + total_stack;
         ctx->backend_data->gen_mov(ctx, &svmap, &pvmap);
-
+        cc_backend_destroy_varmap(ctx, &svmap, false);
         total_stack += ctx->backend_data->get_sizeof(ctx, &param_type);
+        cc_backend_destroy_varmap(ctx, &pvmap, false);
     }
     if (node->data.call.call_expr == NULL)
         return;
@@ -310,6 +326,7 @@ static void cc_backend_process_unop(
 
     cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, child);
     cc_backend_varmap lvmap = *ovmap;
+    bool lvmap_load = false;
     switch (child->type) {
     case AST_NODE_BINOP:
         cc_backend_process_binop(ctx, child, &rvmap);
@@ -318,15 +335,21 @@ static void cc_backend_process_unop(
         cc_backend_process_unop(ctx, child, &rvmap);
         break;
     case AST_NODE_VARIABLE:
-    case AST_NODE_LITERAL:
+    case AST_NODE_LITERAL: {
+        lvmap = cc_backend_varmap_reg(ctx);
         ctx->backend_data->gen_mov(ctx, &lvmap, &rvmap);
-        break;
+        lvmap_load = true;
+    } break;
     default:
         cc_ast_print(node);
         cc_diag_error(ctx, "Incomprehensible unop");
         break;
     }
     ctx->backend_data->gen_unop(ctx, &lvmap, &rvmap, node->data.unop.op);
+    if (lvmap_load) {
+        ctx->backend_data->gen_mov(ctx, ovmap, &lvmap);
+        cc_backend_free_register(ctx, lvmap.regno);
+    }
 }
 
 void cc_backend_process_binop(
@@ -343,6 +366,24 @@ void cc_backend_process_binop(
             cc_diag_error(ctx, "Unable to deduce type");
             return;
         }
+        return;
+    }
+
+    if (node->data.binop.op == AST_BINOP_ASSIGN) {
+        cc_backend_varmap lvmap = cc_backend_get_node_varmap(ctx, lhs);
+        cc_backend_varmap rvmap = cc_backend_get_node_varmap(ctx, rhs);
+        bool rvmap_load = false;
+        if (rvmap.flags == VARMAP_CONSTANT) {
+            cc_backend_varmap old_rvmap = rvmap;
+            rvmap = cc_backend_varmap_reg(ctx);
+            ctx->backend_data->gen_mov(ctx, &rvmap, &old_rvmap);
+            rvmap_load = true;
+        }
+        cc_backend_process_node(ctx, node->data.binop.right, &rvmap);
+        cc_backend_process_node(ctx, node->data.binop.left, &lvmap);
+        ctx->backend_data->gen_mov(ctx, &lvmap, &rvmap);
+        if (rvmap_load)
+            cc_backend_free_register(ctx, rvmap.regno);
         return;
     }
 
@@ -379,16 +420,11 @@ void cc_backend_process_binop(
 
     if (!ctx->backend_data->gen_binop(
             ctx, &lvmap, &rvmap, node->data.binop.op, ovmap)) {
-        cc_backend_spill_reg(ctx, 2);
-        cc_backend_varmap nrvmap = { 0 };
-        nrvmap.regno = cc_backend_alloc_register(ctx);
-        nrvmap.flags = VARMAP_REGISTER;
+        cc_backend_varmap nrvmap = cc_backend_varmap_reg(ctx);
         ctx->backend_data->gen_mov(ctx, &nrvmap, &rvmap);
         if (!ctx->backend_data->gen_binop(
                 ctx, &lvmap, &nrvmap, node->data.binop.op, ovmap)) {
-            cc_backend_varmap nlvmap = { 0 };
-            nlvmap.regno = cc_backend_alloc_register(ctx);
-            nlvmap.flags = VARMAP_REGISTER;
+            cc_backend_varmap nlvmap = cc_backend_varmap_reg(ctx);
             ctx->backend_data->gen_mov(ctx, &nlvmap, &lvmap);
             if (!ctx->backend_data->gen_binop(
                     ctx, &nlvmap, &nrvmap, node->data.binop.op, ovmap)) {
@@ -411,10 +447,7 @@ static void cc_backend_process_if(
     cc_context* ctx, const cc_ast_node* node, const cc_backend_varmap* ovmap)
 {
     assert(node->type == AST_NODE_IF);
-    cc_backend_spill(ctx, 1);
-    cc_backend_varmap rvmap = { 0 };
-    rvmap.flags = VARMAP_REGISTER;
-    rvmap.regno = cc_backend_alloc_register(ctx);
+    cc_backend_varmap rvmap = cc_backend_varmap_reg(ctx);
     cc_backend_process_node(ctx, node->data.if_expr.cond, &rvmap);
 
     cc_backend_varmap lvmap = { 0 };

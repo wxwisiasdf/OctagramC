@@ -139,7 +139,8 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
     if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_REGISTER
         && lvmap->regno == rvmap->regno)
         return true;
-
+    
+    fprintf(ctx->out, "* X-move\n");
     /* Constant 0 */
     if (lvmap->flags == VARMAP_REGISTER && rvmap->flags == VARMAP_CONSTANT
         && rvmap->literal.value.u == 0) {
@@ -187,6 +188,23 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
         return true;
     }
 
+    if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC)
+        && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_STATIC)) {
+        cc_backend_varmap mvmap = cc_backend_varmap_reg(ctx);
+        fprintf(ctx->out, "\tL\t"); /* Load to temporal reg */
+        cc_mf370_print_varmap(ctx, &mvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
+        fprintf(ctx->out, "\tST\t"); /* Store back */
+        cc_mf370_print_varmap(ctx, lvmap);
+        fprintf(ctx->out, ",");
+        cc_mf370_print_varmap(ctx, rvmap);
+        fprintf(ctx->out, "\n");
+        cc_backend_free_register(ctx, mvmap.regno);
+        return true;
+    }
+
     if (lvmap->flags == VARMAP_LITERAL || rvmap->flags == VARMAP_LITERAL) {
         unsigned short branch_label_id = cc_ast_alloc_label_id(ctx);
         unsigned short literal_label_id = cc_ast_alloc_label_id(ctx);
@@ -208,10 +226,7 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
                 literal_label_id);
         } else if (lvmap->flags == VARMAP_STACK
             && rvmap->flags == VARMAP_LITERAL) {
-            cc_backend_varmap mvmap = { 0 };
-            cc_backend_spill(ctx, 1);
-            mvmap.regno = cc_backend_alloc_register(ctx);
-            mvmap.flags = VARMAP_REGISTER;
+            cc_backend_varmap mvmap = cc_backend_varmap_reg(ctx);
             fprintf(ctx->out, "\tL\t%s,=A(L%i)\n", reg_names[mvmap.regno],
                 literal_label_id);
             fprintf(ctx->out, "\tST\t%s,%u(R13)\n", reg_names[mvmap.regno],
@@ -219,36 +234,13 @@ bool cc_mf370_gen_mov(cc_context* ctx, const cc_backend_varmap* lvmap,
             cc_backend_free_register(ctx, mvmap.regno);
         } else if (lvmap->flags == VARMAP_LITERAL
             && rvmap->flags == VARMAP_STACK) {
-            cc_backend_varmap mvmap = { 0 };
-            cc_backend_spill(ctx, 1);
-            mvmap.regno = cc_backend_alloc_register(ctx);
-            mvmap.flags = VARMAP_REGISTER;
+            cc_backend_varmap mvmap = cc_backend_varmap_reg(ctx);
             fprintf(ctx->out, "\tLA\t%s,%u(R13)\n", reg_names[mvmap.regno],
                 rvmap->offset);
             fprintf(ctx->out, "\tST\t%s,=A(L%i)\n", reg_names[mvmap.regno],
                 literal_label_id);
             cc_backend_free_register(ctx, mvmap.regno);
         }
-        return true;
-    }
-
-    if ((lvmap->flags == VARMAP_STACK || lvmap->flags == VARMAP_STATIC)
-        && (rvmap->flags == VARMAP_STACK || rvmap->flags == VARMAP_STATIC)) {
-        cc_backend_varmap mvmap = { 0 };
-        cc_backend_spill(ctx, 1);
-        mvmap.regno = cc_backend_alloc_register(ctx);
-        mvmap.flags = VARMAP_REGISTER;
-        fprintf(ctx->out, "\tL\t"); /* Load to temporal reg */
-        cc_mf370_print_varmap(ctx, &mvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, "\n");
-        fprintf(ctx->out, "\tST\t"); /* Store back */
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, "\n");
-        cc_backend_free_register(ctx, mvmap.regno);
         return true;
     }
 
@@ -277,7 +269,7 @@ bool cc_mf370_gen_epilogue(
     fprintf(ctx->out, "%-7s\tDS\t0H\n", cc_mf370_logical_label(var->name));
     fprintf(ctx->out, "\tSAVE\t(R14,R12),,%-7s\n",
         cc_mf370_logical_label(var->name));
-    fprintf(ctx->out, "\tLR\tR12, R15\n");
+    fprintf(ctx->out, "\tLR\tR12,R15\n");
     fprintf(ctx->out, "\tUSING\tR13,R14\n");
     assert(ctx->backend_data->min_stack_alignment == 0);
     return true;
@@ -326,20 +318,19 @@ bool cc_mf370_gen_unop(cc_context* ctx, const cc_backend_varmap* lvmap,
 
     switch (type) {
     case AST_UNOP_DEREF: {
-        cc_backend_spill(ctx, 1);
-        cc_backend_varmap nlvmap = { 0 };
-        nlvmap.regno = cc_backend_alloc_register(ctx);
-        nlvmap.flags = VARMAP_REGISTER;
+        cc_backend_varmap nlvmap = cc_backend_varmap_reg(ctx);
         fprintf(ctx->out, "\tLA\t");
         cc_mf370_print_varmap(ctx, &nlvmap);
         fprintf(ctx->out, ",");
         cc_mf370_print_varmap(ctx, rvmap);
         fprintf(ctx->out, "\n");
+        cc_backend_free_register(ctx, nlvmap.regno);
+
         fprintf(ctx->out, "\tL\t");
         cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, ",");
+        fprintf(ctx->out, ",0(");
         cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, "\n");
+        fprintf(ctx->out, ")\n");
     } break;
     case AST_UNOP_REF:
         break;
@@ -368,7 +359,11 @@ bool cc_mf370_gen_binop(cc_context* ctx,
     case AST_BINOP_MINUS:
     case AST_BINOP_AND:
     case AST_BINOP_OR:
-    case AST_BINOP_XOR: {
+    case AST_BINOP_XOR:
+    case AST_BINOP_MUL:
+    case AST_BINOP_DIV:
+    case AST_BINOP_LSHIFT:
+    case AST_BINOP_RSHIFT: {
         const char* insn = NULL;
         switch (type) {
         case AST_BINOP_PLUS:
@@ -386,27 +381,36 @@ bool cc_mf370_gen_binop(cc_context* ctx,
         case AST_BINOP_XOR:
             insn = "X";
             break;
+        case AST_BINOP_MUL:
+            insn = "M";
+            break;
+        case AST_BINOP_DIV:
+            insn = "D";
+            break;
+        case AST_BINOP_LSHIFT:
+            insn = "SR";
+            break;
+        case AST_BINOP_RSHIFT:
+            insn = "SL";
+            break;
         default:
             break;
         }
 
         cc_backend_varmap mlvmap = *lvmap;
         cc_backend_varmap mrvmap = *rvmap;
+
+        bool rvmap_loaded = false;
         if (mrvmap.flags != VARMAP_REGISTER || mrvmap.flags != VARMAP_CONSTANT) {
-            cc_backend_spill(ctx, 1);
-            mrvmap.flags = VARMAP_REGISTER;
-            mrvmap.regno = cc_backend_alloc_register(ctx);
+            mrvmap = cc_backend_varmap_reg(ctx);
             ctx->backend_data->gen_mov(ctx, &mrvmap, rvmap);
-            cc_backend_free_register(ctx, mrvmap.regno);
+            rvmap_loaded = true;
         }
 
         bool lvmap_loaded = false;
         if (mlvmap.flags != VARMAP_REGISTER) {
-            cc_backend_spill(ctx, 1);
-            mlvmap.flags = VARMAP_REGISTER;
-            mlvmap.regno = cc_backend_alloc_register(ctx);
+            mlvmap = cc_backend_varmap_reg(ctx);
             ctx->backend_data->gen_mov(ctx, &mlvmap, lvmap);
-            cc_backend_free_register(ctx, mlvmap.regno);
             lvmap_loaded = true;
         }
 
@@ -419,42 +423,19 @@ bool cc_mf370_gen_binop(cc_context* ctx,
             fprintf(ctx->out, "\n");
         } else if (mlvmap.flags == VARMAP_REGISTER
             && mrvmap.flags == VARMAP_LITERAL) {
-            fprintf(ctx->out, "\t%sR\t", insn);
+            fprintf(ctx->out, "\t%sI\t", insn);
             cc_mf370_print_varmap(ctx, &mlvmap);
             fprintf(ctx->out, ",");
             cc_mf370_print_varmap(ctx, &mrvmap);
             fprintf(ctx->out, "\n");
         }
+        if (rvmap_loaded)
+            cc_backend_free_register(ctx, mrvmap.regno);
+        
         ctx->backend_data->gen_mov(ctx, ovmap, &mlvmap);
+        if (lvmap_loaded)
+            cc_backend_free_register(ctx, mlvmap.regno);
     } break;
-    case AST_BINOP_MUL:
-        fprintf(ctx->out, "\tMR\t");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, "\n");
-        break;
-    case AST_BINOP_DIV:
-        fprintf(ctx->out, "\tDR\t");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, "\n");
-        break;
-    case AST_BINOP_LSHIFT:
-        fprintf(ctx->out, "\tSLR\t");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, "\n");
-        break;
-    case AST_BINOP_RSHIFT:
-        fprintf(ctx->out, "\tSRR\t");
-        cc_mf370_print_varmap(ctx, rvmap);
-        fprintf(ctx->out, ",");
-        cc_mf370_print_varmap(ctx, lvmap);
-        fprintf(ctx->out, "\n");
-        break;
     case AST_BINOP_GT:
     case AST_BINOP_GTE:
     case AST_BINOP_LT:
@@ -490,7 +471,7 @@ bool cc_mf370_gen_binop(cc_context* ctx,
             break;
         }
 
-        fprintf(ctx->out, "\tCR\t%s, %s\n", reg_names[lvmap->regno],
+        fprintf(ctx->out, "\tCR\t%s,%s\n", reg_names[lvmap->regno],
             reg_names[rvmap->regno]);
         fprintf(ctx->out, "\t%s\tL%u\n", jmp_insn, branch_lnum);
         literal.literal = (cc_ast_literal) {
@@ -520,7 +501,7 @@ bool cc_mf370_gen_branch(cc_context* ctx, const cc_ast_node* node,
     const cc_backend_varmap* lvmap, const cc_backend_varmap* rvmap,
     enum cc_ast_binop_type type)
 {
-    fprintf(ctx->out, "#switch-case %i\n", type);
+    fprintf(ctx->out, "* X-switch-case %i\n", type);
     switch (type) {
     case AST_BINOP_GT:
     case AST_BINOP_GTE:
