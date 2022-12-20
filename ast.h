@@ -21,12 +21,12 @@ typedef struct cc_ast_type_cv {
 } cc_ast_type_cv;
 
 enum cc_ast_storage {
-    AST_STORAGE_AUTO,
-    AST_STORAGE_EXTERN,
-    AST_STORAGE_STATIC,
-    AST_STORAGE_REGISTER,
-    AST_STORAGE_CONSTEXPR,
-    AST_STORAGE_GLOBAL,
+    AST_STORAGE_AUTO = 0x00,
+    AST_STORAGE_EXTERN = 0x01,
+    AST_STORAGE_STATIC = 0x02,
+    AST_STORAGE_REGISTER = 0x04,
+    AST_STORAGE_CONSTEXPR = 0x08,
+    AST_STORAGE_GLOBAL = 0x10,
     AST_STORAGE_THREAD_LOCAL = 0x40,
     AST_STORAGE_INLINE = 0x80,
 };
@@ -126,7 +126,7 @@ enum cc_ast_node_type {
 enum cc_ast_binop_type {
     AST_BINOP_NONE,
     AST_BINOP_ASSIGN, /* Or set */
-    AST_BINOP_PLUS,
+    AST_BINOP_ADD,
     AST_BINOP_MINUS,
     AST_BINOP_MUL,
     AST_BINOP_DIV,
@@ -279,6 +279,6 @@ void cc_ast_iterate(const cc_ast_node *node,
 cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned short id);
 void cc_ast_print(const cc_ast_node* node);
-bool cc_ast_is_field_of(const cc_ast_type *type, const char *field);
+bool cc_ast_is_field_of(const cc_ast_type* type, const char* field);
 
 #endif

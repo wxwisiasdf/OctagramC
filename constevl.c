@@ -24,9 +24,10 @@ static cc_ast_literal cc_ceval_eval_1(
         for (size_t i = 0; i < *n_list; i++)
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
-        const cc_ast_variable *var = cc_ast_find_variable(node->data.var.name, node);
+        const cc_ast_variable* var
+            = cc_ast_find_variable(node->data.var.name, node);
         if (var != NULL && var->type.storage == AST_STORAGE_CONSTEXPR
-        && var->initializer != NULL)
+            && var->initializer != NULL)
             return cc_ceval_eval_1(ctx, var->initializer, list, n_list);
         cc_diag_warning(ctx, "Unable to constexpr variable, defaulting to 0");
     } break;
@@ -35,25 +36,25 @@ static cc_ast_literal cc_ceval_eval_1(
         rhs = cc_ceval_eval_1(ctx, node->data.binop.right, list, n_list);
         switch (node->data.binop.op) {
 #define CEVAL_CONDITIONAL(type, op)                                            \
-case type: {                                                               \
-    if (lhs.is_float && rhs.is_float)                                      \
-        return (cc_ast_literal) { .is_signed = false,                      \
-            .is_float = false,                                             \
-            .value.d = lhs.value.d op rhs.value.d };                        \
-    else if (!lhs.is_float && rhs.is_float)                                \
-        return (cc_ast_literal) { .is_signed = false,                      \
-            .is_float = false,                                             \
-            .value.u = lhs.value.u op rhs.value.d };                        \
-    else if (lhs.is_float && !rhs.is_float)                                \
-        return (cc_ast_literal) { .is_signed = false,                      \
-            .is_float = false,                                             \
-            .value.u = lhs.value.d op rhs.value.u };                        \
-    else if (!lhs.is_float && !rhs.is_float)                               \
-        return (cc_ast_literal) { .is_signed = false,                      \
-            .is_float = false,                                             \
-            .value.u = lhs.value.u op rhs.value.u };                        \
-} break
-            CEVAL_CONDITIONAL(AST_BINOP_PLUS, +);
+    case type: {                                                               \
+        if (lhs.is_float && rhs.is_float)                                      \
+            return (cc_ast_literal) { .is_signed = false,                      \
+                .is_float = false,                                             \
+                .value.d = lhs.value.d op rhs.value.d };                       \
+        else if (!lhs.is_float && rhs.is_float)                                \
+            return (cc_ast_literal) { .is_signed = false,                      \
+                .is_float = false,                                             \
+                .value.u = lhs.value.u op rhs.value.d };                       \
+        else if (lhs.is_float && !rhs.is_float)                                \
+            return (cc_ast_literal) { .is_signed = false,                      \
+                .is_float = false,                                             \
+                .value.u = lhs.value.d op rhs.value.u };                       \
+        else if (!lhs.is_float && !rhs.is_float)                               \
+            return (cc_ast_literal) { .is_signed = false,                      \
+                .is_float = false,                                             \
+                .value.u = lhs.value.u op rhs.value.u };                       \
+    } break
+            CEVAL_CONDITIONAL(AST_BINOP_ADD, +);
             CEVAL_CONDITIONAL(AST_BINOP_MINUS, -);
             CEVAL_CONDITIONAL(AST_BINOP_MUL, *);
             CEVAL_CONDITIONAL(AST_BINOP_DIV, /);
@@ -89,7 +90,7 @@ case type: {                                                               \
 
         assert(var->type.data.func.n_params == node->data.call.n_params);
         for (size_t i = 0; i < var->type.data.func.n_params; i++) {
-            *list = cc_realloc(*list, sizeof(**list) * (*n_list + 1));
+            *list = cc_realloc_array(*list, *n_list + 1);
             (*list)[(*n_list)++] = (cc_ceval_io) { .name
                 = var->type.data.func.params[i].name,
                 .literal = cc_ceval_eval(ctx, &node->data.call.params[i]) };
@@ -292,7 +293,8 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_LITERAL:
         return true;
     case AST_NODE_VARIABLE:
-        const cc_ast_variable *var = cc_ast_find_variable(node->data.var.name, node);
+        const cc_ast_variable* var
+            = cc_ast_find_variable(node->data.var.name, node);
         if (var->type.storage == AST_STORAGE_CONSTEXPR)
             return true;
         return false;

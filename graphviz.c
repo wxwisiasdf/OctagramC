@@ -70,7 +70,7 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
         case AST_BINOP_OR:
             fprintf(ctx->out, "|");
             break;
-        case AST_BINOP_PLUS:
+        case AST_BINOP_ADD:
             fprintf(ctx->out, "+");
             break;
         case AST_BINOP_RSHIFT:

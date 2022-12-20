@@ -88,8 +88,7 @@ void cc_diag_warning(cc_context* ctx, const char* fmt, ...)
 void cc_diag_add_info(cc_context* ctx, cc_diag_info info)
 {
     assert(info.filename != NULL);
-    ctx->diag_infos = cc_realloc(
-        ctx->diag_infos, sizeof(cc_diag_info) * (ctx->n_diag_infos + 1));
+    ctx->diag_infos = cc_realloc_array(ctx->diag_infos, ctx->n_diag_infos + 1);
     ctx->diag_infos[ctx->n_diag_infos++] = info;
 }
 

@@ -11,6 +11,8 @@ enum cc_stage {
     STAGE_AST,
 };
 
+struct cc_ast_type;
+
 /* State machine variables for parser, lexer, etc */
 typedef struct cc_context {
     FILE* fp;
@@ -20,6 +22,8 @@ typedef struct cc_context {
     size_t n_tokens;
     size_t c_token; /* Current token index */
     struct cc_ast_node* root;
+    struct cc_ssa_func* ssa_funcs;
+    size_t n_ssa_funcs;
     const char* cbuf; /* Current logical line buffer */
     const char* cptr; /* Line pointer for diagnostics */
     struct cc_diag_info* diag_infos;
@@ -27,7 +31,6 @@ typedef struct cc_context {
     enum cc_stage stage;
     const struct cc_ast_node* diag_node; /* Node for diagnostic */
     void* asgen_data; /* Opaque pointer for assembly generation */
-    struct cc_backend_context* backend_data;
     struct cc_ast_node* continue_node; /* Node to jump to in continue */
     struct cc_ast_node* break_node; /* Node to jump to in break */
     unsigned int error_cnt; /* Counter for errors */
@@ -41,6 +44,11 @@ typedef struct cc_context {
     bool print_ast; /* Printing of AST is allowed/disallowed */
     bool is_func_body; /* Parsing assigning automatic storage to variables
                            if global or pertaining to the stack of a functor. */
+    unsigned int (*get_sizeof)(
+        struct cc_context* ctx, const struct cc_ast_type* type);
+    unsigned short min_stack_alignment;
+    struct cc_ssa_func* ssa_current_func;
+    unsigned int tmpid;
 } cc_context;
 
 #endif

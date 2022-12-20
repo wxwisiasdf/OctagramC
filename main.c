@@ -5,7 +5,6 @@
    cpp -ansi file.c | awk '!/^#/' | awk NF */
 #include "as386.h"
 #include "ast.h"
-#include "backend.h"
 #include "context.h"
 #include "diag.h"
 #include "graphviz.h"
@@ -13,6 +12,7 @@
 #include "mf370.h"
 #include "optzer.h"
 #include "parser.h"
+#include "ssa.h"
 #include "util.h"
 #include <assert.h>
 #include <ctype.h>
@@ -118,10 +118,12 @@ int main(int argc, char** argv)
                 printf("\n");
             }
 
+            cc_ssa_top(&ctx);
+
             switch (target) {
             case TARGET_AS386:
             case TARGET_MF370:
-                cc_backend_process_node(&ctx, ctx.root, NULL);
+                /*cc_backend_process_node(&ctx, ctx.root, NULL);*/
                 break;
             case TARGET_GRAPHVIZ:
                 cc_graphviz_top(&ctx);
@@ -129,7 +131,7 @@ int main(int argc, char** argv)
             }
         }
         cc_ast_destroy_node(ctx.root, true);
-        cc_backend_deinit(&ctx);
+        /*cc_backend_deinit(&ctx);*/
     }
 
     if (ctx.out != stdout)

@@ -143,9 +143,8 @@ void cc_ast_add_block_node(
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
     assert(child != NULL && child->parent == block);
-
-    block->data.block.children = cc_realloc(block->data.block.children,
-        sizeof(cc_ast_node) * (block->data.block.n_children + 1));
+    block->data.block.children = cc_realloc_array(
+        block->data.block.children, block->data.block.n_children + 1);
     block->data.block.children[block->data.block.n_children++] = *child;
 }
 
@@ -154,8 +153,8 @@ void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type)
     assert(block != NULL && block->type == AST_NODE_BLOCK);
     assert(type->mode != AST_TYPE_MODE_NONE);
     assert(type->name != NULL);
-    block->data.block.types = cc_realloc(block->data.block.types,
-        sizeof(cc_ast_type) * (block->data.block.n_types + 1));
+    block->data.block.types = cc_realloc_array(
+        block->data.block.types, block->data.block.n_types + 1);
     block->data.block.types[block->data.block.n_types++] = *type;
 }
 
@@ -186,8 +185,8 @@ void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var)
         }
     }
 
-    block->data.block.vars = cc_realloc(block->data.block.vars,
-        sizeof(cc_ast_variable) * (block->data.block.n_vars + 1));
+    block->data.block.vars = cc_realloc_array(
+        block->data.block.vars, block->data.block.n_vars + 1);
     block->data.block.vars[block->data.block.n_vars++] = *var;
 }
 
@@ -195,8 +194,8 @@ void cc_ast_add_call_param(
     cc_ast_node* restrict call, const cc_ast_node* restrict param)
 {
     assert(param->parent == call);
-    call->data.call.params = cc_realloc(call->data.call.params,
-        sizeof(cc_ast_node) * (call->data.call.n_params + 1));
+    call->data.call.params = cc_realloc_array(
+        call->data.call.params, call->data.call.n_params + 1);
     call->data.call.params[call->data.call.n_params++] = *param;
 }
 
@@ -393,9 +392,8 @@ void cc_ast_copy_node(
         assert(dest->data.block.n_children == 0); /* Can't handle child */
 
         dest->data.block.n_children = src->data.block.n_children;
-        dest->data.block.children = cc_realloc(dest->data.block.children,
-            sizeof(cc_ast_node) * dest->data.block.n_children);
-
+        dest->data.block.children = cc_realloc_array(
+            dest->data.block.children, dest->data.block.n_children);
         for (size_t i = 0; i < src->data.block.n_children; i++) {
             memset(&dest->data.block.children[i], 0, sizeof(cc_ast_node));
             dest->data.block.children[i].type
@@ -421,8 +419,8 @@ void cc_ast_copy_type(
 
     if (src->mode == AST_TYPE_MODE_FUNCTION) { /* Make copies of things */
         dest->data.func.n_params = src->data.func.n_params;
-        dest->data.func.params = cc_realloc(dest->data.func.params,
-            sizeof(cc_ast_variable) * dest->data.func.n_params);
+        dest->data.func.params = cc_realloc_array(
+            dest->data.func.params, dest->data.func.n_params);
         memset(dest->data.func.params, 0,
             sizeof(cc_ast_variable) * dest->data.func.n_params);
         for (size_t i = 0; i < dest->data.func.n_params; i++) {
@@ -433,17 +431,16 @@ void cc_ast_copy_type(
                     = cc_strdup(src->data.func.params[i].name);
         }
 
-        if (src->data.func.return_type != NULL) {
-            dest->data.func.return_type
-                = cc_malloc(sizeof(*dest->data.func.return_type));
-            cc_ast_copy_type(
-                dest->data.func.return_type, src->data.func.return_type);
-        }
+        assert(src->data.func.return_type != NULL);
+        dest->data.func.return_type
+            = cc_malloc(sizeof(*dest->data.func.return_type));
+        cc_ast_copy_type(
+            dest->data.func.return_type, src->data.func.return_type);
     } else if (src->mode == AST_TYPE_MODE_STRUCT
         || src->mode == AST_TYPE_MODE_UNION) {
         dest->data.s_or_u.n_members = src->data.s_or_u.n_members;
-        dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
-            sizeof(cc_ast_variable) * dest->data.s_or_u.n_members);
+        dest->data.s_or_u.members = cc_realloc_array(
+            dest->data.s_or_u.members, dest->data.s_or_u.n_members);
 
         for (size_t i = 0; i < dest->data.s_or_u.n_members; i++) {
             const cc_ast_variable* src_param = &src->data.s_or_u.members[i];
@@ -454,8 +451,8 @@ void cc_ast_copy_type(
         }
     } else if (src->mode == AST_TYPE_MODE_ENUM) {
         dest->data.enumer.n_elems = src->data.enumer.n_elems;
-        dest->data.enumer.elems = cc_realloc(dest->data.enumer.elems,
-            sizeof(cc_ast_variable) * dest->data.enumer.n_elems);
+        dest->data.enumer.elems = cc_realloc_array(
+            dest->data.enumer.elems, dest->data.enumer.n_elems);
 
         for (size_t i = 0; i < dest->data.enumer.n_elems; i++) {
             const cc_ast_enum_member* src_member = &src->data.enumer.elems[i];
@@ -472,14 +469,15 @@ void cc_ast_add_type_member(
 {
     assert(dest->mode == AST_TYPE_MODE_STRUCT
         || dest->mode == AST_TYPE_MODE_UNION);
-    dest->data.s_or_u.members = cc_realloc(dest->data.s_or_u.members,
-        sizeof(*dest->data.s_or_u.members) * (dest->data.s_or_u.n_members + 1));
+    dest->data.s_or_u.members = cc_realloc_array(
+        dest->data.s_or_u.members, dest->data.s_or_u.n_members + 1);
     dest->data.s_or_u.members[dest->data.s_or_u.n_members++] = *src;
 }
 
-bool cc_ast_is_field_of(const cc_ast_type *type, const char *field)
+bool cc_ast_is_field_of(const cc_ast_type* type, const char* field)
 {
-    assert(type->mode == AST_TYPE_MODE_STRUCT || type->mode == AST_TYPE_MODE_UNION);
+    assert(type->mode == AST_TYPE_MODE_STRUCT
+        || type->mode == AST_TYPE_MODE_UNION);
     for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
         if (!strcmp(type->data.s_or_u.members[i].name, field))
             return true;
@@ -731,7 +729,7 @@ void cc_ast_print(const cc_ast_node* node)
         case AST_BINOP_OR:
             printf("|");
             break;
-        case AST_BINOP_PLUS:
+        case AST_BINOP_ADD:
             printf("+");
             break;
         case AST_BINOP_RSHIFT:
@@ -761,8 +759,8 @@ void cc_ast_print(const cc_ast_node* node)
 
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            const char *storage_name = "(storage)";
-            switch (var->type.storage) {
+            const char* storage_name = "(storage)";
+            switch (var->type.storage & ~(AST_STORAGE_THREAD_LOCAL)) {
             case AST_STORAGE_AUTO:
                 storage_name = "auto";
                 break;
@@ -784,11 +782,10 @@ void cc_ast_print(const cc_ast_node* node)
             case AST_STORAGE_STATIC:
                 storage_name = "static";
                 break;
-            case AST_STORAGE_THREAD_LOCAL:
-                storage_name = "thread_local";
-                break;
             }
             printf("var %s %s", var->name, storage_name);
+            if (var->type.storage & AST_STORAGE_THREAD_LOCAL)
+                printf("thread_local");
             if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
                 printf("(");
                 for (size_t j = 0; j < var->type.data.func.n_params; j++)
@@ -837,9 +834,9 @@ void cc_ast_print(const cc_ast_node* node)
         break;
     case AST_NODE_LITERAL:
         if (node->data.literal.is_signed)
-            printf("<literal %li>", node->data.literal.value.s);
+            printf("<literal %lii>", node->data.literal.value.s);
         else
-            printf("<literal %lu>", node->data.literal.value.u);
+            printf("<literal %luu>", node->data.literal.value.u);
         break;
     case AST_NODE_RETURN:
         printf("<return (");

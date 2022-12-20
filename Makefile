@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
-	-pedantic -Wno-unused-parameter -Ofast -g
+	-pedantic -Wno-unused-parameter -O0 -g
 
 all: build
 
@@ -17,8 +17,8 @@ clean:
 .PHONY: build all
 
 # ==============================================================================
-occ: as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
-	graphviz.c backend.o mf370.o
+occ: diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
+	graphviz.c mf370.o as386.o ssa.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 %.o: %.c %.h

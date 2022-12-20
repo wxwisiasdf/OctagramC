@@ -1,13 +1,12 @@
 /* parser.c - C parser an AST generator. */
 #include "parser.h"
 #include "ast.h"
-#include "backend.h"
 #include "constevl.h"
 #include "context.h"
 #include "diag.h"
 #include "lexer.h"
-#include "util.h"
 #include "optzer.h"
+#include "util.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -222,8 +221,8 @@ static bool cc_parse_enum_specifier(
         var.initializer = cc_ast_create_literal(ctx, node, member.literal);
         cc_ast_add_block_variable(node, &var);
 
-        type->data.enumer.elems = cc_realloc(type->data.enumer.elems,
-            sizeof(*type->data.enumer.elems) * (type->data.enumer.n_elems + 1));
+        type->data.enumer.elems = cc_realloc_array(
+            type->data.enumer.elems, type->data.enumer.n_elems + 1);
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COMMA, "Expected ','");
@@ -298,6 +297,24 @@ static bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
     }
     cc_lex_token_consume(ctx);
     return true;
+}
+
+/* We've been parsing what we tought was a type of a variable and not a
+   function, so we will quickly "translate" the return type of the function
+   from the current type of the function. For example if we parse:
+   
+   int printf(...);
+
+   We will have a variable with type int, so we will move the int type into our
+   return type. */
+static void cc_swap_func_decl(cc_ast_type* type)
+{
+    cc_ast_type* return_type = cc_zalloc(sizeof(cc_ast_type));
+    cc_ast_copy_type(return_type, type);
+    /* Reset type of variable */
+    memset(type, 0, sizeof(cc_ast_type));
+    type->mode = AST_TYPE_MODE_FUNCTION;
+    type->data.func.return_type = return_type;
 }
 
 static bool cc_parse_typedef_name(
@@ -457,19 +474,19 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
 
     switch (ctok->type) {
     case LEXER_TOKEN_extern:
-        type->storage = AST_STORAGE_EXTERN;
+        type->storage |= AST_STORAGE_EXTERN;
         break;
     case LEXER_TOKEN_static:
-        type->storage = AST_STORAGE_STATIC;
+        type->storage |= AST_STORAGE_STATIC;
         break;
     case LEXER_TOKEN_register:
-        type->storage = AST_STORAGE_REGISTER;
+        type->storage |= AST_STORAGE_REGISTER;
         break;
     case LEXER_TOKEN_thread_local:
-        type->storage = AST_STORAGE_THREAD_LOCAL;
+        type->storage |= AST_STORAGE_THREAD_LOCAL;
         break;
     case LEXER_TOKEN_constexpr:
-        type->storage = AST_STORAGE_CONSTEXPR;
+        type->storage |= AST_STORAGE_CONSTEXPR;
         break;
     case LEXER_TOKEN_typedef:
         ctx->is_parsing_typedef = true;
@@ -535,7 +552,7 @@ static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(binop_node->data.binop.left, block_node);
             switch (ctok->type) {
             case LEXER_TOKEN_PLUS:
-                binop_node->data.binop.op = AST_BINOP_PLUS;
+                binop_node->data.binop.op = AST_BINOP_ADD;
                 break;
             case LEXER_TOKEN_MINUS:
                 binop_node->data.binop.op = AST_BINOP_MINUS;
@@ -857,7 +874,7 @@ static bool cc_parse_assignment_expression(
         expand_expr = true;
         break;
     case LEXER_TOKEN_ASSIGN_PLUS:
-        binop_type = AST_BINOP_PLUS;
+        binop_type = AST_BINOP_ADD;
         expand_expr = true;
         break;
     case LEXER_TOKEN_ASSIGN_XOR:
@@ -1010,7 +1027,7 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    unsigned int obj_sizeof = ctx->backend_data->get_sizeof(ctx, &virtual_type);
+    unsigned int obj_sizeof = ctx->get_sizeof(ctx, &virtual_type);
     /* TODO: Better way to convert our numbers into strings */
     static char numbuf[80];
     snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
@@ -1095,7 +1112,7 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_ast_node* arr_deref_node
                 = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
             cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
-                ctx, arr_deref_node->data.unop.child, AST_BINOP_PLUS);
+                ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
             expr_node->parent = arr_index_node->data.binop.left;
             cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
             cc_parse_expression(ctx, arr_index_node->data.binop.right);
@@ -1158,7 +1175,7 @@ static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         switch (ctok->type) {
         case LEXER_TOKEN_PLUS: /* Prefix +*/
             cc_lex_token_consume(ctx);
-            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_PLUS);
+            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_ADD);
             literal_node = cc_ast_create_literal_from_str(
                 ctx, binop_node->data.binop.left, "0");
             break;
@@ -1478,14 +1495,15 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
         /* Diagnostis for uncovered cases iff the element is an enumerator */
         cc_ast_type type = { 0 };
 
-        cc_ast_node *tnode = switch_node->data.switch_expr.control;
+        cc_ast_node* tnode = switch_node->data.switch_expr.control;
         cc_optimizer_expr_condense(ctx, &tnode, false);
         if (tnode == NULL) {
             cc_diag_error(ctx, "Empty controlling expression");
             goto error_handle;
         }
 
-        if(!cc_ceval_deduce_type(ctx, switch_node->data.switch_expr.control, &type)) {
+        if (!cc_ceval_deduce_type(
+                ctx, switch_node->data.switch_expr.control, &type)) {
             cc_diag_error(ctx, "Unable to deduce type of switch");
             cc_ast_destroy_node(end_node, true);
             cc_ast_destroy_node(switch_node, true);
@@ -1582,7 +1600,8 @@ ignore_missing_ident:
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
         cc_lex_token_consume(ctx);
-        var->type.mode = AST_TYPE_MODE_FUNCTION;
+        cc_swap_func_decl(&var->type);
+
         /* No storage specified? set extern then */
         /*if (var->type.storage == AST_STORAGE_AUTO) {
             var->type.storage = AST_STORAGE_EXTERN;
@@ -1851,7 +1870,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                     cc_ast_variable nvar = { 0 };
                     nvar.name = cc_strdup(ctok->data);
-                    nvar.type.mode = AST_TYPE_MODE_FUNCTION;
+                    cc_swap_func_decl(&nvar.type);
                     nvar.type.storage = AST_STORAGE_EXTERN;
                     /* Variadic, basically meaning we have no fucking idea */
                     nvar.type.data.func.variadic = true;
@@ -1925,7 +1944,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             /* Function prototype usually ends up with ");" */
             if ((ctok = cc_lex_token_peek(ctx, -1)) != NULL
                 && ctok->type == LEXER_TOKEN_RPAREN)
-                var.type.mode = AST_TYPE_MODE_FUNCTION;
+                cc_swap_func_decl(&var.type);
             cc_lex_token_consume(ctx);
             break;
         case LEXER_TOKEN_LBRACE: /* Function body */

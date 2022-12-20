@@ -44,9 +44,8 @@ void cc_optimizer_expr_condense(
         /* Binop operation between two constants */
         assert(node->data.binop.left != NULL && node->data.binop.right != NULL);
         if (cc_ceval_is_const(ctx, node->data.binop.left)
-        && cc_ceval_is_const(ctx, node->data.binop.right))
-        {
-            cc_ast_node new_node = {0};
+            && cc_ceval_is_const(ctx, node->data.binop.right)) {
+            cc_ast_node new_node = { 0 };
             new_node.type = AST_NODE_LITERAL;
             new_node.data.literal = cc_ceval_eval(ctx, node);
             new_node.parent = node->parent;
