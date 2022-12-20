@@ -23,6 +23,6 @@ void cc_free(void* p);
 char* cc_strndup(const char* s, size_t n);
 char* cc_strdup(const char* s);
 
-#define cc_realloc_array(arr, n) cc_realloc(arr, sizeof(arr[0]) * (n))
+#define cc_realloc_array(arr, n) cc_realloc(arr, sizeof(*(arr)) * (n))
 
 #endif

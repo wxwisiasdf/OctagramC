@@ -501,9 +501,9 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
 static bool cc_parse_multiplicative_expression(
     cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
     if (cc_parse_unary_expression(ctx, block_node)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && (ctok->type == LEXER_TOKEN_ASTERISK
                 || ctok->type == LEXER_TOKEN_MOD
@@ -539,9 +539,9 @@ static bool cc_parse_multiplicative_expression(
 
 static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
     if (cc_parse_multiplicative_expression(ctx, block_node)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && (ctok->type == LEXER_TOKEN_PLUS
                 || ctok->type == LEXER_TOKEN_MINUS)) {
@@ -572,9 +572,9 @@ static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
 
 static bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
     if (cc_parse_additive_expression(ctx, block_node)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && (ctok->type == LEXER_TOKEN_LSHIFT
                 || ctok->type == LEXER_TOKEN_RSHIFT)) {
@@ -605,9 +605,9 @@ static bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
 
 static bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
     if (cc_parse_shift_expression(ctx, block_node)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && (ctok->type == LEXER_TOKEN_GT || ctok->type == LEXER_TOKEN_GTE
                 || ctok->type == LEXER_TOKEN_LT
@@ -645,9 +645,9 @@ static bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
 
 static bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* block_node = cc_ast_create_block(ctx, node);
     if (cc_parse_relational_expression(ctx, block_node)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && (ctok->type == LEXER_TOKEN_COND_EQ
                 || ctok->type == LEXER_TOKEN_COND_NEQ)) {
@@ -676,121 +676,52 @@ static bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
     return false;
 }
 
-static bool cc_parse_and_expression(cc_context* ctx, cc_ast_node* node)
-{
-    const cc_lexer_token* ctok;
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_equality_expression(ctx, block_node)) {
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_AMPERSAND) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_AND);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            cc_parse_and_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
+#define CC_PARSER_OPERATOR_FN(fn_name, lw_fn_name, tok_type, binop_type)       \
+    static bool fn_name(cc_context* ctx, cc_ast_node* node)                    \
+    {                                                                          \
+        cc_ast_node* block_node = cc_optimizer_is_empty_block(node)            \
+            ? node                                                             \
+            : cc_ast_create_block(ctx, node);                                  \
+        if (lw_fn_name(ctx, block_node)) {                                     \
+            const cc_lexer_token* ctok;                                        \
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL                     \
+                && ctok->type == (tok_type)) {                                 \
+                cc_ast_node* binop_node                                        \
+                    = cc_ast_create_binop_expr(ctx, node, binop_type);         \
+                cc_lex_token_consume(ctx);                                     \
+                if (block_node == node)                                        \
+                    block_node = cc_ast_create_block(ctx, node);               \
+                block_node->parent = binop_node->data.binop.left;              \
+                cc_ast_add_block_node(                                         \
+                    binop_node->data.binop.left, block_node);                  \
+                fn_name(ctx, binop_node->data.binop.right);                    \
+                cc_ast_add_block_node(node, binop_node);                       \
+            } else {                                                           \
+                if (block_node != node)                                        \
+                    cc_ast_add_block_node(node, block_node);                   \
+            }                                                                  \
+            return true;                                                       \
+        }                                                                      \
+        return false;                                                          \
     }
-    return false;
-}
-
-static bool cc_parse_exclusive_or_expression(cc_context* ctx, cc_ast_node* node)
-{
-    const cc_lexer_token* ctok;
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_and_expression(ctx, block_node)) {
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_XOR) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_XOR);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            cc_parse_exclusive_or_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_inclusive_or_expression(cc_context* ctx, cc_ast_node* node)
-{
-    const cc_lexer_token* ctok;
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_exclusive_or_expression(ctx, block_node)) {
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_OR) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_OR);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            cc_parse_inclusive_or_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_logical_and_expression(cc_context* ctx, cc_ast_node* node)
-{
-    const cc_lexer_token* ctok;
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_inclusive_or_expression(ctx, block_node)) {
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_LOGICAL_AND) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_COND_AND);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            cc_parse_logical_and_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_logical_or_expression(cc_context* ctx, cc_ast_node* node)
-{
-    const cc_lexer_token* ctok;
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_logical_and_expression(ctx, block_node)) {
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_LOGICAL_OR) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_COND_OR);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            cc_parse_logical_or_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
+CC_PARSER_OPERATOR_FN(cc_parse_and_expression, cc_parse_equality_expression,
+    LEXER_TOKEN_AMPERSAND, AST_BINOP_AND)
+CC_PARSER_OPERATOR_FN(cc_parse_exclusive_or_expression, cc_parse_and_expression,
+    LEXER_TOKEN_XOR, AST_BINOP_XOR)
+CC_PARSER_OPERATOR_FN(cc_parse_inclusive_or_expression,
+    cc_parse_exclusive_or_expression, LEXER_TOKEN_OR, AST_BINOP_OR)
+CC_PARSER_OPERATOR_FN(cc_parse_logical_and_expression,
+    cc_parse_inclusive_or_expression, LEXER_TOKEN_LOGICAL_AND,
+    AST_BINOP_COND_AND)
+CC_PARSER_OPERATOR_FN(cc_parse_logical_or_expression,
+    cc_parse_logical_and_expression, LEXER_TOKEN_LOGICAL_OR, AST_BINOP_COND_OR)
+#undef CC_PARSER_OPERATOR_FN
 
 static bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     cc_ast_node* expr = cc_ast_create_block(ctx, node);
     if (cc_parse_logical_or_expression(ctx, expr)) {
+        const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_TERNARY) {
             cc_lex_token_consume(ctx);
@@ -991,6 +922,7 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
         of a concise expression, otherwise we have to stick with another
         unary expression. */
     cc_ast_type virtual_type = { 0 };
+    virtual_type.is_signed = ctx->is_default_signed;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
         cc_lex_token_consume(ctx);
@@ -1061,11 +993,11 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         goto finish_expr_setup;
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
+        cc_lex_token_consume(ctx);
         if (var == NULL) {
             cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
             goto error_handle;
         }
-        cc_lex_token_consume(ctx);
 
         if (cc_parse_unary_call(ctx, node, var, &expr_node)) {
             /* Parsed the call.. */
@@ -1140,7 +1072,7 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             parent_rerouted = true;
             matched_any = true;
 
-            cc_ast_type type;
+            cc_ast_type type = { 0 };
             cc_ceval_deduce_type(ctx, expr_node, &type);
             if (!cc_ast_is_field_of(&type, var_node->data.var.name)) {
                 cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
@@ -1272,6 +1204,7 @@ static bool cc_parse_declaration_specifier(
     const cc_lexer_token* ctok;
     bool qualified_once = false;
     type->storage = AST_STORAGE_AUTO;
+    type->is_signed = ctx->is_default_signed;
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)

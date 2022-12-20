@@ -117,6 +117,7 @@ cc_ast_node* cc_ast_create_literal_from_str(
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
     /* TODO: Better parsing of the literals into integers */
     node->data.literal.value.s = atoi(s);
+    node->data.literal.is_signed = ctx->is_default_signed;
     return node;
 }
 
@@ -236,9 +237,8 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 {
     if (node == NULL)
         return;
-    assert(node->parent != node);
-    assert(node->ref_count == 0);
-
+    
+    assert(node->parent != node && node->ref_count == 0);
     switch (node->type) {
     case AST_NODE_STRING_LITERAL:
         cc_free(node->data.string_literal);
@@ -388,7 +388,6 @@ void cc_ast_copy_node(
     case AST_NODE_BLOCK:
         assert(src->data.block.n_vars == 0);
         assert(src->data.block.n_types == 0);
-
         assert(dest->data.block.n_children == 0); /* Can't handle child */
 
         dest->data.block.n_children = src->data.block.n_children;
@@ -657,6 +656,58 @@ void cc_ast_node_iter(cc_context* ctx, cc_ast_node* node,
     }
 }
 
+static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
+{
+    switch (op) {
+    case AST_BINOP_NONE:
+        return "?";
+    case AST_BINOP_GT:
+        return ">";
+    case AST_BINOP_GTE:
+        return ">=";
+    case AST_BINOP_LT:
+        return "<";
+    case AST_BINOP_LTE:
+        return "<=";
+    case AST_BINOP_ASSIGN:
+        return "=";
+    case AST_BINOP_AND:
+        return "&";
+    case AST_BINOP_ARROW:
+        return "->";
+    case AST_BINOP_COND_AND:
+        return "&&";
+    case AST_BINOP_COND_EQ:
+        return "==";
+    case AST_BINOP_COND_NEQ:
+        return "!=";
+    case AST_BINOP_COND_OR:
+        return "||";
+    case AST_BINOP_DIV:
+        return "/";
+    case AST_BINOP_DOT:
+        return ".";
+    case AST_BINOP_LSHIFT:
+        return "<<";
+    case AST_BINOP_MINUS:
+        return "-";
+    case AST_BINOP_MOD:
+        return "%%";
+    case AST_BINOP_MUL:
+        return "*";
+    case AST_BINOP_OR:
+        return "|";
+    case AST_BINOP_ADD:
+        return "+";
+    case AST_BINOP_RSHIFT:
+        return ">>";
+    case AST_BINOP_XOR:
+        return "^";
+    default:
+        abort();
+    }
+}
+
 void cc_ast_print(const cc_ast_node* node)
 {
     if (node == NULL) {
@@ -670,79 +721,7 @@ void cc_ast_print(const cc_ast_node* node)
     case AST_NODE_BINOP:
         printf("<binop (");
         cc_ast_print(node->data.binop.left);
-        printf(") ");
-        switch (node->data.binop.op) {
-        case AST_BINOP_NONE:
-            printf("XXX");
-            break;
-        case AST_BINOP_GT:
-            printf(">");
-            break;
-        case AST_BINOP_GTE:
-            printf(">=");
-            break;
-        case AST_BINOP_LT:
-            printf("<");
-            break;
-        case AST_BINOP_LTE:
-            printf("<=");
-            break;
-        case AST_BINOP_ASSIGN:
-            printf("=");
-            break;
-        case AST_BINOP_AND:
-            printf("AND");
-            break;
-        case AST_BINOP_ARROW:
-            printf("->");
-            break;
-        case AST_BINOP_COND_AND:
-            printf("&&");
-            break;
-        case AST_BINOP_COND_EQ:
-            printf("==");
-            break;
-        case AST_BINOP_COND_NEQ:
-            printf("!=");
-            break;
-        case AST_BINOP_COND_OR:
-            printf("||");
-            break;
-        case AST_BINOP_DIV:
-            printf("/");
-            break;
-        case AST_BINOP_DOT:
-            printf(".");
-            break;
-        case AST_BINOP_LSHIFT:
-            printf("<<");
-            break;
-        case AST_BINOP_MINUS:
-            printf("-");
-            break;
-        case AST_BINOP_MOD:
-            printf("%%");
-            break;
-        case AST_BINOP_MUL:
-            printf("*");
-            break;
-        case AST_BINOP_OR:
-            printf("|");
-            break;
-        case AST_BINOP_ADD:
-            printf("+");
-            break;
-        case AST_BINOP_RSHIFT:
-            printf(">>");
-            break;
-        case AST_BINOP_XOR:
-            printf("^");
-            break;
-        default:
-            printf("(%i?)", node->data.binop.op);
-            break;
-        }
-        printf(" (");
+        printf(") %s (", cc_ast_get_binop_op_name(node->data.binop.op));
         cc_ast_print(node->data.binop.right);
         printf(")>");
         break;
@@ -759,7 +738,7 @@ void cc_ast_print(const cc_ast_node* node)
 
         for (size_t i = 0; i < node->data.block.n_vars; i++) {
             const cc_ast_variable* var = &node->data.block.vars[i];
-            const char* storage_name = "(storage)";
+            const char* storage_name;
             switch (var->type.storage & ~(AST_STORAGE_THREAD_LOCAL)) {
             case AST_STORAGE_AUTO:
                 storage_name = "auto";
@@ -782,6 +761,8 @@ void cc_ast_print(const cc_ast_node* node)
             case AST_STORAGE_STATIC:
                 storage_name = "static";
                 break;
+            default:
+                abort();
             }
             printf("var %s %s", var->name, storage_name);
             if (var->type.storage & AST_STORAGE_THREAD_LOCAL)

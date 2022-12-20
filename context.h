@@ -49,6 +49,7 @@ typedef struct cc_context {
     unsigned short min_stack_alignment;
     struct cc_ssa_func* ssa_current_func;
     unsigned int tmpid;
+    bool is_default_signed; /* Default signedness of integers */
 } cc_context;
 
 #endif

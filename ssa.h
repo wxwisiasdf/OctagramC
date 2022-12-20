@@ -10,6 +10,7 @@ enum cc_ssa_param_type {
     SSA_PARAM_VARIABLE, /* Non-temporal */
     SSA_PARAM_RETVAL,
     SSA_PARAM_TMPVAR, /* Unnamed temporal variable */
+    SSA_PARAM_LABEL,
 };
 
 /* Same as ast.h storage linkage specifiers */
@@ -28,7 +29,7 @@ typedef struct {
     bool is_negative : 1;
     bool is_float : 1;
     union {
-        unsigned int u;
+        unsigned long u;
         double d;
     } value;
 } cc_ssa_constant;
@@ -41,9 +42,11 @@ typedef struct {
     unsigned short version;
     union {
         cc_ssa_constant constant;
-        const char* string_literal;
         const char* var_name; /* Name of parameter */
         unsigned short tmpid; /* Temporal Id of variable */
+        unsigned short str_index; /* Index into the strings of the current
+                                     function */
+        unsigned short label_id;
     } data;
 } cc_ssa_param;
 
@@ -57,6 +60,12 @@ enum cc_ssa_token_type {
     SSA_TOKEN_BRANCH,
     SSA_TOKEN_ALLOCA,
     /* Binary op */
+    SSA_TOKEN_GT,
+    SSA_TOKEN_GTE,
+    SSA_TOKEN_LT,
+    SSA_TOKEN_LTE,
+    SSA_TOKEN_EQ,
+    SSA_TOKEN_NEQ,
     SSA_TOKEN_ADD,
     SSA_TOKEN_SUB,
     SSA_TOKEN_MUL,
@@ -68,39 +77,56 @@ enum cc_ssa_token_type {
     SSA_TOKEN_XOR,
     SSA_TOKEN_AND,
     SSA_TOKEN_COMPARE,
+    SSA_TOKEN_STORE_AT,
+    SSA_TOKEN_LOAD_AT,
     SSA_TOKEN_GET_ELEMENT,
     SSA_TOKEN_SET_ELEMENT,
     /* Unary op */
     SSA_TOKEN_NOT,
-    SSA_TOKEN_LOAD,
-    SSA_TOKEN_STORE,
+    SSA_TOKEN_ASSIGN,
     SSA_TOKEN_ZERO_EXT,
     SSA_TOKEN_SIGN_EXT,
 };
 
 typedef struct {
     enum cc_ssa_token_type type;
-    cc_ssa_param left;
-    cc_ssa_param right;
     union {
-        cc_ssa_param extra; /* Extra node used by some binary operations */
-        union {
+        struct {
+            cc_ssa_param left;
+            cc_ssa_param right;
+            cc_ssa_param extra;
+        } binop;
+        struct {
+            cc_ssa_param left;
+            cc_ssa_param right;
+        } unop;
+        struct {
+            cc_ssa_param left;
+            cc_ssa_param size;
+            cc_ssa_param align;
+        } alloca;
+        struct {
+            cc_ssa_param left;
+            cc_ssa_param right;
             cc_ssa_param* params;
             size_t n_params;
         } call;
+        struct {
+            cc_ssa_param eval;
+            cc_ssa_param t_branch;
+            cc_ssa_param f_branch;
+        } branch;
+        unsigned short label_id;
     } data;
 } cc_ssa_token;
 
-typedef struct {
-    char* name;
-    unsigned short bits;
-    bool is_signed;
-} cc_ssa_func_param;
-
 typedef struct cc_ssa_func {
-    struct cc_ast_variable* ast_var;
+    const struct cc_ast_variable* ast_var;
     cc_ssa_token* tokens;
     size_t n_tokens;
+    /* String literal pools */
+    const char** strings;
+    size_t n_strings;
 } cc_ssa_func;
 
 void cc_ssa_top(cc_context* ctx);

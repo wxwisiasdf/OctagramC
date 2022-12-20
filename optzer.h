@@ -5,6 +5,7 @@
 #include "context.h"
 #include <stdbool.h>
 
+bool cc_optimizer_is_empty_block(const cc_ast_node* node);
 void cc_optimizer_expr_condense(
     cc_context* ctx, cc_ast_node** pnode, bool managed);
 int cc_optimizer_top(cc_context* ctx);

@@ -88,6 +88,8 @@ int main(int argc, char** argv)
     if (ctx.out == NULL)
         ctx.out = stdout;
 
+    ctx.is_default_signed = true;
+
     cc_lex_top(&ctx); /* Start lexing and make the token stream*/
     if (!ctx.error_cnt) {
         switch (target) {

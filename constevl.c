@@ -5,6 +5,7 @@
 #include "optzer.h"
 #include "util.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct cc_ceval_io {
@@ -35,38 +36,59 @@ static cc_ast_literal cc_ceval_eval_1(
         lhs = cc_ceval_eval_1(ctx, node->data.binop.left, list, n_list);
         rhs = cc_ceval_eval_1(ctx, node->data.binop.right, list, n_list);
         switch (node->data.binop.op) {
-#define CEVAL_CONDITIONAL(type, op)                                            \
+#define CEVAL_OPERATOR(type, op)                                               \
     case type: {                                                               \
-        if (lhs.is_float && rhs.is_float)                                      \
+        if (lhs.is_float && rhs.is_float) {                                    \
             return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
+                .is_float = true,                                              \
                 .value.d = lhs.value.d op rhs.value.d };                       \
-        else if (!lhs.is_float && rhs.is_float)                                \
+        } else if (!lhs.is_float && rhs.is_float) {                            \
+            if (lhs.is_signed)                                                 \
+                return (cc_ast_literal) { .is_signed = true,                   \
+                    .is_float = false,                                         \
+                    .value.s = lhs.value.s op rhs.value.d };                   \
             return (cc_ast_literal) { .is_signed = false,                      \
                 .is_float = false,                                             \
                 .value.u = lhs.value.u op rhs.value.d };                       \
-        else if (lhs.is_float && !rhs.is_float)                                \
+        } else if (lhs.is_float && !rhs.is_float) {                            \
+            if (rhs.is_signed)                                                 \
+                return (cc_ast_literal) { .is_signed = true,                   \
+                    .is_float = true,                                          \
+                    .value.d = lhs.value.d op rhs.value.s };                   \
             return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.d op rhs.value.u };                       \
-        else if (!lhs.is_float && !rhs.is_float)                               \
+                .is_float = true,                                              \
+                .value.d = lhs.value.d op rhs.value.u };                       \
+        } else if (!lhs.is_float && !rhs.is_float) {                           \
+            if (lhs.is_signed && rhs.is_signed)                                \
+                return (cc_ast_literal) { .is_signed = true,                   \
+                    .is_float = false,                                         \
+                    .value.s = lhs.value.s op rhs.value.s };                   \
+            else if (lhs.is_signed && !rhs.is_signed)                          \
+                return (cc_ast_literal) { .is_signed = true,                   \
+                    .is_float = false,                                         \
+                    .value.s = lhs.value.s op(long signed int) rhs.value.u };  \
+            else if (!lhs.is_signed && rhs.is_signed)                          \
+                return (cc_ast_literal) { .is_signed = true,                   \
+                    .is_float = false,                                         \
+                    .value.s = (long signed int)lhs.value.u op rhs.value.s };  \
             return (cc_ast_literal) { .is_signed = false,                      \
                 .is_float = false,                                             \
                 .value.u = lhs.value.u op rhs.value.u };                       \
+        }                                                                      \
     } break
-            CEVAL_CONDITIONAL(AST_BINOP_ADD, +);
-            CEVAL_CONDITIONAL(AST_BINOP_MINUS, -);
-            CEVAL_CONDITIONAL(AST_BINOP_MUL, *);
-            CEVAL_CONDITIONAL(AST_BINOP_DIV, /);
-            CEVAL_CONDITIONAL(AST_BINOP_GT, >);
-            CEVAL_CONDITIONAL(AST_BINOP_GTE, >=);
-            CEVAL_CONDITIONAL(AST_BINOP_LT, <);
-            CEVAL_CONDITIONAL(AST_BINOP_LTE, <=);
-            CEVAL_CONDITIONAL(AST_BINOP_COND_EQ, ==);
-            CEVAL_CONDITIONAL(AST_BINOP_COND_NEQ, !=);
-            CEVAL_CONDITIONAL(AST_BINOP_AND, &&);
-            CEVAL_CONDITIONAL(AST_BINOP_OR, ||);
-#undef CEVAL_CONDITIONAL
+            CEVAL_OPERATOR(AST_BINOP_ADD, +);
+            CEVAL_OPERATOR(AST_BINOP_MINUS, -);
+            CEVAL_OPERATOR(AST_BINOP_MUL, *);
+            CEVAL_OPERATOR(AST_BINOP_DIV, /);
+            CEVAL_OPERATOR(AST_BINOP_GT, >);
+            CEVAL_OPERATOR(AST_BINOP_GTE, >=);
+            CEVAL_OPERATOR(AST_BINOP_LT, <);
+            CEVAL_OPERATOR(AST_BINOP_LTE, <=);
+            CEVAL_OPERATOR(AST_BINOP_COND_EQ, ==);
+            CEVAL_OPERATOR(AST_BINOP_COND_NEQ, !=);
+            CEVAL_OPERATOR(AST_BINOP_AND, &&);
+            CEVAL_OPERATOR(AST_BINOP_OR, ||);
+#undef CEVAL_OPERATOR
         case AST_BINOP_MOD:
             if ((lhs.is_float && rhs.is_float)
                 || (!lhs.is_float && rhs.is_float)
@@ -212,6 +234,47 @@ bool cc_ceval_constant_expression(
     return true;
 }
 
+static unsigned int cc_ceval_get_rank(const cc_ast_type* type)
+{
+    switch (type->mode) {
+    case AST_TYPE_MODE_LONG:
+        return type->is_longer ? 9 : 8;
+    case AST_TYPE_MODE_ENUM:
+    case AST_TYPE_MODE_INT:
+        return 7;
+    case AST_TYPE_MODE_SHORT:
+        return 6;
+    case AST_TYPE_MODE_CHAR:
+        return 5;
+    case AST_TYPE_MODE_BOOL:
+        return 4;
+    default:
+        abort();
+    }
+    return 0;
+}
+
+static void cc_ceval_promote_type(cc_ast_type* dest, const cc_ast_type* src)
+{
+    if (dest->mode == AST_TYPE_MODE_NONE) {
+        *dest = *src;
+        return;
+    }
+
+    if (src->mode == AST_TYPE_MODE_FUNCTION || src->mode == AST_TYPE_MODE_STRUCT
+        || src->mode == AST_TYPE_MODE_UNION) {
+        *dest = *src;
+        return;
+    }
+
+    unsigned int dest_rank = cc_ceval_get_rank(dest);
+    unsigned int src_rank = cc_ceval_get_rank(src);
+    if (src_rank >= dest_rank) {
+        *dest = *src;
+        return;
+    }
+}
+
 /* Deduces a type from a node, the type written into type is a non-owning
    view of the real type, hence use cc_ast_copy_type to safely obtain a
    owning version if desired. */
@@ -221,17 +284,25 @@ bool cc_ceval_deduce_type(
     switch (node->type) {
     case AST_NODE_VARIABLE: {
         cc_ast_variable* var = cc_ast_find_variable(node->data.var.name, node);
-        *type = var->type;
+        cc_ceval_promote_type(type, &var->type);
+    }
+        return true;
+    case AST_NODE_CALL: {
+        cc_ast_type tmp_type = { 0 };
+        if (!cc_ceval_deduce_type(ctx, node->data.call.call_expr, &tmp_type))
+            return false;
+        assert(tmp_type.mode == AST_TYPE_MODE_FUNCTION
+            && tmp_type.data.func.return_type != NULL);
+        *type = *tmp_type.data.func.return_type;
     }
         return true;
     case AST_NODE_STRING_LITERAL:
-        type->n_cv_qual = 1;
-        type->cv_qual[0].is_const = true;
-        type->mode = AST_TYPE_MODE_CHAR;
+        *type = cc_ceval_get_string_type(ctx);
         return true;
     case AST_NODE_LITERAL:
         /* TODO: Literals with suffixes like zu, u, ul, etc */
         type->mode = AST_TYPE_MODE_INT;
+        type->is_signed = ctx->is_default_signed;
         return true;
     case AST_NODE_BINOP:
         /* Assignments promote to their lvalue type */
@@ -272,8 +343,7 @@ bool cc_ceval_deduce_type(
                                                      the type of a big block! */
         return cc_ceval_deduce_type(ctx, &node->data.block.children[0], type);
     default:
-        assert(0);
-        break;
+        abort();
     }
 error_handle:
     return false;
@@ -302,4 +372,13 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
         return false;
     }
     return false;
+}
+
+cc_ast_type cc_ceval_get_string_type(cc_context* ctx)
+{
+    cc_ast_type type = { 0 };
+    type.n_cv_qual = 1;
+    type.cv_qual[0].is_const = true;
+    type.mode = AST_TYPE_MODE_CHAR;
+    return type;
 }

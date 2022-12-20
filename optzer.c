@@ -7,6 +7,13 @@
 #include "util.h"
 #include <assert.h>
 
+bool cc_optimizer_is_empty_block(const cc_ast_node* node)
+{
+    if (node->type != AST_NODE_BLOCK)
+        return false;
+    return node->data.block.n_children == 0 && node->data.block.n_vars == 0;
+}
+
 /* Condense/simplify expressions of an AST tree and remove redundancies
    Use funcbody to disallow block elimination on function bodies */
 void cc_optimizer_expr_condense(
@@ -78,7 +85,7 @@ void cc_optimizer_expr_condense(
 
         /* Empty block with no effect whatsoever, typedefs are NOT accounted
            as a typedef doesn't affect the overall program that much */
-        if (node->data.block.n_children == 0 && node->data.block.n_vars == 0) {
+        if (cc_optimizer_is_empty_block(node)) {
             cc_ast_destroy_node(node, managed);
             *pnode = NULL;
             return;
