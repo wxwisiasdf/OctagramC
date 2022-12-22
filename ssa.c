@@ -92,8 +92,8 @@ static unsigned short cc_ssa_get_unique_tmpid(cc_context* ctx)
 }
 
 /* Temporary variable parameter */
-static cc_ssa_param cc_ssa_tempvar_param(
-    cc_context* ctx, const cc_ast_type* base_type)
+cc_ssa_param cc_ssa_tempvar_param_1(
+    cc_context* ctx, bool is_signed, unsigned short size)
 {
     return (cc_ssa_param) {
         .type = SSA_PARAM_TMPVAR,
@@ -101,10 +101,16 @@ static cc_ssa_param cc_ssa_tempvar_param(
         .data = {
             .tmpid = ctx->tmpid++,
         },
-        .is_signed = base_type->is_signed,
-        .size = ctx->get_sizeof(ctx, base_type),
+        .is_signed = is_signed,
+        .size = size,
         .version = 0,
     };
+}
+
+cc_ssa_param cc_ssa_tempvar_param(cc_context* ctx, const cc_ast_type* base_type)
+{
+    return cc_ssa_tempvar_param_1(
+        ctx, base_type->is_signed, ctx->get_sizeof(ctx, base_type));
 }
 
 static void cc_ssa_push_token(cc_ssa_func* func, cc_ssa_token tok)
@@ -556,9 +562,10 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-            erase = cc_ssa_is_param_same(&tok->data.unop.left, &tok->data.unop.right);
+            erase = cc_ssa_is_param_same(
+                &tok->data.unop.left, &tok->data.unop.right);
             /* Remove read without side effect */
-            if(!erase && tok->data.unop.left.type == SSA_PARAM_NONE)
+            if (!erase && tok->data.unop.left.type == SSA_PARAM_NONE)
                 erase = true;
             break;
         default:

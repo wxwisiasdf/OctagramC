@@ -129,6 +129,10 @@ typedef struct cc_ssa_func {
     size_t n_strings;
 } cc_ssa_func;
 
+cc_ssa_param cc_ssa_tempvar_param_1(
+    cc_context* ctx, bool is_signed, unsigned short size);
+cc_ssa_param cc_ssa_tempvar_param(
+    cc_context* ctx, const struct cc_ast_type* base_type);
 void cc_ssa_top(cc_context* ctx);
 
 #endif

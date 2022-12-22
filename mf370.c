@@ -8,6 +8,7 @@
 #include "util.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum cc_mf370_reg {
@@ -99,21 +100,144 @@ static const char* cc_mf370_logical_label(const char* name)
     return buf;
 }
 
+static void cc_mf370_gen_assign(cc_context* ctx, const cc_ssa_param* lhs,
+    const cc_ssa_param* rhs)
+{
+    switch (lhs->type) {
+    case SSA_PARAM_VARIABLE:
+        switch (rhs->type) {
+        case SSA_PARAM_CONSTANT:
+            fprintf(ctx->out, "\tL\tR0,%u\n", rhs->data.constant.value.u);
+            if (rhs->data.constant.is_negative)
+                fprintf(ctx->out, "\tM\tR0,-1\n");
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tLA\tR0,=A(%s)\n",
+                cc_mf370_logical_label(rhs->data.var_name));
+            fprintf(ctx->out, "\tLR\tR0,(R0)\n");
+            break;
+        case SSA_PARAM_TMPVAR:
+            fprintf(ctx->out, "\tLR\tR0,R0\n");
+            break;
+        default:
+            abort();
+        }
+        fprintf(ctx->out, "\tLA\tR1,=A(%s)\n",
+            cc_mf370_logical_label(lhs->data.var_name));
+        fprintf(ctx->out, "\tST\tR0,(R1)\n");
+        break;
+    case SSA_PARAM_TMPVAR:
+        switch (rhs->type) {
+        case SSA_PARAM_CONSTANT:
+            fprintf(ctx->out, "\tL\tR0,%u\n", rhs->data.constant.value.u);
+            if (rhs->data.constant.is_negative)
+                fprintf(ctx->out, "\tM\tR0,-1\n");
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tLA\tR0,=A(%s)\n",
+                cc_mf370_logical_label(rhs->data.var_name));
+            fprintf(ctx->out, "\tLR\tR0,(R0)\n");
+            break;
+        case SSA_PARAM_TMPVAR:
+            fprintf(ctx->out, "\tLR\tR0,R0\n");
+            break;
+        default:
+            abort();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
 {
+    switch (tok->type) {
+    case SSA_TOKEN_LABEL:
+        fprintf(ctx->out, "L%-6i\tDS\t0H\n", tok->data.label_id);
+        break;
+    case SSA_TOKEN_ADD:
+    case SSA_TOKEN_SUB:
+    case SSA_TOKEN_MUL:
+    case SSA_TOKEN_DIV:
+    case SSA_TOKEN_OR:
+    case SSA_TOKEN_XOR:
+    case SSA_TOKEN_AND: {
+        cc_ssa_param lhs = tok->data.binop.left;
+        cc_ssa_param rhs_1 = tok->data.binop.right;
+        cc_ssa_param rhs_2 = tok->data.binop.extra;
 
+        cc_ssa_param tmp = cc_ssa_tempvar_param_1(ctx, false, 4);
+
+        const char *insn_name;
+        switch (tok->type) {
+        case SSA_TOKEN_ADD:
+            insn_name = "A";
+            break;
+        case SSA_TOKEN_SUB:
+            insn_name = "S";
+            break;
+        case SSA_TOKEN_MUL:
+            insn_name = "M";
+            break;
+        case SSA_TOKEN_DIV:
+            insn_name = "D";
+            break;
+        case SSA_TOKEN_OR:
+            insn_name = "O";
+            break;
+        case SSA_TOKEN_XOR:
+            insn_name = "X";
+            break;
+        case SSA_TOKEN_AND:
+            insn_name = "N";
+            break;
+        default:
+            abort();
+        }
+
+        fprintf(ctx->out, "\t%sR\tR0,R0\n", insn_name);
+
+        cc_mf370_gen_assign(ctx, &lhs, &tmp);
+    } break;
+    case SSA_TOKEN_ASSIGN: {
+        cc_mf370_gen_assign(ctx, &tok->data.unop.left, &tok->data.unop.right);
+    } break;
+    default:
+        break;
+        abort();
+    }
 }
 
 void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
-    fprintf(ctx->out, "%s\n", cc_mf370_logical_label(func->ast_var->name));
+    const char* name = func->ast_var->name;
+    /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
+    fprintf(ctx->out, "* X-epilogue\n");
+    fprintf(ctx->out, "\tPUSH\tUSING\n");
+    fprintf(ctx->out, "\tDROP\t,\n");
+    fprintf(ctx->out, "\tENTRY\t%-7s\n", cc_mf370_logical_label(name));
+    fprintf(ctx->out, "%-7s\tDS\t0H\n", cc_mf370_logical_label(name));
+    fprintf(
+        ctx->out, "\tSAVE\t(R14,R12),,%-7s\n", cc_mf370_logical_label(name));
+    fprintf(ctx->out, "\tLR\tR12,R15\n");
+    fprintf(ctx->out, "\tUSING\tR13,R14\n");
+    assert(ctx->min_stack_alignment == 0);
+
+    /* Process all tokens of this function */
+    for (size_t i = 0; i < func->n_tokens; i++)
+        cc_mf370_process_token(ctx, &func->tokens[i]);
+
+    fprintf(ctx->out, "\tRETURN\t(14,12),RC=(15)\n");
+    fprintf(ctx->out, "\tPOP\tUSING\n");
+    fprintf(ctx->out, "\tLTORG\t,\n");
 }
 
 static void cc_mf370_deinit(cc_context* ctx) { cc_free(ctx->asgen_data); }
 int cc_mf370_init(cc_context* ctx)
 {
     ctx->asgen_data = cc_zalloc(sizeof(cc_mf370_context));
-    ctx->min_stack_alignment = 16;
+    ctx->min_stack_alignment = 0;
     ctx->get_sizeof = &cc_mf370_get_sizeof;
     ctx->process_ssa_func = &cc_mf370_process_func;
     return 0;
