@@ -38,7 +38,10 @@ typedef struct {
     enum cc_ssa_param_type type;
     enum cc_ssa_storage storage;
     unsigned short size; /* Size of parameter in character units */
-    bool is_signed; /* To treat this value as signed or unsigned */
+    bool is_signed : 1; /* To treat this value as signed or unsigned */
+    bool is_atomic : 1; /* If the value in question is atomically treated */
+    bool is_volatile : 1; /* If the value's loads and stores are explicitly
+                             not optimized away */
     unsigned short version;
     union {
         cc_ssa_constant constant;

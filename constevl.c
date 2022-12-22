@@ -198,7 +198,7 @@ static cc_ast_literal cc_ceval_eval_1(
             break;
         }
         cc_ast_print(node);
-        cc_diag_error(ctx, "Unknown node %i for consteval", node->type);
+        cc_diag_error(ctx, "Unknown unary node %i for consteval", node->type);
         break;
     default:
         cc_ast_print(node);

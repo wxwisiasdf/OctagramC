@@ -6,14 +6,87 @@
 #include "diag.h"
 #include "lexer.h"
 #include "optzer.h"
-#include "parser.h"
 #include "parexpr.h"
+#include "parser.h"
 #include "util.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static bool cc_parse_type_attributes(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+        || ctok->type != LEXER_TOKEN_LBRACKET)
+        return false;
+
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_IDENT) {
+        cc_lex_token_consume(ctx);
+        if (!strcmp(ctok->data, "packed")) {
+            type->data.s_or_u.packed = true;
+        } else if (!strcmp(ctok->data, "aligned")
+            || !strcmp(ctok->data, "align")) {
+            cc_ast_literal r = { 0 };
+            if (!cc_parse_constant_expression(ctx, node, &r)) {
+                cc_diag_error(ctx, "Attribute with non-constant value");
+                return false;
+            }
+
+            if ((r.is_float && r.value.d < 1.f)
+                || (r.is_signed && r.value.s <= 0)) {
+                cc_diag_error(ctx, "Value must be above 0 and not a float");
+                return false;
+            }
+
+            if (r.is_float)
+                type->min_alignment = (unsigned short)r.value.d;
+            else if (r.is_signed)
+                type->min_alignment = (unsigned short)r.value.s;
+            else
+                type->min_alignment = r.value.u;
+        } else if (!strcmp(ctok->data, "max_align")) {
+            cc_ast_literal r = { 0 };
+            if (!cc_parse_constant_expression(ctx, node, &r)) {
+                cc_diag_error(ctx, "Attribute with non-constant value");
+                return false;
+            }
+
+            if ((r.is_float && r.value.d < 1.f)
+                || (r.is_signed && r.value.s <= 0)) {
+                cc_diag_error(ctx, "Value must be above 0 and not a float");
+                return false;
+            }
+
+            if (r.is_float)
+                type->max_alignment = (unsigned short)r.value.d;
+            else if (r.is_signed)
+                type->max_alignment = (unsigned short)r.value.s;
+            else
+                type->max_alignment = r.value.u;
+        } else {
+            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
+        }
+    }
+
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+    return true;
+error_handle:
+    return false;
+}
+
+static bool cc_parse_struct_or_union_attributes(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    return cc_parse_type_attributes(ctx, node, type);
+}
 
 bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
@@ -36,7 +109,8 @@ bool cc_parse_struct_or_union_specifier(
         break;
     }
 
-    /* TODO: Attributes */
+    while (cc_parse_struct_or_union_attributes(ctx, node, type))
+        ;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
@@ -457,6 +531,80 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
     return true;
 }
 
+static bool cc_parse_declaration_specifier_attributes(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+        || ctok->type != LEXER_TOKEN_LBRACKET)
+        return false;
+
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_IDENT) {
+        cc_lex_token_consume(ctx);
+        if (!strcmp(ctok->data, "noreturn")) {
+            type->data.func.no_return = true;
+        } else if (!strcmp(ctok->data, "nodiscard")) {
+            type->data.func.no_discard = true;
+        } else if (!strcmp(ctok->data, "deprecated")) {
+            type->data.func.deprecated = true;
+        } else if (!strcmp(ctok->data, "variadic") || !strcmp(ctok->data, "var")
+            || !strcmp(ctok->data, "variable")) {
+            type->data.func.variadic = true;
+        } else if (!strcmp(ctok->data, "aligned")
+            || !strcmp(ctok->data, "align")) {
+            cc_ast_literal r = { 0 };
+            if (!cc_parse_constant_expression(ctx, node, &r)) {
+                cc_diag_error(ctx, "Attribute with non-constant value");
+                return false;
+            }
+
+            if ((r.is_float && r.value.d < 1.f)
+                || (r.is_signed && r.value.s <= 0)) {
+                cc_diag_error(ctx, "Value must be above 0 and not a float");
+                return false;
+            }
+
+            if (r.is_float)
+                type->min_alignment = (unsigned short)r.value.d;
+            else if (r.is_signed)
+                type->min_alignment = (unsigned short)r.value.s;
+            else
+                type->min_alignment = r.value.u;
+        } else if (!strcmp(ctok->data, "max_align")) {
+            cc_ast_literal r = { 0 };
+            if (!cc_parse_constant_expression(ctx, node, &r)) {
+                cc_diag_error(ctx, "Attribute with non-constant value");
+                return false;
+            }
+
+            if ((r.is_float && r.value.d < 1.f)
+                || (r.is_signed && r.value.s <= 0)) {
+                cc_diag_error(ctx, "Value must be above 0 and not a float");
+                return false;
+            }
+
+            if (r.is_float)
+                type->max_alignment = (unsigned short)r.value.d;
+            else if (r.is_signed)
+                type->max_alignment = (unsigned short)r.value.s;
+            else
+                type->max_alignment = r.value.u;
+        } else {
+            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
+        }
+    }
+
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+    CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+    return true;
+error_handle:
+    return false;
+}
+
 bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
@@ -464,6 +612,10 @@ bool cc_parse_declaration_specifier(
     bool qualified_once = false;
     type->storage = AST_STORAGE_AUTO;
     type->is_signed = ctx->is_default_signed;
+
+    while (cc_parse_declaration_specifier_attributes(ctx, node, type))
+        ;
+
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)

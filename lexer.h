@@ -7,17 +7,28 @@
 #define LEXER_TOKEN_LIST_R(x) LEXER_TOKEN_LIST_1(x, #x)
 #define LEXER_TOKEN_LIST                                                       \
     LEXER_TOKEN_LIST_1(NONE, 0), \
+    LEXER_TOKEN_LIST_R(reinterpret_cast), \
+    LEXER_TOKEN_LIST_R(atomic_noexcept), \
     LEXER_TOKEN_LIST_R(typeof_unqual), \
     LEXER_TOKEN_LIST_R(static_assert), \
+    LEXER_TOKEN_LIST_R(atomic_cancel), \
+    LEXER_TOKEN_LIST_R(atomic_commit), \
     LEXER_TOKEN_LIST_R(thread_local), \
+    LEXER_TOKEN_LIST_R(dynamic_cast), \
+    LEXER_TOKEN_LIST_R(synchronized), \
+    LEXER_TOKEN_LIST_R(static_cast), \
     LEXER_TOKEN_LIST_R(_Decimal128), \
     LEXER_TOKEN_LIST_R(_Imaginary), \
     LEXER_TOKEN_LIST_R(_Decimal64), \
     LEXER_TOKEN_LIST_R(_Decimal32), \
+    LEXER_TOKEN_LIST_R(const_cast), \
     LEXER_TOKEN_LIST_R(_Noreturn), \
     LEXER_TOKEN_LIST_R(constexpr), \
     LEXER_TOKEN_LIST_R(namespace), \
     LEXER_TOKEN_LIST_R(protected), \
+    LEXER_TOKEN_LIST_R(constinit), \
+    LEXER_TOKEN_LIST_R(consteval), \
+    LEXER_TOKEN_LIST_R(co_return), \
     LEXER_TOKEN_LIST_R(override), \
     LEXER_TOKEN_LIST_R(_Generic), \
     LEXER_TOKEN_LIST_R(_Complex), \
@@ -36,6 +47,11 @@
     LEXER_TOKEN_LIST_R(reflexpr), \
     LEXER_TOKEN_LIST_R(offsetof), \
     LEXER_TOKEN_LIST_R(requires), \
+    LEXER_TOKEN_LIST_R(explicit), \
+    LEXER_TOKEN_LIST_R(char16_t), \
+    LEXER_TOKEN_LIST_R(char32_t), \
+    LEXER_TOKEN_LIST_R(char8_t), \
+    LEXER_TOKEN_LIST_R(wchar_t), \
     LEXER_TOKEN_LIST_R(concept), \
     LEXER_TOKEN_LIST_R(alignas), \
     LEXER_TOKEN_LIST_R(alignof), \
@@ -48,6 +64,8 @@
     LEXER_TOKEN_LIST_R(private), \
     LEXER_TOKEN_LIST_R(typedef), \
     LEXER_TOKEN_LIST_R(virtual), \
+    LEXER_TOKEN_LIST_R(mutable), \
+    LEXER_TOKEN_LIST_R(friend), \
     LEXER_TOKEN_LIST_R(assert), \
     LEXER_TOKEN_LIST_R(import), \
     LEXER_TOKEN_LIST_R(export), \
@@ -63,6 +81,7 @@
     LEXER_TOKEN_LIST_R(struct), \
     LEXER_TOKEN_LIST_R(switch), \
     LEXER_TOKEN_LIST_R(typeof), \
+    LEXER_TOKEN_LIST_R(typeid), \
     LEXER_TOKEN_LIST_R(delete), \
     LEXER_TOKEN_LIST_R(break), \
     LEXER_TOKEN_LIST_R(catch), \
@@ -93,6 +112,7 @@
     LEXER_TOKEN_LIST_R(int), \
     LEXER_TOKEN_LIST_R(try), \
     LEXER_TOKEN_LIST_R(far), \
+    LEXER_TOKEN_LIST_R(asm), \
     LEXER_TOKEN_LIST_1(ASSIGN_LSHIFT, "<<="), \
     LEXER_TOKEN_LIST_1(ASSIGN_RSHIFT, ">>="), \
     LEXER_TOKEN_LIST_1(ELLIPSIS, "..."), \

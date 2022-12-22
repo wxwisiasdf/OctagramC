@@ -81,15 +81,20 @@ typedef struct cc_ast_type {
     bool is_typedef : 1; /* Set for typedefs */
     char* name; /* Name is optional for some types */
     unsigned char bitint_bits; /* _BitInt bits */
+    unsigned short min_alignment;
+    unsigned short max_alignment;
     union {
         struct {
-            bool no_return;
             struct cc_ast_type* return_type;
             struct cc_ast_variable* params;
             size_t n_params;
-            bool variadic; /* Variadic functions */
+            bool no_return : 1;
+            bool no_discard : 1;
+            bool deprecated : 1;
+            bool variadic : 1; /* Variadic functions */
         } func;
         struct {
+            bool packed : 1;
             struct cc_ast_variable* members;
             size_t n_members;
         } s_or_u;
@@ -209,11 +214,12 @@ typedef struct cc_ast_node {
             size_t n_vars;
             struct cc_ast_type* types;
             size_t n_types;
-            bool is_func : 1; /* Is this a function? (handling for return
-                              and stuff) */
+            cc_ast_literal case_val; /* Case value */
             bool is_case : 1; /* Switch statment cases */
             bool is_default : 1; /* Default switch case */
-            cc_ast_literal case_val; /* Case value */
+            bool hot : 1; /* Block is likely to execute many times */
+            bool likely : 1; /* Block is likely to evaluate true */
+            bool fallthru : 1; /* Ignore fallthru warnings and stuff */
         } block;
         struct {
             struct cc_ast_node* cond;

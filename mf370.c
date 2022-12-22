@@ -32,14 +32,40 @@ enum cc_mf370_reg {
     MF370_NUM_REGS,
 };
 
-typedef struct cc_mf370_context {
-    int tmp;
-} cc_mf370_context;
-
 static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
     "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
 
-unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
+typedef struct cc_mf370_context {
+    bool regs[MF370_NUM_REGS];
+} cc_mf370_context;
+
+static cc_mf370_context* cc_mf370_get_ctx(cc_context* ctx)
+{
+    return (cc_mf370_context*)ctx->asgen_data;
+}
+
+static unsigned short cc_mf370_regalloc(cc_context* ctx)
+{
+    cc_mf370_context* actx = cc_mf370_get_ctx(ctx);
+    for (size_t i = 0; i < MF370_NUM_REGS; i++) {
+        if (i == MF370_R12 || i == MF370_R13 || i == MF370_R14
+            || i == MF370_R15)
+            continue;
+
+        if (!actx->regs[i])
+            return (enum cc_mf370_reg)i;
+    }
+    abort();
+}
+
+static unsigned int cc_mf370_get_alignof(
+    cc_context* ctx, const cc_ast_type* type)
+{
+    return 0;
+}
+
+static unsigned int cc_mf370_get_sizeof(
+    cc_context* ctx, const cc_ast_type* type)
 {
     size_t sizeof_ptr = 4;
     if (type->n_cv_qual > 0) /* Pointer types */
@@ -85,6 +111,27 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
+static unsigned int cc_mf370_get_offsetof(
+    cc_context* ctx, const cc_ast_type* type, const char* field)
+{
+    assert(type->mode == AST_TYPE_MODE_STRUCT
+        || type->mode == AST_TYPE_MODE_UNION);
+    
+    /* Unions have no offset */
+    if(type->mode == AST_TYPE_MODE_UNION)
+        return 0;
+
+    size_t upper_lim = 0;
+    for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+        size_t count
+            = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+        if(!strcmp(type->data.s_or_u.members[i].name, field))
+            return upper_lim;
+        upper_lim = count > upper_lim ? count : upper_lim;
+    }
+    abort();
+}
+
 static const char* cc_mf370_logical_label(const char* name)
 {
     static char buf[8];
@@ -100,8 +147,8 @@ static const char* cc_mf370_logical_label(const char* name)
     return buf;
 }
 
-static void cc_mf370_gen_assign(cc_context* ctx, const cc_ssa_param* lhs,
-    const cc_ssa_param* rhs)
+static void cc_mf370_gen_assign(
+    cc_context* ctx, const cc_ssa_param* lhs, const cc_ssa_param* rhs)
 {
     switch (lhs->type) {
     case SSA_PARAM_VARIABLE:
@@ -153,6 +200,9 @@ static void cc_mf370_gen_assign(cc_context* ctx, const cc_ssa_param* lhs,
 static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
 {
     switch (tok->type) {
+    case SSA_TOKEN_RET:
+        fprintf(ctx->out, "\tRETURN	(14,12),RC=(15)\n");
+        break;
     case SSA_TOKEN_LABEL:
         fprintf(ctx->out, "L%-6i\tDS\t0H\n", tok->data.label_id);
         break;
@@ -169,7 +219,7 @@ static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
 
         cc_ssa_param tmp = cc_ssa_tempvar_param_1(ctx, false, 4);
 
-        const char *insn_name;
+        const char* insn_name;
         switch (tok->type) {
         case SSA_TOKEN_ADD:
             insn_name = "A";
@@ -228,7 +278,6 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
     for (size_t i = 0; i < func->n_tokens; i++)
         cc_mf370_process_token(ctx, &func->tokens[i]);
 
-    fprintf(ctx->out, "\tRETURN\t(14,12),RC=(15)\n");
     fprintf(ctx->out, "\tPOP\tUSING\n");
     fprintf(ctx->out, "\tLTORG\t,\n");
 }
@@ -239,6 +288,8 @@ int cc_mf370_init(cc_context* ctx)
     ctx->asgen_data = cc_zalloc(sizeof(cc_mf370_context));
     ctx->min_stack_alignment = 0;
     ctx->get_sizeof = &cc_mf370_get_sizeof;
+    ctx->get_alignof = &cc_mf370_get_alignof;
+    ctx->get_offsetof = &cc_mf370_get_offsetof;
     ctx->process_ssa_func = &cc_mf370_process_func;
     return 0;
 }

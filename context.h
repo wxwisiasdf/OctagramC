@@ -46,6 +46,10 @@ typedef struct cc_context {
                            if global or pertaining to the stack of a functor. */
     unsigned int (*get_sizeof)(
         struct cc_context* ctx, const struct cc_ast_type* type);
+    unsigned int (*get_alignof)(
+        struct cc_context* ctx, const struct cc_ast_type* type);
+    unsigned int (*get_offsetof)(
+        struct cc_context* ctx, const struct cc_ast_type* type, const char *field);
     unsigned short min_stack_alignment;
     struct cc_ssa_func* ssa_current_func;
     unsigned int tmpid;

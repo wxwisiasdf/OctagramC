@@ -5,8 +5,8 @@ CFLAGS = -std=c99 -DANSI_COLOUR=1 -Wall -Wextra \
 all: build
 
 run: build
-	valgrind --leak-check=full --track-origins=yes ./occ hello.in -370 -print-ast
-#	gdb --args ./occ hello.in -370 -print-ast
+#	valgrind --leak-check=full --track-origins=yes ./occ hello.in -370 -print-ast
+	gdb --args ./occ hello.in -370 -print-ast
 
 build: occ
 

@@ -522,6 +522,8 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             cc_ssa_token* tok = &func->tokens[j];
             switch (tok->type) {
             case SSA_TOKEN_ASSIGN:
+            case SSA_TOKEN_ZERO_EXT:
+            case SSA_TOKEN_SIGN_EXT:
                 cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ADD:
@@ -530,11 +532,22 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_CALL:
             case SSA_TOKEN_COMPARE:
             case SSA_TOKEN_DIV:
+            case SSA_TOKEN_MUL:
+            case SSA_TOKEN_OR:
+            case SSA_TOKEN_XOR:
+            case SSA_TOKEN_GT:
+            case SSA_TOKEN_GTE:
+            case SSA_TOKEN_LT:
+            case SSA_TOKEN_LTE:
+            case SSA_TOKEN_EQ:
+            case SSA_TOKEN_NEQ:
                 cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_RET:
             case SSA_TOKEN_LABEL:
             case SSA_TOKEN_ALLOCA:
+            case SSA_TOKEN_LOAD_AT:
+            case SSA_TOKEN_STORE_AT:
                 /* No operation */
                 break;
             default:
