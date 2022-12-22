@@ -17,12 +17,6 @@
         cc_lex_token_consume(ctx);                                             \
     } while (0)
 
-bool cc_parse_expression(cc_context* ctx, cc_ast_node* node);
-bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
-bool cc_parse_constant_expression(
-    cc_context* ctx, cc_ast_node* node, cc_ast_literal* r);
-bool cc_parse_assignment_expression(
-    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
 int cc_parse_top(cc_context* ctx);
 
 #endif

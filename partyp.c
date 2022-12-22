@@ -1,4 +1,4 @@
-/* partyp.c - Parser for types, typedef, qualifier, etc */
+/* partyp.c - C parser for types, typedef, qualifier, etc. */
 #include "partyp.h"
 #include "ast.h"
 #include "constevl.h"
@@ -7,6 +7,7 @@
 #include "lexer.h"
 #include "optzer.h"
 #include "parser.h"
+#include "parexpr.h"
 #include "util.h"
 #include <assert.h>
 #include <stdbool.h>
@@ -669,6 +670,75 @@ ignore_missing_ident:
         cc_ast_node* assign_node = cc_ast_create_block(ctx, node);
         cc_parse_declarator_assignment_expression(ctx, assign_node, var);
         cc_ast_add_block_node(node, assign_node); /* Add binop expr to block */
+    }
+    return true;
+error_handle:
+    return false;
+}
+
+/* Handles parsing of sucessive declarations, for example:
+   int i, j;
+   
+   To avoid code repetition inwithinhence our parsing code
+   as this is used by both compound and external declarations to declare
+   multiple variables at once. */
+bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
+    cc_ast_variable* var, bool* is_parsing_typedef)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+
+    /* TODO: Handle cases such as:
+       typedef struct SomeThing {} NewName ident; */
+
+    /* Declaration specifiers */
+    bool decl_result;
+comma_list_initializers: /* Jump here, reusing the variable's stack
+                            location **but** copying over the type
+                            with the various elements. */
+    decl_result = cc_parse_declarator(ctx, node, var);
+
+    /* A typedef can be treated as a variable UNTIL we exit the declarator
+       parser loop. Once we exit it we will have to convert the variable
+       into a typedef we can toy with.
+
+       This state is updated accordingly on the type storage
+       specifiers. */
+    *is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
+    if (ctx->is_parsing_typedef) {
+        if (var->name == NULL) {
+            cc_diag_error(ctx, "Anonymous typedef");
+            goto error_handle;
+        }
+
+        cc_ast_type ntpdef = { 0 };
+        cc_ast_copy_type(&ntpdef, &var->type); /* Copy type over */
+        ntpdef.name = cc_strdup(var->name);
+        ntpdef.is_typedef = true;
+        cc_ast_add_block_type(node, &ntpdef);
+    }
+    ctx->is_parsing_typedef = false;
+
+    if (!decl_result)
+        goto error_handle;
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_COMMA) {
+        cc_lex_token_consume(ctx);
+        /* Save the type somewhere safe, destroy the var,
+            recreate the var with our type and destroy the type. */
+        cc_ast_type stype = { 0 };
+        cc_ast_copy_type(&stype, &var->type);
+        /* Assign global storage to the variable if it is not inside a
+           function body. */
+        if (!ctx->is_func_body && var->type.storage == AST_STORAGE_AUTO)
+            var->type.storage = AST_STORAGE_GLOBAL;
+        cc_ast_add_block_variable(node, var);
+        memset(var, 0, sizeof(*var));
+        cc_ast_copy_type(&var->type, &stype);
+        cc_ast_destroy_type(&stype, false);
+        goto comma_list_initializers;
     }
     return true;
 error_handle:
