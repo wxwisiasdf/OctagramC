@@ -8,6 +8,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+unsigned short cc_ceval_literal_to_ushort(
+    cc_context* ctx, const cc_ast_literal* literal)
+{
+    if (literal->is_float && literal->value.d < 1.f) {
+        cc_diag_error(
+            ctx, "Float value must be above 0, not %f", literal->value.d);
+        return 0;
+    }
+    if (literal->is_signed && literal->value.s <= 0) {
+        cc_diag_error(
+            ctx, "Integer value must be above 0, not %u", literal->value.s);
+        return 0;
+    }
+
+    if (literal->is_float)
+        return (unsigned short)literal->value.d;
+    else if (literal->is_signed)
+        return (unsigned short)literal->value.s;
+    return literal->value.u;
+}
+
 typedef struct cc_ceval_io {
     const char* name; /* View of name, non-owning */
     cc_ast_literal literal;

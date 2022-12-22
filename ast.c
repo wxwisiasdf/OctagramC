@@ -115,9 +115,42 @@ cc_ast_node* cc_ast_create_literal_from_str(
     cc_context* ctx, cc_ast_node* parent, const char* s)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
-    /* TODO: Better parsing of the literals into integers */
-    node->data.literal.value.s = atoi(s);
-    node->data.literal.is_signed = ctx->is_default_signed;
+    cc_ast_literal* literal = &node->data.literal;
+    if(!memcmp(s, "0", 2)) {
+        literal->value.u = 0;
+        literal->is_signed = ctx->is_default_signed;
+        literal->is_float = false;
+    } else if(s[0] == '0' && !isdigit(s[1])) {
+        int base = 10;
+        switch(s[1]) {
+        case 'o':
+            base = 8;
+            break;
+        case 'd':
+            base = 10;
+            break;
+        case 'b':
+            base = 2;
+            break;
+        case 'x':
+        case 'h':
+            base = 16;
+            break;
+        default:
+            abort();
+        }
+        literal->value.u = strtoul(&s[2], NULL, base);
+        literal->is_signed = ctx->is_default_signed;
+        literal->is_float = false;
+    } else if(strchr(s, '.') != NULL) {
+        literal->value.d = strtod(s, NULL);
+        literal->is_signed = false;
+        literal->is_float = true;
+    } else {
+        literal->value.u = strtoul(s, NULL, 10);
+        literal->is_signed = ctx->is_default_signed;
+        literal->is_float = false;
+    }
     return node;
 }
 

@@ -91,6 +91,8 @@ typedef struct cc_ast_type {
             bool no_return : 1;
             bool no_discard : 1;
             bool deprecated : 1;
+            bool naked : 1;
+            bool irq : 1;
             bool variadic : 1; /* Variadic functions */
         } func;
         struct {

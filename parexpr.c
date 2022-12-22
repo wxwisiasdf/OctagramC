@@ -1,12 +1,12 @@
 /* parexp.c - C expression parser. */
-#include "parser.h"
+#include "parexpr.h"
 #include "ast.h"
 #include "constevl.h"
 #include "context.h"
 #include "diag.h"
 #include "lexer.h"
 #include "optzer.h"
-#include "parexpr.h"
+#include "parser.h"
 #include "partyp.h"
 #include "util.h"
 #include <assert.h>
@@ -443,17 +443,19 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
     return false;
 }
 
-static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
+static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
-        || ctok->type != LEXER_TOKEN_sizeof)
+        || (ctok->type != LEXER_TOKEN_sizeof
+            && ctok->type != LEXER_TOKEN_alignof))
         return false;
 
+    bool do_alignof = ctok->type == LEXER_TOKEN_alignof;
     cc_lex_token_consume(ctx);
 
     /* This block is just a virtual block and will be destroyed
-        once we finish evaluating our sizeof. */
+        once we finish evaluating our alignof/sizeof. */
     cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
     bool old_v = ctx->declaration_ident_optional;
     ctx->declaration_ident_optional = true;
@@ -469,7 +471,8 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
         cc_lex_token_consume(ctx);
         cc_ast_variable virtual_var = { 0 };
         if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
-            cc_diag_error(ctx, "Expected unary expression after sizeof");
+            cc_diag_error(
+                ctx, "Expected unary expression after alignof/sizeof");
             ctx->declaration_ident_optional = old_v;
             cc_ast_destroy_node(virtual_node, true);
             goto error_handle;
@@ -484,7 +487,8 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     } else {
         ctx->declaration_ident_optional = true;
         if (!cc_parse_unary_expression(ctx, virtual_node)) {
-            cc_diag_error(ctx, "Expected unary expression after sizeof");
+            cc_diag_error(
+                ctx, "Expected unary expression after alignof/sizeof");
             ctx->declaration_ident_optional = old_v;
             cc_ast_destroy_node(virtual_node, true);
             goto error_handle;
@@ -500,12 +504,12 @@ static bool cc_parse_unary_sizeof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    unsigned int obj_sizeof = ctx->get_sizeof(ctx, &virtual_type);
-    /* TODO: Better way to convert our numbers into strings */
-    static char numbuf[80];
-    snprintf(numbuf, sizeof(numbuf), "%u", obj_sizeof);
-    cc_ast_node* literal_node
-        = cc_ast_create_literal_from_str(ctx, node, numbuf);
+    unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
+                                : ctx->get_sizeof(ctx, &virtual_type);
+
+    cc_ast_node* literal_node = cc_ast_create_literal(ctx, node,
+        (cc_ast_literal) {
+            .is_float = false, .is_signed = false, .value.u = r });
     cc_ast_add_block_node(node, literal_node);
     return true;
 error_handle:
@@ -640,7 +644,7 @@ error_handle:
 bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    if (cc_parse_unary_sizeof(ctx, node))
+    if (cc_parse_unary_sizeof_or_alignof(ctx, node))
         return true;
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {

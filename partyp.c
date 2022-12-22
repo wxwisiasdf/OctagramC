@@ -15,7 +15,44 @@
 #include <stdlib.h>
 #include <string.h>
 
+static unsigned short cc_parse_attribute_literal_param(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    cc_ast_literal r = { 0 };
+    if (!cc_parse_constant_expression(ctx, node, &r)) {
+        cc_diag_error(ctx, "Attribute with non-constant value");
+        return 0;
+    }
+    return cc_ceval_literal_to_ushort(ctx, &r);
+}
+
 static bool cc_parse_type_attributes(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_IDENT) {
+        cc_lex_token_consume(ctx);
+        if (!strcmp(ctok->data, "packed")) {
+            type->data.s_or_u.packed = true;
+        } else if (!strcmp(ctok->data, "aligned")
+            || !strcmp(ctok->data, "alignment")
+            || !strcmp(ctok->data, "align")) {
+            type->min_alignment
+                = cc_parse_attribute_literal_param(ctx, node, type);
+        } else if (!strcmp(ctok->data, "max_align")
+            || !strcmp(ctok->data, "max_alignment")
+            || !strcmp(ctok->data, "max_aligned")) {
+            type->max_alignment
+                = cc_parse_attribute_literal_param(ctx, node, type);
+        } else {
+            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
+        }
+    }
+    return true;
+}
+
+static bool cc_parse_struct_or_union_attributes(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
@@ -25,67 +62,12 @@ static bool cc_parse_type_attributes(
 
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACKET, "Expected '['");
-
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_IDENT) {
-        cc_lex_token_consume(ctx);
-        if (!strcmp(ctok->data, "packed")) {
-            type->data.s_or_u.packed = true;
-        } else if (!strcmp(ctok->data, "aligned")
-            || !strcmp(ctok->data, "align")) {
-            cc_ast_literal r = { 0 };
-            if (!cc_parse_constant_expression(ctx, node, &r)) {
-                cc_diag_error(ctx, "Attribute with non-constant value");
-                return false;
-            }
-
-            if ((r.is_float && r.value.d < 1.f)
-                || (r.is_signed && r.value.s <= 0)) {
-                cc_diag_error(ctx, "Value must be above 0 and not a float");
-                return false;
-            }
-
-            if (r.is_float)
-                type->min_alignment = (unsigned short)r.value.d;
-            else if (r.is_signed)
-                type->min_alignment = (unsigned short)r.value.s;
-            else
-                type->min_alignment = r.value.u;
-        } else if (!strcmp(ctok->data, "max_align")) {
-            cc_ast_literal r = { 0 };
-            if (!cc_parse_constant_expression(ctx, node, &r)) {
-                cc_diag_error(ctx, "Attribute with non-constant value");
-                return false;
-            }
-
-            if ((r.is_float && r.value.d < 1.f)
-                || (r.is_signed && r.value.s <= 0)) {
-                cc_diag_error(ctx, "Value must be above 0 and not a float");
-                return false;
-            }
-
-            if (r.is_float)
-                type->max_alignment = (unsigned short)r.value.d;
-            else if (r.is_signed)
-                type->max_alignment = (unsigned short)r.value.s;
-            else
-                type->max_alignment = r.value.u;
-        } else {
-            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
-        }
-    }
-
+    cc_parse_type_attributes(ctx, node, type);
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
     return true;
 error_handle:
     return false;
-}
-
-static bool cc_parse_struct_or_union_attributes(
-    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
-{
-    return cc_parse_type_attributes(ctx, node, type);
 }
 
 bool cc_parse_struct_or_union_specifier(
@@ -554,47 +536,12 @@ static bool cc_parse_declaration_specifier_attributes(
         } else if (!strcmp(ctok->data, "variadic") || !strcmp(ctok->data, "var")
             || !strcmp(ctok->data, "variable")) {
             type->data.func.variadic = true;
-        } else if (!strcmp(ctok->data, "aligned")
-            || !strcmp(ctok->data, "align")) {
-            cc_ast_literal r = { 0 };
-            if (!cc_parse_constant_expression(ctx, node, &r)) {
-                cc_diag_error(ctx, "Attribute with non-constant value");
-                return false;
-            }
-
-            if ((r.is_float && r.value.d < 1.f)
-                || (r.is_signed && r.value.s <= 0)) {
-                cc_diag_error(ctx, "Value must be above 0 and not a float");
-                return false;
-            }
-
-            if (r.is_float)
-                type->min_alignment = (unsigned short)r.value.d;
-            else if (r.is_signed)
-                type->min_alignment = (unsigned short)r.value.s;
-            else
-                type->min_alignment = r.value.u;
-        } else if (!strcmp(ctok->data, "max_align")) {
-            cc_ast_literal r = { 0 };
-            if (!cc_parse_constant_expression(ctx, node, &r)) {
-                cc_diag_error(ctx, "Attribute with non-constant value");
-                return false;
-            }
-
-            if ((r.is_float && r.value.d < 1.f)
-                || (r.is_signed && r.value.s <= 0)) {
-                cc_diag_error(ctx, "Value must be above 0 and not a float");
-                return false;
-            }
-
-            if (r.is_float)
-                type->max_alignment = (unsigned short)r.value.d;
-            else if (r.is_signed)
-                type->max_alignment = (unsigned short)r.value.s;
-            else
-                type->max_alignment = r.value.u;
+        } else if (!strcmp(ctok->data, "naked")) {
+            type->data.func.naked = true;
+        } else if (!strcmp(ctok->data, "irq")) {
+            type->data.func.irq = true;
         } else {
-            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
+            cc_parse_type_attributes(ctx, node, type);
         }
     }
 

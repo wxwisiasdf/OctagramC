@@ -25,11 +25,10 @@ static char* cc_lex_get_logical_line(cc_context* ctx)
         cc_diag_increment_linenum(ctx);
 
         /* Logical lines can only continue after ecaping the newline */
-        if (len > 1 && tmpbuf[len - 2] == '\\' && tmpbuf[len - 1] == '\n') {
+        if (len > 1 && tmpbuf[len - 2] == '\\' && tmpbuf[len - 1] == '\n')
             continue;
-        } else if (len > 0 && tmpbuf[len - 1] == '\\') {
+        else if (len > 0 && tmpbuf[len - 1] == '\\')
             continue;
-        }
         break;
     }
     return p;

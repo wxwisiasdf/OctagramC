@@ -154,7 +154,7 @@ static void cc_mf370_gen_assign(
     case SSA_PARAM_VARIABLE:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\tR0,%u\n", rhs->data.constant.value.u);
+            fprintf(ctx->out, "\tL\tR0,%lu\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tM\tR0,-1\n");
             break;
@@ -176,7 +176,7 @@ static void cc_mf370_gen_assign(
     case SSA_PARAM_TMPVAR:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\tR0,%u\n", rhs->data.constant.value.u);
+            fprintf(ctx->out, "\tL\tR0,%lu\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tM\tR0,-1\n");
             break;
