@@ -10,6 +10,7 @@ enum cc_ssa_param_type {
     SSA_PARAM_VARIABLE, /* Non-temporal */
     SSA_PARAM_RETVAL,
     SSA_PARAM_TMPVAR, /* Unnamed temporal variable */
+    SSA_PARAM_REF_TMPVAR,
     SSA_PARAM_LABEL,
 };
 
@@ -81,7 +82,7 @@ enum cc_ssa_token_type {
     SSA_TOKEN_AND,
     SSA_TOKEN_COMPARE,
     SSA_TOKEN_STORE_AT,
-    SSA_TOKEN_LOAD_AT,
+    SSA_TOKEN_LOAD_FROM,
     SSA_TOKEN_GET_ELEMENT,
     SSA_TOKEN_SET_ELEMENT,
     /* Unary op */

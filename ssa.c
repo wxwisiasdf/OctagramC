@@ -7,6 +7,199 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void cc_ssa_print_param(const cc_ssa_param* param)
+{
+    printf("%s%u ", param->is_signed ? "i" : "u", param->size * 8);
+
+    switch (param->type) {
+    case SSA_PARAM_CONSTANT:
+        if (param->data.constant.is_negative)
+            printf("-");
+        if (param->data.constant.is_float)
+            printf("%lf", param->data.constant.value.d);
+        else
+            printf("%lu", param->data.constant.value.u);
+        break;
+    case SSA_PARAM_STRING_LITERAL:
+        printf("string_(%u)\"%s\"", param->data.str_index, NULL);
+        break;
+    case SSA_PARAM_VARIABLE:
+        printf("var_%s", param->data.var_name);
+        break;
+    case SSA_PARAM_TMPVAR:
+        printf("tmp_%i", param->data.tmpid);
+        break;
+    case SSA_PARAM_REF_TMPVAR:
+        printf("ref_tmp_%i", param->data.tmpid);
+        break;
+    case SSA_PARAM_NONE:
+        printf("none");
+        break;
+    case SSA_PARAM_RETVAL:
+        printf("retval");
+        break;
+    case SSA_PARAM_LABEL:
+        printf("L_%u", param->data.label_id);
+        break;
+    default:
+        abort();
+    }
+}
+
+static void cc_ssa_print_token_unop(const cc_ssa_token* tok, const char* name)
+{
+    cc_ssa_print_param(&tok->data.unop.left);
+    printf(" = %s ", name);
+    cc_ssa_print_param(&tok->data.unop.right);
+}
+
+static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
+{
+    cc_ssa_print_param(&tok->data.binop.left);
+    printf(" = ");
+    cc_ssa_print_param(&tok->data.binop.right);
+    printf(" %s ", name);
+    cc_ssa_print_param(&tok->data.binop.extra);
+}
+
+static void cc_ssa_print_token(const cc_ssa_token* tok)
+{
+    if (tok->type == SSA_TOKEN_LABEL) {
+        printf("L_%u:\n", tok->data.label_id);
+        return;
+    }
+
+    printf("\t");
+    switch (tok->type) {
+    case SSA_TOKEN_ADD:
+        cc_ssa_print_token_binop(tok, "add");
+        break;
+    case SSA_TOKEN_ALLOCA:
+        cc_ssa_print_param(&tok->data.alloca.left);
+        printf(" = alloca size ");
+        cc_ssa_print_param(&tok->data.alloca.size);
+        printf(", align ");
+        cc_ssa_print_param(&tok->data.alloca.align);
+        break;
+    case SSA_TOKEN_AND:
+        cc_ssa_print_token_binop(tok, "and");
+        break;
+    case SSA_TOKEN_BRANCH:
+        printf("branch ");
+        cc_ssa_print_param(&tok->data.branch.eval);
+        printf(", onTrue ");
+        cc_ssa_print_param(&tok->data.branch.t_branch);
+        printf(", onFalse ");
+        cc_ssa_print_param(&tok->data.branch.f_branch);
+        break;
+    case SSA_TOKEN_CALL:
+        cc_ssa_print_param(&tok->data.call.left);
+        printf(" = call ");
+        cc_ssa_print_param(&tok->data.call.right);
+        printf("(");
+        for (size_t i = 0; i < tok->data.call.n_params; i++) {
+            cc_ssa_print_param(&tok->data.call.params[i]);
+            printf(", ");
+        }
+        printf(")");
+        break;
+    case SSA_TOKEN_COMPARE:
+        cc_ssa_print_token_binop(tok, "cmp");
+        break;
+    case SSA_TOKEN_DIV:
+        cc_ssa_print_token_binop(tok, "div");
+        break;
+    case SSA_TOKEN_GET_ELEMENT:
+        cc_ssa_print_token_binop(tok, "get_element");
+        break;
+    case SSA_TOKEN_SET_ELEMENT:
+        cc_ssa_print_token_binop(tok, "set_element");
+        break;
+    case SSA_TOKEN_ASSIGN:
+        cc_ssa_print_param(&tok->data.unop.left);
+        printf(" = ");
+        cc_ssa_print_param(&tok->data.unop.right);
+        break;
+    case SSA_TOKEN_STORE_AT:
+        cc_ssa_print_token_unop(tok, "store_at");
+        break;
+    case SSA_TOKEN_LOAD_FROM:
+        cc_ssa_print_token_unop(tok, "load_from");
+        break;
+    case SSA_TOKEN_LSHIFT:
+        cc_ssa_print_token_binop(tok, "lshift");
+        break;
+    case SSA_TOKEN_MUL:
+        cc_ssa_print_token_binop(tok, "mul");
+        break;
+    case SSA_TOKEN_NOT:
+        cc_ssa_print_token_binop(tok, "not");
+        break;
+    case SSA_TOKEN_OR:
+        cc_ssa_print_token_binop(tok, "or");
+        break;
+    case SSA_TOKEN_PHI:
+        cc_ssa_print_token_binop(tok, "phi");
+        break;
+    case SSA_TOKEN_REM:
+        cc_ssa_print_token_binop(tok, "rem");
+        break;
+    case SSA_TOKEN_RET:
+        printf("ret");
+        break;
+    case SSA_TOKEN_RSHIFT:
+        cc_ssa_print_token_binop(tok, "rshift");
+        break;
+    case SSA_TOKEN_SIGN_EXT:
+        cc_ssa_print_token_unop(tok, "sign_ext");
+        break;
+    case SSA_TOKEN_SUB:
+        cc_ssa_print_token_binop(tok, "sub");
+        break;
+    case SSA_TOKEN_XOR:
+        cc_ssa_print_token_binop(tok, "xor");
+        break;
+    case SSA_TOKEN_ZERO_EXT:
+        cc_ssa_print_token_unop(tok, "zero_ext");
+        break;
+    case SSA_TOKEN_GT:
+        cc_ssa_print_token_binop(tok, "gt");
+        break;
+    case SSA_TOKEN_GTE:
+        cc_ssa_print_token_binop(tok, "gte");
+        break;
+    case SSA_TOKEN_LT:
+        cc_ssa_print_token_binop(tok, "lt");
+        break;
+    case SSA_TOKEN_LTE:
+        cc_ssa_print_token_binop(tok, "lte");
+        break;
+    case SSA_TOKEN_EQ:
+        cc_ssa_print_token_binop(tok, "eq");
+        break;
+    case SSA_TOKEN_NEQ:
+        cc_ssa_print_token_binop(tok, "neq");
+        break;
+    default:
+        abort();
+    }
+    printf("\n");
+}
+
+static void cc_ssa_print_func(const cc_ssa_func* func)
+{
+    printf("fn %s {\n", func->ast_var->name);
+    for (size_t i = 0; i < func->n_tokens; i++)
+        cc_ssa_print_token(&func->tokens[i]);
+    printf("}\n");
+}
+
+static void cc_ssa_print(cc_context* ctx)
+{
+    for (size_t i = 0; i < ctx->n_ssa_funcs; i++)
+        cc_ssa_print_func(&ctx->ssa_funcs[i]);
+}
+
 static enum cc_ssa_storage cc_ssa_ast_storage_to_ssa(enum cc_ast_storage v)
 {
     return (enum cc_ssa_storage)v;
@@ -378,19 +571,26 @@ static void cc_ssa_process_unop(
     cc_ast_type child_type = { 0 };
     if (!cc_ceval_deduce_type(ctx, node->data.unop.child, &child_type))
         abort();
-    cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
-    cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+    cc_ssa_param child_param = { 0 };
 
     switch (node->data.unop.op) {
     case AST_UNOP_CAST:
         tok.type = SSA_TOKEN_ZERO_EXT;
         break;
     case AST_UNOP_DEREF:
-        tok.type = SSA_TOKEN_LOAD_AT;
-        break;
+        child_param = cc_ssa_tempvar_param(ctx, &child_type);
+        cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+        tok.type = SSA_TOKEN_LOAD_FROM;
+        tok.data.unop.left = param;
+        tok.data.unop.right = child_param;
+        cc_ssa_push_token(ctx->ssa_current_func, tok);
+        return;
     default:
         abort();
     }
+
+    child_param = cc_ssa_tempvar_param(ctx, &child_type);
+    cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
     tok.data.unop.left = param;
     tok.data.unop.right = child_param;
     cc_ssa_push_token(ctx->ssa_current_func, tok);
@@ -546,9 +746,107 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_RET:
             case SSA_TOKEN_LABEL:
             case SSA_TOKEN_ALLOCA:
-            case SSA_TOKEN_LOAD_AT:
-            case SSA_TOKEN_STORE_AT:
                 /* No operation */
+                break;
+            case SSA_TOKEN_LOAD_FROM:
+            case SSA_TOKEN_STORE_AT:
+                break;
+            default:
+                abort();
+            }
+        }
+    }
+}
+
+/* Helper function for cc_ssa_mark_ref_func */
+static void cc_ssa_mark_ref_binop(
+    unsigned short tmpid, cc_ssa_token* tok)
+{
+    if (tok->data.binop.left.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.left.data.tmpid == tmpid)
+        tok->data.binop.left.type = SSA_PARAM_REF_TMPVAR;
+
+    if (tok->data.binop.right.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.right.data.tmpid == tmpid)
+        tok->data.binop.right.type = SSA_PARAM_REF_TMPVAR;
+
+    if (tok->data.binop.extra.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.extra.data.tmpid == tmpid)
+        tok->data.binop.extra.type = SSA_PARAM_REF_TMPVAR;
+}
+
+/* Helper function for cc_ssa_mark_ref_func */
+static void cc_ssa_mark_ref_unop(
+    unsigned short tmpid, cc_ssa_token* tok)
+{
+    if (tok->data.unop.left.type == SSA_PARAM_TMPVAR
+        && tok->data.unop.left.data.tmpid == tmpid)
+        tok->data.unop.left.type = SSA_PARAM_REF_TMPVAR;
+
+    if (tok->data.unop.right.type == SSA_PARAM_TMPVAR
+        && tok->data.unop.right.data.tmpid == tmpid)
+        tok->data.unop.right.type = SSA_PARAM_REF_TMPVAR;
+}
+
+/* Mark temporals that are implicit references eg. load_from and store_at. */
+static void cc_ssa_mark_ref_func(const cc_ssa_func* func)
+{
+    for (size_t i = 0; i < func->n_tokens; i++) {
+        cc_ssa_token* tok = &func->tokens[i];
+        unsigned short tmpid = 0;
+        bool eval = false;
+        switch (tok->type) {
+        case SSA_TOKEN_LOAD_FROM:
+            tmpid = tok->data.unop.left.data.tmpid;
+            if(tok->data.unop.left.type == SSA_PARAM_TMPVAR)
+                tok->data.unop.left.type = SSA_PARAM_REF_TMPVAR;
+            eval = true;
+            break;
+        case SSA_TOKEN_STORE_AT:
+            tmpid = tok->data.unop.right.data.tmpid;
+            if(tok->data.unop.right.type == SSA_PARAM_TMPVAR)
+                tok->data.unop.right.type = SSA_PARAM_REF_TMPVAR;
+            eval = true;
+            break;
+        default:
+            break;
+        }
+
+        if(!eval)
+            continue;
+
+        for (size_t j = 0; j < func->n_tokens; j++) {
+            cc_ssa_token* vtok = &func->tokens[j];
+            switch (vtok->type) {
+            case SSA_TOKEN_ASSIGN:
+            case SSA_TOKEN_ZERO_EXT:
+            case SSA_TOKEN_SIGN_EXT:
+                cc_ssa_mark_ref_unop(tmpid, vtok);
+                break;
+            case SSA_TOKEN_ADD:
+            case SSA_TOKEN_AND:
+            case SSA_TOKEN_BRANCH:
+            case SSA_TOKEN_CALL:
+            case SSA_TOKEN_COMPARE:
+            case SSA_TOKEN_DIV:
+            case SSA_TOKEN_MUL:
+            case SSA_TOKEN_OR:
+            case SSA_TOKEN_XOR:
+            case SSA_TOKEN_GT:
+            case SSA_TOKEN_GTE:
+            case SSA_TOKEN_LT:
+            case SSA_TOKEN_LTE:
+            case SSA_TOKEN_EQ:
+            case SSA_TOKEN_NEQ:
+                cc_ssa_mark_ref_binop(tmpid, vtok);
+                break;
+            case SSA_TOKEN_RET:
+            case SSA_TOKEN_LABEL:
+            case SSA_TOKEN_ALLOCA:
+                /* No operation */
+                break;
+            case SSA_TOKEN_LOAD_FROM:
+            case SSA_TOKEN_STORE_AT:
                 break;
             default:
                 abort();
@@ -562,9 +860,9 @@ static bool cc_ssa_is_param_same(
 {
     if (p1->type != p2->type)
         return false;
-    if (p1->type == SSA_PARAM_VARIABLE)
+    if (p1->type == SSA_PARAM_VARIABLE && p2->type == SSA_PARAM_VARIABLE)
         return strcmp(p1->data.var_name, p2->data.var_name) == 0;
-    return true;
+    return p1->size == p2->size;
 }
 
 static void cc_ssa_remove_assign_func(cc_ssa_func* func)
@@ -578,8 +876,12 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
             erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);
             /* Remove read without side effect */
-            if (!erase && tok->data.unop.left.type == SSA_PARAM_NONE)
+            if (tok->data.unop.left.type == SSA_PARAM_NONE)
                 erase = true;
+
+            if (tok->data.unop.left.is_volatile
+                || tok->data.unop.right.is_volatile)
+                erase = false;
             break;
         default:
             break;
@@ -596,6 +898,7 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 
 static void cc_ssa_colour_func(cc_ssa_func* func)
 {
+    cc_ssa_mark_ref_func(func);
     cc_ssa_tmpassign_func(func);
     cc_ssa_remove_assign_func(func);
 }
@@ -604,195 +907,6 @@ static void cc_ssa_colour(cc_context* ctx)
 {
     for (size_t i = 0; i < ctx->n_ssa_funcs; i++)
         cc_ssa_colour_func(&ctx->ssa_funcs[i]);
-}
-
-static void cc_ssa_print_param(const cc_ssa_param* param)
-{
-    printf("%s%u ", param->is_signed ? "i" : "u", param->size * 8);
-    switch (param->type) {
-    case SSA_PARAM_CONSTANT:
-        if (param->data.constant.is_negative)
-            printf("-");
-        if (param->data.constant.is_float)
-            printf("%lf", param->data.constant.value.d);
-        else
-            printf("%lu", param->data.constant.value.u);
-        break;
-    case SSA_PARAM_STRING_LITERAL:
-        printf("string_(%u)\"%s\"", param->data.str_index, NULL);
-        break;
-    case SSA_PARAM_VARIABLE:
-        printf("var_%s", param->data.var_name);
-        break;
-    case SSA_PARAM_TMPVAR:
-        printf("tmp_%i", param->data.tmpid);
-        break;
-    case SSA_PARAM_NONE:
-        printf("none");
-        break;
-    case SSA_PARAM_RETVAL:
-        printf("retval");
-        break;
-    case SSA_PARAM_LABEL:
-        printf("l_%u", param->data.label_id);
-        break;
-    default:
-        abort();
-    }
-}
-
-static void cc_ssa_print_token_unop(const cc_ssa_token* tok, const char* name)
-{
-    cc_ssa_print_param(&tok->data.unop.left);
-    printf(" = %s ", name);
-    cc_ssa_print_param(&tok->data.unop.right);
-}
-
-static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
-{
-    cc_ssa_print_param(&tok->data.binop.left);
-    printf(" = ");
-    cc_ssa_print_param(&tok->data.binop.right);
-    printf(" %s ", name);
-    cc_ssa_print_param(&tok->data.binop.extra);
-}
-
-static void cc_ssa_print_token(const cc_ssa_token* tok)
-{
-    if (tok->type == SSA_TOKEN_LABEL) {
-        printf("L_%u:\n", tok->data.label_id);
-        return;
-    }
-
-    printf("\t");
-    switch (tok->type) {
-    case SSA_TOKEN_ADD:
-        cc_ssa_print_token_binop(tok, "add");
-        break;
-    case SSA_TOKEN_ALLOCA:
-        cc_ssa_print_param(&tok->data.alloca.left);
-        printf(" = alloca size ");
-        cc_ssa_print_param(&tok->data.alloca.size);
-        printf(", align ");
-        cc_ssa_print_param(&tok->data.alloca.align);
-        break;
-    case SSA_TOKEN_AND:
-        cc_ssa_print_token_binop(tok, "and");
-        break;
-    case SSA_TOKEN_BRANCH:
-        printf("branch ");
-        cc_ssa_print_param(&tok->data.branch.eval);
-        printf(", onTrue ");
-        cc_ssa_print_param(&tok->data.branch.t_branch);
-        printf(", onFalse ");
-        cc_ssa_print_param(&tok->data.branch.f_branch);
-        break;
-    case SSA_TOKEN_CALL:
-        cc_ssa_print_param(&tok->data.call.left);
-        printf(" = call ");
-        cc_ssa_print_param(&tok->data.call.right);
-        printf("(");
-        for (size_t i = 0; i < tok->data.call.n_params; i++) {
-            cc_ssa_print_param(&tok->data.call.params[i]);
-            printf(", ");
-        }
-        printf(")");
-        break;
-    case SSA_TOKEN_COMPARE:
-        cc_ssa_print_token_binop(tok, "cmp");
-        break;
-    case SSA_TOKEN_DIV:
-        cc_ssa_print_token_binop(tok, "div");
-        break;
-    case SSA_TOKEN_GET_ELEMENT:
-        cc_ssa_print_token_binop(tok, "get_element");
-        break;
-    case SSA_TOKEN_SET_ELEMENT:
-        cc_ssa_print_token_binop(tok, "set_element");
-        break;
-    case SSA_TOKEN_ASSIGN:
-        cc_ssa_print_param(&tok->data.unop.left);
-        printf(" = ");
-        cc_ssa_print_param(&tok->data.unop.right);
-        break;
-    case SSA_TOKEN_STORE_AT:
-        cc_ssa_print_token_unop(tok, "store_at");
-        break;
-    case SSA_TOKEN_LOAD_AT:
-        cc_ssa_print_token_unop(tok, "load_at");
-        break;
-    case SSA_TOKEN_LSHIFT:
-        cc_ssa_print_token_binop(tok, "lshift");
-        break;
-    case SSA_TOKEN_MUL:
-        cc_ssa_print_token_binop(tok, "mul");
-        break;
-    case SSA_TOKEN_NOT:
-        cc_ssa_print_token_binop(tok, "not");
-        break;
-    case SSA_TOKEN_OR:
-        cc_ssa_print_token_binop(tok, "or");
-        break;
-    case SSA_TOKEN_PHI:
-        cc_ssa_print_token_binop(tok, "phi");
-        break;
-    case SSA_TOKEN_REM:
-        cc_ssa_print_token_binop(tok, "rem");
-        break;
-    case SSA_TOKEN_RET:
-        printf("ret");
-        break;
-    case SSA_TOKEN_RSHIFT:
-        cc_ssa_print_token_binop(tok, "rshift");
-        break;
-    case SSA_TOKEN_SIGN_EXT:
-        cc_ssa_print_token_unop(tok, "sign_ext");
-        break;
-    case SSA_TOKEN_SUB:
-        cc_ssa_print_token_binop(tok, "sub");
-        break;
-    case SSA_TOKEN_XOR:
-        cc_ssa_print_token_binop(tok, "xor");
-        break;
-    case SSA_TOKEN_ZERO_EXT:
-        cc_ssa_print_token_unop(tok, "zero_ext");
-        break;
-    case SSA_TOKEN_GT:
-        cc_ssa_print_token_binop(tok, "gt");
-        break;
-    case SSA_TOKEN_GTE:
-        cc_ssa_print_token_binop(tok, "gte");
-        break;
-    case SSA_TOKEN_LT:
-        cc_ssa_print_token_binop(tok, "lt");
-        break;
-    case SSA_TOKEN_LTE:
-        cc_ssa_print_token_binop(tok, "lte");
-        break;
-    case SSA_TOKEN_EQ:
-        cc_ssa_print_token_binop(tok, "eq");
-        break;
-    case SSA_TOKEN_NEQ:
-        cc_ssa_print_token_binop(tok, "neq");
-        break;
-    default:
-        abort();
-    }
-    printf("\n");
-}
-
-static void cc_ssa_print_func(const cc_ssa_func* func)
-{
-    printf("fn %s {\n", func->ast_var->name);
-    for (size_t i = 0; i < func->n_tokens; i++)
-        cc_ssa_print_token(&func->tokens[i]);
-    printf("}\n");
-}
-
-static void cc_ssa_print(cc_context* ctx)
-{
-    for (size_t i = 0; i < ctx->n_ssa_funcs; i++)
-        cc_ssa_print_func(&ctx->ssa_funcs[i]);
 }
 
 void cc_ssa_top(cc_context* ctx)
@@ -809,6 +923,9 @@ void cc_ssa_top(cc_context* ctx)
 
     cc_ssa_param none_param = { 0 };
     cc_ssa_from_ast(ctx, ctx->root, none_param);
+
+    cc_ssa_print(ctx);
+
     cc_ssa_colour(ctx);
 
     cc_ssa_print(ctx);
