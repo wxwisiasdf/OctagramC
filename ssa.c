@@ -336,8 +336,14 @@ static void cc_ssa_process_binop(
     case AST_BINOP_ADD:
         tok.type = SSA_TOKEN_ADD;
         break;
+    case AST_BINOP_SUB:
+        tok.type = SSA_TOKEN_SUB;
+        break;
     case AST_BINOP_MUL:
         tok.type = SSA_TOKEN_MUL;
+        break;
+    case AST_BINOP_DIV:
+        tok.type = SSA_TOKEN_DIV;
         break;
     case AST_BINOP_ASSIGN:
         /* Assignment is an unop here */
@@ -727,6 +733,7 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
                 cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ADD:
+            case SSA_TOKEN_SUB:
             case SSA_TOKEN_AND:
             case SSA_TOKEN_BRANCH:
             case SSA_TOKEN_CALL:
@@ -824,6 +831,7 @@ static void cc_ssa_mark_ref_func(const cc_ssa_func* func)
                 cc_ssa_mark_ref_unop(tmpid, vtok);
                 break;
             case SSA_TOKEN_ADD:
+            case SSA_TOKEN_SUB:
             case SSA_TOKEN_AND:
             case SSA_TOKEN_BRANCH:
             case SSA_TOKEN_CALL:

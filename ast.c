@@ -722,7 +722,7 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
         return ".";
     case AST_BINOP_LSHIFT:
         return "<<";
-    case AST_BINOP_MINUS:
+    case AST_BINOP_SUB:
         return "-";
     case AST_BINOP_MOD:
         return "%%";

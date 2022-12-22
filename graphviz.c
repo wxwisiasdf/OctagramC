@@ -58,7 +58,7 @@ static void cc_graphviz_print(cc_context* ctx, cc_ast_node* node)
         case AST_BINOP_LSHIFT:
             fprintf(ctx->out, "<<");
             break;
-        case AST_BINOP_MINUS:
+        case AST_BINOP_SUB:
             fprintf(ctx->out, "-");
             break;
         case AST_BINOP_MOD:

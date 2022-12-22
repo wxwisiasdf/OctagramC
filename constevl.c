@@ -98,7 +98,7 @@ static cc_ast_literal cc_ceval_eval_1(
         }                                                                      \
     } break
             CEVAL_OPERATOR(AST_BINOP_ADD, +);
-            CEVAL_OPERATOR(AST_BINOP_MINUS, -);
+            CEVAL_OPERATOR(AST_BINOP_SUB, -);
             CEVAL_OPERATOR(AST_BINOP_MUL, *);
             CEVAL_OPERATOR(AST_BINOP_DIV, /);
             CEVAL_OPERATOR(AST_BINOP_GT, >);

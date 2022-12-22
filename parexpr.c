@@ -92,7 +92,7 @@ static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
                 binop_node->data.binop.op = AST_BINOP_ADD;
                 break;
             case LEXER_TOKEN_MINUS:
-                binop_node->data.binop.op = AST_BINOP_MINUS;
+                binop_node->data.binop.op = AST_BINOP_SUB;
                 break;
             default:
                 break;
@@ -330,7 +330,7 @@ bool cc_parse_assignment_expression(
         expand_expr = true;
         break;
     case LEXER_TOKEN_ASSIGN_MINUS:
-        binop_type = AST_BINOP_MINUS;
+        binop_type = AST_BINOP_SUB;
         expand_expr = true;
         break;
     case LEXER_TOKEN_ASSIGN_MOD:
@@ -690,7 +690,7 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
             break;
         case LEXER_TOKEN_MINUS: /* Prefix - */
             cc_lex_token_consume(ctx);
-            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_MINUS);
+            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_SUB);
             literal_node = cc_ast_create_literal_from_str(
                 ctx, binop_node->data.binop.left, "0");
             break;
