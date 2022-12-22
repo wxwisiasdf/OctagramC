@@ -33,7 +33,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
 static bool cc_parse_declaration_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
 static bool cc_parse_assignment_expression(
-    cc_context* ctx, cc_ast_node* node, cc_ast_node* lhs);
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
 static bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node);
 
 static bool cc_parse_struct_or_union_specifier(
@@ -756,18 +756,21 @@ error_handle:
    LHS can be specified with the lhs argument, in such a case a unary
    function won't do shit */
 static bool cc_parse_assignment_expression(
-    cc_context* ctx, cc_ast_node* node, cc_ast_node* lhs)
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
     cc_ast_node* assign_node
         = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-
-    if (lhs == NULL) {
+    
+    if (var == NULL) {
         if (!cc_parse_conditional_expression(
                 ctx, assign_node->data.binop.left)) {
             cc_ast_destroy_node(assign_node, true);
             return false;
         }
+    } else {
+        cc_ast_node* var_node = cc_ast_create_var_ref(ctx, assign_node->data.binop.left, var);
+        cc_ast_add_block_node(assign_node->data.binop.left, var_node);
     }
 
     /* TODO: Respect operator precedence */
@@ -1464,7 +1467,8 @@ static bool cc_parse_declarator_assignment_expression(
         cc_parse_declarator_assignment_expression(ctx, node, var);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
     } else {
-        while (cc_parse_assignment_expression(ctx, node, NULL)) {
+        cc_ast_node *var_node = cc_ast_create_var_ref(ctx, node, var);
+        while (cc_parse_assignment_expression(ctx, node, var)) {
             const cc_lexer_token* ctok;
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_COMMA) {
@@ -1630,16 +1634,8 @@ ignore_missing_ident:
        is to be assigned. */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASSIGN) {
-        cc_lex_token_consume(ctx);
-        cc_ast_node* assign_node
-            = cc_ast_create_binop_expr(ctx, node, AST_BINOP_ASSIGN);
-        cc_ast_node* lhs_node = assign_node->data.binop.left;
-        cc_ast_node* var_node = cc_ast_create_var_ref(ctx, lhs_node, var);
-        /* Parse <var this-variable> = <expr> */
-        cc_ast_add_block_node(lhs_node, var_node); /* Plug implicit var ref
-                                                      into lhs */
-        cc_parse_declarator_assignment_expression(
-            ctx, assign_node->data.binop.right, var);
+        cc_ast_node* assign_node = cc_ast_create_block(ctx, node);
+        cc_parse_declarator_assignment_expression(ctx, assign_node, var);
         cc_ast_add_block_node(node, assign_node); /* Add binop expr to block */
     }
     return true;

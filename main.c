@@ -121,14 +121,14 @@ int main(int argc, char** argv)
             }
 
             cc_ssa_top(&ctx);
+            for(size_t i = 0; i < ctx.n_ssa_funcs; i++)
+                ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
 
             switch (target) {
-            case TARGET_AS386:
-            case TARGET_MF370:
-                /*cc_backend_process_node(&ctx, ctx.root, NULL);*/
-                break;
             case TARGET_GRAPHVIZ:
                 cc_graphviz_top(&ctx);
+                break;
+            default:
                 break;
             }
         }

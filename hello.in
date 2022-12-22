@@ -18,7 +18,10 @@ enum sus {
 };
 
 int dl_limit(int argc, char **argv) {
-    enum sus fruit_type;
+    enum sus fruit_type = 50;
+
+    if (fruit_type > 10)
+        return fruit_type;
 
     switch (fruit_type) {
     case BANANA:

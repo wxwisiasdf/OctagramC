@@ -73,8 +73,7 @@ static cc_ssa_param cc_ssa_retval_param(
     };
 }
 
-static cc_ssa_param cc_ssa_label_param(
-    cc_context* ctx, unsigned short label_id)
+static cc_ssa_param cc_ssa_label_param(cc_context* ctx, unsigned short label_id)
 {
     return (cc_ssa_param) {
         .type = SSA_PARAM_LABEL,
@@ -142,8 +141,18 @@ static void cc_ssa_process_binop(
         tok.type = SSA_TOKEN_MUL;
         break;
     case AST_BINOP_ASSIGN:
+        /* Assignment is an unop here */
         tok.type = SSA_TOKEN_ASSIGN;
-        break;
+        tok.data.unop.left = lhs_param;
+        tok.data.unop.right = rhs_param;
+        cc_ssa_push_token(ctx->ssa_current_func, tok);
+
+        memset(&tok, 0, sizeof(tok));
+        tok.type = SSA_TOKEN_ASSIGN;
+        tok.data.unop.left = param;
+        tok.data.unop.right = lhs_param;
+        cc_ssa_push_token(ctx->ssa_current_func, tok);
+        return;
     case AST_BINOP_GT:
         tok.type = SSA_TOKEN_GT;
         break;
@@ -246,7 +255,8 @@ static void cc_ssa_process_switch(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ast_type control_type = { 0 };
-    if (!cc_ceval_deduce_type(ctx, node->data.switch_expr.control, &control_type))
+    if (!cc_ceval_deduce_type(
+            ctx, node->data.switch_expr.control, &control_type))
         abort();
     cc_ssa_param control_param = cc_ssa_tempvar_param(ctx, &control_type);
     cc_ssa_from_ast(ctx, node->data.switch_expr.control, control_param);
@@ -263,25 +273,30 @@ static void cc_ssa_process_if(
     cc_ssa_from_ast(ctx, node->data.if_expr.cond, cond_param);
 
     /* Skip effect-less if statment blocks (condition needs to be evaluated anyways) */
-    if (node->data.if_expr.block == NULL && node->data.if_expr.tail_else == NULL)
+    if (node->data.if_expr.block == NULL
+        && node->data.if_expr.tail_else == NULL)
         return;
 
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_BRANCH;
     tok.data.branch.eval = cond_param;
     if (node->data.if_expr.tail_else != NULL) {
-        tok.data.branch.t_branch = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
-        tok.data.branch.f_branch = cc_ssa_label_param(ctx, node->data.if_expr.tail_else->label_id);       
+        tok.data.branch.t_branch
+            = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
+        tok.data.branch.f_branch
+            = cc_ssa_label_param(ctx, node->data.if_expr.tail_else->label_id);
         cc_ssa_push_token(ctx->ssa_current_func, tok);
         cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
-        cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param); 
+        cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
     } else {
         cc_ssa_token label_tok = { 0 };
         label_tok.type = SSA_TOKEN_LABEL;
         label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
         /* Tail else is null, we will have to synthetize a label after this if */
-        tok.data.branch.t_branch = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
-        tok.data.branch.f_branch = cc_ssa_label_param(ctx, label_tok.data.label_id);
+        tok.data.branch.t_branch
+            = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
+        tok.data.branch.f_branch
+            = cc_ssa_label_param(ctx, label_tok.data.label_id);
         cc_ssa_push_token(ctx->ssa_current_func, tok);
         cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
         cc_ssa_push_token(ctx->ssa_current_func, label_tok);
@@ -299,8 +314,10 @@ static void cc_ssa_process_jump(
         .value.u = 0,
     };
     tok.data.branch.eval = cc_ssa_literal_to_param(&literal);
-    tok.data.branch.t_branch = cc_ssa_label_param(ctx, node->data.jump_label_id);
-    tok.data.branch.f_branch = cc_ssa_label_param(ctx, node->data.jump_label_id);
+    tok.data.branch.t_branch
+        = cc_ssa_label_param(ctx, node->data.jump_label_id);
+    tok.data.branch.f_branch
+        = cc_ssa_label_param(ctx, node->data.jump_label_id);
     cc_ssa_push_token(ctx->ssa_current_func, tok);
 }
 
@@ -387,8 +404,7 @@ static void cc_ssa_process_variable(
     cc_ssa_push_token(ctx->ssa_current_func, tok);
 }
 
-static void cc_ssa_process_label(
-    cc_context* ctx, const cc_ast_node* node)
+static void cc_ssa_process_label(cc_context* ctx, const cc_ast_node* node)
 {
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_LABEL;
@@ -402,8 +418,8 @@ static void cc_ssa_from_ast(
 {
     if (node == NULL)
         return;
-    
-    if(node->ref_count > 0)
+
+    if (node->ref_count > 0)
         cc_ssa_process_label(ctx, node);
 
     switch (node->type) {
@@ -445,6 +461,131 @@ static void cc_ssa_from_ast(
     }
 }
 
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpassign_binop(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    if (tok->data.binop.left.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.left.data.tmpid == tmpid)
+        tok->data.binop.left = new_colour;
+
+    if (tok->data.binop.right.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.right.data.tmpid == tmpid)
+        tok->data.binop.right = new_colour;
+
+    if (tok->data.binop.extra.type == SSA_PARAM_TMPVAR
+        && tok->data.binop.extra.data.tmpid == tmpid)
+        tok->data.binop.extra = new_colour;
+}
+
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpassign_unop(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    if (tok->data.unop.left.type == SSA_PARAM_TMPVAR
+        && tok->data.unop.left.data.tmpid == tmpid)
+        tok->data.unop.left = new_colour;
+
+    if (tok->data.unop.right.type == SSA_PARAM_TMPVAR
+        && tok->data.unop.right.data.tmpid == tmpid)
+        tok->data.unop.right = new_colour;
+}
+
+/* Temporal assignment elimination */
+/* "Paint" an existing temporal variable into another parameter, for example
+   the following SSA:
+   
+   i32 tmp_0 = i32 var a
+   i32 tmp_1 = i32 0
+   i32 tmp_0 = i32 tmp_0 + i32 tmp_1
+   
+   Colouring allows us to replace them as:
+   i32 var a = i32 var a
+   i32 0 = i32 0
+   i32 var a = i32 var a + i32 0 */
+static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
+{
+    for (size_t i = 0; i < func->n_tokens; i++) {
+        cc_ssa_token* vtok = &func->tokens[i];
+        if (vtok->type != SSA_TOKEN_ASSIGN
+            || vtok->data.unop.left.type != SSA_PARAM_TMPVAR)
+            continue;
+
+        unsigned short tmpid = vtok->data.unop.left.data.tmpid;
+        for (size_t j = 0; j < func->n_tokens; j++) {
+            cc_ssa_token* tok = &func->tokens[j];
+            switch (tok->type) {
+            case SSA_TOKEN_ASSIGN:
+                cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
+                break;
+            case SSA_TOKEN_ADD:
+            case SSA_TOKEN_AND:
+            case SSA_TOKEN_BRANCH:
+            case SSA_TOKEN_CALL:
+            case SSA_TOKEN_COMPARE:
+            case SSA_TOKEN_DIV:
+                cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
+                break;
+            case SSA_TOKEN_RET:
+            case SSA_TOKEN_LABEL:
+            case SSA_TOKEN_ALLOCA:
+                /* No operation */
+                break;
+            default:
+                abort();
+            }
+        }
+    }
+}
+
+static bool cc_ssa_is_param_same(
+    const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2)
+{
+    if (p1->type != p2->type)
+        return false;
+    if (p1->type == SSA_PARAM_VARIABLE)
+        return strcmp(p1->data.var_name, p2->data.var_name) == 0;
+    return true;
+}
+
+static void cc_ssa_remove_assign_func(cc_ssa_func* func)
+{
+    for (size_t i = 0; i < func->n_tokens; i++) {
+        cc_ssa_token* tok = &func->tokens[i];
+        bool erase = false;
+
+        switch (tok->type) {
+        case SSA_TOKEN_ASSIGN:
+            erase = cc_ssa_is_param_same(&tok->data.unop.left, &tok->data.unop.right);
+            /* Remove read without side effect */
+            if(!erase && tok->data.unop.left.type == SSA_PARAM_NONE)
+                erase = true;
+            break;
+        default:
+            break;
+        }
+
+        if (erase) {
+            memmove(&func->tokens[i], &func->tokens[i + 1],
+                sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+            func->n_tokens--;
+            i--;
+        }
+    }
+}
+
+static void cc_ssa_colour_func(cc_ssa_func* func)
+{
+    cc_ssa_tmpassign_func(func);
+    cc_ssa_remove_assign_func(func);
+}
+
+static void cc_ssa_colour(cc_context* ctx)
+{
+    for (size_t i = 0; i < ctx->n_ssa_funcs; i++)
+        cc_ssa_colour_func(&ctx->ssa_funcs[i]);
+}
+
 static void cc_ssa_print_param(const cc_ssa_param* param)
 {
     printf("%s%u ", param->is_signed ? "i" : "u", param->size * 8);
@@ -458,22 +599,22 @@ static void cc_ssa_print_param(const cc_ssa_param* param)
             printf("%lu", param->data.constant.value.u);
         break;
     case SSA_PARAM_STRING_LITERAL:
-        printf("string (%u)\"%s\"", param->data.str_index, NULL);
+        printf("string_(%u)\"%s\"", param->data.str_index, NULL);
         break;
     case SSA_PARAM_VARIABLE:
-        printf("varptr(%s)", param->data.var_name);
+        printf("var_%s", param->data.var_name);
         break;
     case SSA_PARAM_TMPVAR:
-        printf("t%i", param->data.tmpid);
+        printf("tmp_%i", param->data.tmpid);
         break;
     case SSA_PARAM_NONE:
         printf("none");
         break;
     case SSA_PARAM_RETVAL:
-        printf("%%retval");
+        printf("retval");
         break;
     case SSA_PARAM_LABEL:
-        printf("L_%u", param->data.label_id);
+        printf("l_%u", param->data.label_id);
         break;
     default:
         abort();
@@ -498,8 +639,7 @@ static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
 
 static void cc_ssa_print_token(const cc_ssa_token* tok)
 {
-    if(tok->type == SSA_TOKEN_LABEL)
-    {
+    if (tok->type == SSA_TOKEN_LABEL) {
         printf("L_%u:\n", tok->data.label_id);
         return;
     }
@@ -649,6 +789,7 @@ void cc_ssa_top(cc_context* ctx)
 
     cc_ssa_param none_param = { 0 };
     cc_ssa_from_ast(ctx, ctx->root, none_param);
+    cc_ssa_colour(ctx);
 
     cc_ssa_print(ctx);
 }

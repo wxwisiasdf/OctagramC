@@ -4,6 +4,7 @@
 #include "context.h"
 #include "diag.h"
 #include "parser.h"
+#include "ssa.h"
 #include "util.h"
 #include <assert.h>
 #include <stdio.h>
@@ -36,21 +37,6 @@ typedef struct cc_mf370_context {
 
 static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
     "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
-
-static const char* cc_mf370_logical_label(const char* name)
-{
-    static char buf[8];
-    size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
-    memcpy(buf, name, n);
-    buf[n - 1] = '\0';
-
-    for (size_t i = 0; i < sizeof(buf); i++) {
-        if (buf[i] == '_')
-            buf[i] = '@';
-        buf[i] = toupper(buf[i]);
-    }
-    return buf;
-}
 
 unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
 {
@@ -98,11 +84,37 @@ unsigned int cc_mf370_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
+static const char* cc_mf370_logical_label(const char* name)
+{
+    static char buf[8];
+    size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
+    memcpy(buf, name, n);
+    buf[n - 1] = '\0';
+
+    for (size_t i = 0; i < sizeof(buf); i++) {
+        if (buf[i] == '_')
+            buf[i] = '@';
+        buf[i] = toupper(buf[i]);
+    }
+    return buf;
+}
+
+static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
+{
+
+}
+
+void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
+{
+    fprintf(ctx->out, "%s\n", cc_mf370_logical_label(func->ast_var->name));
+}
+
 static void cc_mf370_deinit(cc_context* ctx) { cc_free(ctx->asgen_data); }
 int cc_mf370_init(cc_context* ctx)
 {
     ctx->asgen_data = cc_zalloc(sizeof(cc_mf370_context));
     ctx->min_stack_alignment = 16;
     ctx->get_sizeof = &cc_mf370_get_sizeof;
+    ctx->process_ssa_func = &cc_mf370_process_func;
     return 0;
 }

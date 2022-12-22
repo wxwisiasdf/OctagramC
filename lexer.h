@@ -16,23 +16,46 @@
     LEXER_TOKEN_LIST_R(_Decimal32), \
     LEXER_TOKEN_LIST_R(_Noreturn), \
     LEXER_TOKEN_LIST_R(constexpr), \
+    LEXER_TOKEN_LIST_R(namespace), \
+    LEXER_TOKEN_LIST_R(protected), \
+    LEXER_TOKEN_LIST_R(override), \
     LEXER_TOKEN_LIST_R(_Generic), \
     LEXER_TOKEN_LIST_R(_Complex), \
+    LEXER_TOKEN_LIST_R(decltype), \
     LEXER_TOKEN_LIST_R(volatile), \
     LEXER_TOKEN_LIST_R(unsigned), \
     LEXER_TOKEN_LIST_R(restrict), \
     LEXER_TOKEN_LIST_R(register), \
     LEXER_TOKEN_LIST_R(continue), \
+    LEXER_TOKEN_LIST_R(noexcept), \
+    LEXER_TOKEN_LIST_R(operator), \
+    LEXER_TOKEN_LIST_R(template), \
+    LEXER_TOKEN_LIST_R(typename), \
+    LEXER_TOKEN_LIST_R(co_await), \
+    LEXER_TOKEN_LIST_R(co_yield), \
+    LEXER_TOKEN_LIST_R(reflexpr), \
+    LEXER_TOKEN_LIST_R(offsetof), \
+    LEXER_TOKEN_LIST_R(requires), \
+    LEXER_TOKEN_LIST_R(concept), \
     LEXER_TOKEN_LIST_R(alignas), \
     LEXER_TOKEN_LIST_R(alignof), \
     LEXER_TOKEN_LIST_R(default), \
+    LEXER_TOKEN_LIST_R(expects), \
+    LEXER_TOKEN_LIST_R(ensures), \
     LEXER_TOKEN_LIST_R(nullptr), \
     LEXER_TOKEN_LIST_R(_Atomic), \
     LEXER_TOKEN_LIST_R(_BitInt), \
+    LEXER_TOKEN_LIST_R(private), \
     LEXER_TOKEN_LIST_R(typedef), \
+    LEXER_TOKEN_LIST_R(virtual), \
+    LEXER_TOKEN_LIST_R(assert), \
+    LEXER_TOKEN_LIST_R(import), \
+    LEXER_TOKEN_LIST_R(export), \
+    LEXER_TOKEN_LIST_R(module), \
     LEXER_TOKEN_LIST_R(double), \
     LEXER_TOKEN_LIST_R(extern), \
     LEXER_TOKEN_LIST_R(inline), \
+    LEXER_TOKEN_LIST_R(public), \
     LEXER_TOKEN_LIST_R(return), \
     LEXER_TOKEN_LIST_R(signed), \
     LEXER_TOKEN_LIST_R(sizeof), \
@@ -40,13 +63,19 @@
     LEXER_TOKEN_LIST_R(struct), \
     LEXER_TOKEN_LIST_R(switch), \
     LEXER_TOKEN_LIST_R(typeof), \
+    LEXER_TOKEN_LIST_R(delete), \
     LEXER_TOKEN_LIST_R(break), \
+    LEXER_TOKEN_LIST_R(catch), \
     LEXER_TOKEN_LIST_R(const), \
+    LEXER_TOKEN_LIST_R(class), \
     LEXER_TOKEN_LIST_R(false), \
     LEXER_TOKEN_LIST_R(float), \
     LEXER_TOKEN_LIST_R(short), \
+    LEXER_TOKEN_LIST_R(throw), \
     LEXER_TOKEN_LIST_R(union), \
+    LEXER_TOKEN_LIST_R(using), \
     LEXER_TOKEN_LIST_R(while), \
+    LEXER_TOKEN_LIST_R(final), \
     LEXER_TOKEN_LIST_R(auto), \
     LEXER_TOKEN_LIST_R(bool), \
     LEXER_TOKEN_LIST_R(case), \
@@ -57,8 +86,13 @@
     LEXER_TOKEN_LIST_R(long), \
     LEXER_TOKEN_LIST_R(true), \
     LEXER_TOKEN_LIST_R(void), \
+    LEXER_TOKEN_LIST_R(this), \
+    LEXER_TOKEN_LIST_R(near), \
+    LEXER_TOKEN_LIST_R(new), \
     LEXER_TOKEN_LIST_R(for), \
     LEXER_TOKEN_LIST_R(int), \
+    LEXER_TOKEN_LIST_R(try), \
+    LEXER_TOKEN_LIST_R(far), \
     LEXER_TOKEN_LIST_1(ASSIGN_LSHIFT, "<<="), \
     LEXER_TOKEN_LIST_1(ASSIGN_RSHIFT, ">>="), \
     LEXER_TOKEN_LIST_1(ELLIPSIS, "..."), \
