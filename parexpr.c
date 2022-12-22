@@ -584,15 +584,47 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_LBRACKET: {
             cc_lex_token_consume(ctx);
 
+            /* Obtain the sizeof first and foremost! */
+            cc_ast_type vtype = { 0 };
+            if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
+                cc_diag_error(ctx, "Unable to deduce type");
+                goto error_handle;
+            }
+
+            if (vtype.n_cv_qual == 0) {
+                cc_diag_error(ctx, "Accessed array type is non-pointer");
+                goto error_handle;
+            }
+            vtype.n_cv_qual--;
+
             /* Create an expression of the form:
-                <unop deref <binop <array> + <index>>*/
+                <unop deref <binop <array> + <binop <sizeof-elem * <index>>*/
             cc_ast_node* arr_deref_node
                 = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
             cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
                 ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
             expr_node->parent = arr_index_node->data.binop.left;
             cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
-            cc_parse_expression(ctx, arr_index_node->data.binop.right);
+
+            /* Now right side of the addition expression, the multiplication
+               part... this is fun! */
+            cc_ast_node* arr_index_mul_node = cc_ast_create_binop_expr(
+                ctx, arr_index_node->data.binop.right, AST_BINOP_MUL);
+            cc_parse_expression(ctx, arr_index_mul_node->data.binop.left);
+            
+            cc_ast_node* arr_sizeof_node = cc_ast_create_literal(
+                ctx, arr_index_mul_node->data.binop.right, (cc_ast_literal) {
+                    .is_float = false,
+                    .is_signed = false,
+                    .value.u = ctx->get_sizeof(ctx, &vtype)
+                });
+            cc_ast_add_block_node(
+                arr_index_mul_node->data.binop.right, arr_sizeof_node);
+            
+            cc_ast_add_block_node(
+                arr_index_node->data.binop.right, arr_index_mul_node);
+
+            /* Wrap all of that and we obtain the address we wish! */
             cc_ast_add_block_node(
                 arr_deref_node->data.unop.child, arr_index_node);
             cc_ast_add_block_node(node, arr_deref_node);

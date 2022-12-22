@@ -7,8 +7,15 @@ int main(int argc, char **argv) {
 extern int printf(const char *, ...);
 
 constexpr int eval_test(int x) {
-    return (char)(1 * 64 * x);
+    return x;
 }
+
+struct [[packed]] [[align(eval_test(100))]] [[max_align(16)]] test {
+    int memb1;
+    short memb2;
+    long memb3;
+    float memb4;
+} t;
 
 enum sus {
     BANANA,
@@ -17,7 +24,7 @@ enum sus {
     KINNOW,
 };
 
-int dl_limit(int argc, char **argv) {
+[[nodiscard]] [[unknown_attr]] int dl_limit(int argc, char **argv) {
     enum sus fruit_type = 50;
 
     if (fruit_type > 10)
@@ -30,7 +37,12 @@ int dl_limit(int argc, char **argv) {
         break;
     }
 
+    fruit_type = alignof(int);
+    fruit_type = sizeof(int);
+
     c[-1] = 10;
+
+    c[2] = c[5];
 
     printf("Hello world!\n");
     return (char)eval_test(10);
