@@ -206,7 +206,7 @@ static void cc_mf370_gen_assign(
         enum cc_mf370_reg val_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 1);
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\t%s,%lu\n", reg_names[val_regno],
+            fprintf(ctx->out, "\tL\t%s,=F'%lu'\n", reg_names[val_regno],
                 rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tM\t%s,=F'-1'\n", reg_names[val_regno]);
@@ -237,7 +237,7 @@ static void cc_mf370_gen_assign(
     case SSA_PARAM_TMPVAR:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\tR0,%lu\n", rhs->data.constant.value.u);
+            fprintf(ctx->out, "\tL\tR0,=F'%lu'\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tM\tR0,-1\n");
             break;
@@ -256,7 +256,7 @@ static void cc_mf370_gen_assign(
     case SSA_PARAM_RETVAL:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\tR15,%lu\n", rhs->data.constant.value.u);
+            fprintf(ctx->out, "\tL\tR15,=F'%lu'\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tM\tR15,-1\n");
             break;
