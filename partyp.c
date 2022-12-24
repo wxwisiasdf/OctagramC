@@ -208,6 +208,7 @@ static bool cc_parse_enum_specifier(
 
     /* Syntax is <ident> = <const-expr> , */
     cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
+    memset(&type->data, 0, sizeof(type->data));
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
@@ -260,14 +261,19 @@ static bool cc_parse_enum_specifier(
             type->data.enumer.elems, type->data.enumer.n_elems + 1);
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
-        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COMMA, "Expected ','");
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_COMMA) {
+            cc_lex_token_consume(ctx);
+            continue;
+        }
+
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE)
             break;
     }
 
-    for (size_t i = 0; i < type->data.enumer.n_elems; i++)
-        for (size_t j = 0; j < type->data.enumer.n_elems; j++)
+    for (size_t i = 0; i < type->data.enumer.n_elems; i++) {
+        for (size_t j = 0; j < type->data.enumer.n_elems; j++) {
             if (i != j
                 && !memcmp(&type->data.enumer.elems[i].literal,
                     &type->data.enumer.elems[j].literal,
@@ -279,6 +285,8 @@ static bool cc_parse_enum_specifier(
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
                 goto error_handle;
             }
+        }
+    }
 
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
@@ -603,17 +611,80 @@ error_handle:
     return false;
 }
 
+static bool cc_parse_declarator_braced_initializer_element(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
+{
+    const cc_lexer_token* ctok;
+    bool named_element = false;
+
+    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_DOT) {
+        cc_lex_token_consume(ctx);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected 'ident'");
+    }
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_ASSIGN)
+        cc_parse_assignment_expression(ctx, node, var);
+    return true;
+error_handle:
+    return false;
+}
+
+bool cc_parse_declarator_braced_initializer(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_LBRACE) {
+        cc_lex_token_consume(ctx);
+        /* {0} is a shorthand to zero-initialize an structure */
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(ctok->data, "0")) {
+            cc_lex_token_consume(ctx);
+            /* TODO: Zero-initialize */
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_RBRACE) {
+            /* N2900 Consistent, Warningless, and Intuitive Initialization with {} */
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type != LEXER_TOKEN_RBRACE) {
+            while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type != LEXER_TOKEN_RBRACE) {
+                cc_parse_declarator_braced_initializer_element(ctx, node, var);
+                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                    && ctok->type == LEXER_TOKEN_COMMA) {
+                    cc_lex_token_consume(ctx);
+                    continue;
+                }
+                break;
+            }
+        }
+        /* Trailing declarator list comma */
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_COMMA)
+            cc_lex_token_consume(ctx);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+        return true;
+    }
+error_handle:
+    return false;
+}
+
 /* TODO: parse lbrace the brace thing for arrays wtf am i??? ?!?!?! */
 static bool cc_parse_declarator_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
-    cc_lexer_token* ctok;
+    const cc_lexer_token* ctok;
+    /* direct-declarator = { assignment-expr , } */
+    /* or direct-declarator = assignment-expr */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_ASSIGN
+        && (ctok = cc_lex_token_peek(ctx, 1)) != NULL
         && ctok->type == LEXER_TOKEN_LBRACE) {
         cc_lex_token_consume(ctx);
-        cc_parse_declarator_assignment_expression(ctx, node, var);
-        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
-    } else {
+        return cc_parse_declarator_braced_initializer(ctx, node, var);
+    } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_ASSIGN) {
         cc_ast_node* var_node = cc_ast_create_var_ref(ctx, node, var);
         while (cc_parse_assignment_expression(ctx, node, var)) {
             const cc_lexer_token* ctok;
@@ -624,8 +695,8 @@ static bool cc_parse_declarator_assignment_expression(
             }
             break;
         }
+        return true;
     }
-    return true;
 error_handle:
     return false;
 }

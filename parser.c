@@ -449,9 +449,11 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     if (var.name == NULL) {
         if (var.type.name == NULL) {
-            cc_diag_error(ctx,
-                "Anonymous external declaration of variable with type '%s'",
-                var.type.name);
+            if (var.type.mode == AST_TYPE_MODE_ENUM) {
+                cc_diag_warning(ctx, "Anonymous enum");
+                goto error_handle;
+            }
+            cc_diag_error(ctx, "Anonymous external declaration of variable");
             goto error_handle;
         } else {
             return true;

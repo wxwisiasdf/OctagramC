@@ -61,13 +61,14 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
 {
     for (size_t i = 0; i < ARRAY_SIZE(lexer_token_match); i++) {
         const char* m = lexer_token_match[i];
-        if (m != NULL) {
-            if (!strncmp(ctx->cptr, m, strlen(m))) {
-                if (ISSTARTIDENT(m[0]) && ISIDENT(ctx->cptr[strlen(m)]))
-                    continue;
-                ctx->cptr += strlen(m);
-                return (enum cc_lexer_token_type)i;
-            }
+        if (m == NULL)
+            continue;
+        
+        if (!strncmp(ctx->cptr, m, strlen(m))) {
+            if (ISSTARTIDENT(m[0]) && ISIDENT(ctx->cptr[strlen(m)]))
+                continue;
+            ctx->cptr += strlen(m);
+            return (enum cc_lexer_token_type)i;
         }
     }
     return LEXER_TOKEN_NONE;
@@ -77,6 +78,7 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
 {
     const char* s = p++;
     int base = 10;
+
     if (*s == '0') {
         switch (*p) {
         case 'x':
@@ -95,8 +97,9 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
             base = 10;
             break;
         default:
-            break;
+            return p++;
         }
+        p++;
     }
 
     switch (base) {

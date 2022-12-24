@@ -84,6 +84,7 @@
     LEXER_TOKEN_LIST_R(typeof), \
     LEXER_TOKEN_LIST_R(typeid), \
     LEXER_TOKEN_LIST_R(delete), \
+    LEXER_TOKEN_LIST_R(_Bool), \
     LEXER_TOKEN_LIST_R(break), \
     LEXER_TOKEN_LIST_R(catch), \
     LEXER_TOKEN_LIST_R(const), \
@@ -97,7 +98,6 @@
     LEXER_TOKEN_LIST_R(while), \
     LEXER_TOKEN_LIST_R(final), \
     LEXER_TOKEN_LIST_R(auto), \
-    LEXER_TOKEN_LIST_R(bool), \
     LEXER_TOKEN_LIST_R(case), \
     LEXER_TOKEN_LIST_R(char), \
     LEXER_TOKEN_LIST_R(else), \
@@ -114,6 +114,7 @@
     LEXER_TOKEN_LIST_R(try), \
     LEXER_TOKEN_LIST_R(far), \
     LEXER_TOKEN_LIST_R(asm), \
+    LEXER_TOKEN_LIST_1(SPACESHIP, "<=>"), \
     LEXER_TOKEN_LIST_1(ASSIGN_LSHIFT, "<<="), \
     LEXER_TOKEN_LIST_1(ASSIGN_RSHIFT, ">>="), \
     LEXER_TOKEN_LIST_1(ELLIPSIS, "..."), \
@@ -170,7 +171,7 @@
     LEXER_TOKEN_LIST_1(STRING_LITERAL, NULL)
 
 #define LEXER_TOKEN_LIST_1(x, v) LEXER_TOKEN_##x
-enum cc_lexer_token_type { LEXER_TOKEN_LIST, NUM_LEXER_TOKENS };
+enum cc_lexer_token_type { LEXER_TOKEN_LIST, NUM_LEXER_TOKENS, };
 #undef LEXER_TOKEN_LIST_1
 
 typedef struct cc_lexer_token {

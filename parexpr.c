@@ -749,6 +749,17 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
             if (cc_parse_declaration_specifier(
                     ctx, unop_node, &unop_node->data.unop.cast)) {
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+                /* Compound literal */
+                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type == LEXER_TOKEN_LBRACE) {
+                    /* Compound literals are a hidden variable */
+                    cc_ast_variable var = {0};
+                    /* TODO: Generate compound literal names */
+                    var.name = cc_strdup("__cnd_1");
+                    cc_ast_copy_type(&var.type, &unop_node->data.unop.cast);
+                    cc_parse_declarator_braced_initializer(ctx, node, &var);
+                    return true;
+                }
             } else { /* (unary-expresion) */
                 cc_ast_destroy_node(unop_node, true);
                 cc_ast_node* block_node = cc_ast_create_block(ctx, node);

@@ -34,12 +34,16 @@ typedef struct cc_ceval_io {
     cc_ast_literal literal;
 } cc_ceval_io;
 
-static cc_ast_literal cc_ceval_eval_cast_unop(cc_context* ctx,
-    cc_ast_node* node, cc_ceval_io** list, size_t* n_list,
-    const cc_ast_literal* child)
+static cc_ast_literal cc_ceval_eval_cast_unop(
+    cc_context* ctx, cc_ast_node* node, const cc_ast_literal* child)
 {
     const cc_ast_type* cast = &node->data.unop.cast;
     switch (cast->mode) {
+    case AST_TYPE_MODE_BOOL:
+        return (cc_ast_literal) { .is_float = false,
+            .is_signed = false,
+            .value.u
+            = (child->is_float ? child->value.d != 0.f : child->value.s != 0) };
     case AST_TYPE_MODE_CHAR:
         if (cast->data.num.is_signed)
             return (cc_ast_literal) { .is_float = false,
@@ -183,14 +187,19 @@ static cc_ast_literal cc_ceval_eval_1(
             CEVAL_OPERATOR(AST_BINOP_AND, &&);
             CEVAL_OPERATOR(AST_BINOP_OR, ||);
 #undef CEVAL_OPERATOR
-        case AST_BINOP_MOD:
-            if ((lhs.is_float && rhs.is_float)
-                || (!lhs.is_float && rhs.is_float)
-                || (lhs.is_float && !rhs.is_float))
-                cc_diag_error(ctx, "Modulous on float literal");
-            return (cc_ast_literal) { .is_signed = lhs.is_signed,
-                .is_float = false,
-                .value.u = lhs.value.u % rhs.value.u };
+#define CEVAL_OPERATOR(type, op)                                               \
+    case type: {                                                               \
+        if ((lhs.is_float && rhs.is_float) || (!lhs.is_float && rhs.is_float)  \
+            || (lhs.is_float && !rhs.is_float))                                \
+            cc_diag_error(ctx, "Modulous on float literal");                   \
+        return (cc_ast_literal) { .is_signed = lhs.is_signed,                  \
+            .is_float = false,                                                 \
+            .value.u = lhs.value.u op rhs.value.u };                           \
+    } break
+            CEVAL_OPERATOR(AST_BINOP_MOD, %);
+            CEVAL_OPERATOR(AST_BINOP_LSHIFT, <<);
+            CEVAL_OPERATOR(AST_BINOP_RSHIFT, >>);
+#undef CEVAL_OPERATOR
         default:
             cc_diag_error(ctx, "Unrecognized binop %i", node->data.binop.op);
             break;
@@ -219,13 +228,27 @@ static cc_ast_literal cc_ceval_eval_1(
         child = cc_ceval_eval_1(ctx, node->data.unop.child, list, n_list);
         switch (node->data.unop.op) {
         case AST_UNOP_CAST:
-            return cc_ceval_eval_cast_unop(ctx, node, list, n_list, &child);
+            return cc_ceval_eval_cast_unop(ctx, node, &child);
         default:
             break;
         }
         cc_ast_print(node);
         cc_diag_error(ctx, "Unknown unary node %i for consteval", node->type);
         break;
+    case AST_NODE_BLOCK:
+        /* Evaluate the last relevant operation, so:
+            return 1, 2;
+        Is evaluated as: (return 2;) */
+        return cc_ceval_eval_1(ctx,
+            &node->data.block.children[node->data.block.n_children - 1], list,
+            n_list);
+    case AST_NODE_IF:
+        child = cc_ceval_eval_1(ctx, node->data.if_expr.cond, list, n_list);
+        if (child.is_float
+                ? child.value.d != 0.f
+                : (child.is_signed ? child.value.s != 0 : child.value.u != 0))
+            return cc_ceval_eval_1(ctx, node->data.if_expr.block, list, n_list);
+        return cc_ceval_eval_1(ctx, node->data.if_expr.tail_else, list, n_list);
     default:
         cc_ast_print(node);
         cc_diag_error(ctx, "Unknown node %i for consteval", node->type);

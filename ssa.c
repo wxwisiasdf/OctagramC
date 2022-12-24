@@ -260,7 +260,7 @@ static cc_ssa_param cc_ssa_retval_param(
     return (cc_ssa_param) {
         .type = SSA_PARAM_RETVAL,
         .storage = SSA_STORAGE_AUTO,
-        .data = { 0 },
+        .data.var_name = NULL,
         .is_signed = ret_type->data.num.is_signed,
         .size = ctx->get_sizeof(ctx, ret_type),
         .version = 0,

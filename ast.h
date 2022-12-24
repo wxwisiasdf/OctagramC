@@ -49,7 +49,7 @@ enum cc_ast_type_mode {
     AST_TYPE_MODE_STRUCT,
     AST_TYPE_MODE_UNION,
     AST_TYPE_MODE_ENUM,
-    AST_TYPE_MODE_FUNCTION
+    AST_TYPE_MODE_FUNCTION,
 };
 
 typedef struct cc_ast_literal {
@@ -129,7 +129,7 @@ enum cc_ast_node_type {
     AST_NODE_LITERAL,
     AST_NODE_STRING_LITERAL,
     AST_NODE_SWITCH,
-    AST_NODE_REGISTER
+    AST_NODE_REGISTER,
 };
 
 enum cc_ast_binop_type {
