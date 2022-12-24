@@ -116,17 +116,17 @@ cc_ast_node* cc_ast_create_literal_from_str(
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
     cc_ast_literal* literal = &node->data.literal;
-    if(!memcmp(s, "0", 2)) {
+    if (!memcmp(s, "0", 2)) {
         literal->value.u = 0;
         literal->is_signed = ctx->is_default_signed;
         literal->is_float = false;
-    } else if(strchr(s, '.') != NULL) {
+    } else if (strchr(s, '.') != NULL) {
         literal->value.d = strtod(s, NULL);
         literal->is_signed = false;
         literal->is_float = true;
-    } else if(s[0] == '0' && !isdigit(s[1])) {
+    } else if (s[0] == '0' && !isdigit(s[1])) {
         int base = 10;
-        switch(s[1]) {
+        switch (s[1]) {
         case 'o':
             base = 8;
             break;
@@ -270,7 +270,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 {
     if (node == NULL)
         return;
-    
+
     assert(node->parent != node && node->ref_count == 0);
     switch (node->type) {
     case AST_NODE_STRING_LITERAL:

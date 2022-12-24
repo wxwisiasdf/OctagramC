@@ -672,7 +672,7 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         break;
     case LEXER_TOKEN___func__:
         cc_lex_token_consume(ctx);
-        if(ctx->ast_current_func == NULL)
+        if (ctx->ast_current_func == NULL)
             cc_diag_warning(ctx, "__func__ used outside of a function");
         expr_node = cc_ast_create_string_literal(ctx, node,
             ctx->ast_current_func != NULL ? ctx->ast_current_func->name : "");

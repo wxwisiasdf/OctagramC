@@ -105,34 +105,37 @@ int main(int argc, char** argv)
         cc_lex_deinit(&ctx); /* Lexer information no longer needed */
         if (!ctx.error_cnt) {
             ctx.stage = STAGE_AST;
-
             if (ctx.print_ast) {
                 printf("\nUnoptimized\n");
                 cc_ast_print(ctx.root);
                 printf("\n");
             }
-
             cc_optimizer_top(&ctx); /* Optimize the AST */
-
             if (ctx.print_ast) {
                 printf("\nOptimized\n");
                 cc_ast_print(ctx.root);
                 printf("\n");
             }
 
-            cc_ssa_top(&ctx);
-            for(size_t i = 0; i < ctx.n_ssa_funcs; i++)
-                ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
+            if (!ctx.error_cnt) {
+                ctx.stage = STAGE_SSA;
+                cc_ssa_top(&ctx);
+                cc_ast_destroy_node(ctx.root, true);
 
-            switch (target) {
-            case TARGET_GRAPHVIZ:
-                cc_graphviz_top(&ctx);
-                break;
-            default:
-                break;
+                if (!ctx.error_cnt) {
+                    ctx.stage = STAGE_CODEGEN;
+                    for (size_t i = 0; i < ctx.n_ssa_funcs; i++)
+                        ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
+                    switch (target) {
+                    case TARGET_GRAPHVIZ:
+                        cc_graphviz_top(&ctx);
+                        break;
+                    default:
+                        break;
+                    }
+                }
             }
         }
-        cc_ast_destroy_node(ctx.root, true);
         /*cc_backend_deinit(&ctx);*/
     }
 

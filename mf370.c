@@ -381,6 +381,8 @@ static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_CALL:
         cc_mf370_process_call(ctx, tok);
         break;
+    case SSA_TOKEN_ALLOCA:
+        break;
     default:
         abort();
     }

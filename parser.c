@@ -6,8 +6,8 @@
 #include "diag.h"
 #include "lexer.h"
 #include "optzer.h"
-#include "partyp.h"
 #include "parexpr.h"
+#include "partyp.h"
 #include "util.h"
 #include <assert.h>
 #include <stdbool.h>

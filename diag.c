@@ -4,6 +4,7 @@
 #include "context.h"
 #include "lexer.h"
 #include "parser.h"
+#include "ssa.h"
 #include "util.h"
 #include <assert.h>
 #include <stdarg.h>
@@ -64,6 +65,13 @@ static void cc_diag_common(
             cc_diag_print_diag(ctx, ctx->diag_node->info, severity, fmt, args);
         } else {
             fprintf(stderr, "<ast>\n");
+        }
+    } else if (ctx->stage == STAGE_SSA) {
+        if (ctx->ssa_current_tok != NULL) {
+            cc_diag_print_diag(
+                ctx, ctx->ssa_current_tok->info, severity, fmt, args);
+        } else {
+            fprintf(stderr, "<ssa>\n");
         }
     }
 }

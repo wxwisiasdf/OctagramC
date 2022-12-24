@@ -194,7 +194,8 @@ static void cc_as386_gen_assign(
                 fprintf(ctx->out, "\tmull\t$-1,%s\n", reg_names[val_regno]);
             break;
         case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmovl\t%s,%s\n", rhs->data.var_name, reg_names[val_regno]);
+            fprintf(ctx->out, "\tmovl\t%s,%s\n", rhs->data.var_name,
+                reg_names[val_regno]);
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%%edi,%s\n", reg_names[val_regno]);
@@ -202,12 +203,16 @@ static void cc_as386_gen_assign(
         case SSA_PARAM_REF_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%%edi,(%s)\n", reg_names[val_regno]);
             break;
+        case SSA_PARAM_STRING_LITERAL:
+            fprintf(ctx->out, "\tmovl\t$__ms_%u,%s\n", rhs->data.string.tmpid,
+                reg_names[val_regno]);
+            break;
         default:
             abort();
         }
 
         enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
-        fprintf(ctx->out, "\tmovl\t%s,%s\n", reg_names[ptr_regno],
+        fprintf(ctx->out, "\tmovl\t%s,%s\n", reg_names[val_regno],
             lhs->data.var_name);
         fprintf(ctx->out, "\tmovl\t%s,%s\n", reg_names[val_regno],
             reg_names[ptr_regno]);
@@ -217,7 +222,8 @@ static void cc_as386_gen_assign(
     case SSA_PARAM_TMPVAR:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tmovl\t$%lu,%%edi\n", rhs->data.constant.value.u);
+            fprintf(
+                ctx->out, "\tmovl\t$%lu,%%edi\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tmull\t$-1,%%edi\n");
             break;
@@ -234,7 +240,8 @@ static void cc_as386_gen_assign(
     case SSA_PARAM_RETVAL:
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tmovl\t%lu,%%eax\n", rhs->data.constant.value.u);
+            fprintf(
+                ctx->out, "\tmovl\t$%lu,%%eax\n", rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\tmull\t$-1,%%eax\n");
             break;
@@ -268,8 +275,8 @@ static void cc_as386_gen_call_param(
         fprintf(ctx->out, "\tmovl\t%%eax,%u(%%esp)\n", offset);
         break;
     case SSA_PARAM_STRING_LITERAL:
-        fprintf(ctx->out, "\tmovl\t$__ms_%u,%%eax\n", param->data.string.tmpid);
-        fprintf(ctx->out, "\tmovl\t%%eax,%u(%%esp)\n", offset);
+        fprintf(ctx->out, "\tmovl\t$__ms_%u,%%edi\n", param->data.string.tmpid);
+        fprintf(ctx->out, "\tmovl\t%%edi,%u(%%esp)\n", offset);
         break;
     default:
         abort();
@@ -372,6 +379,8 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_CALL:
         cc_as386_process_call(ctx, tok);
         break;
+    case SSA_TOKEN_ALLOCA:
+        break;
     default:
         abort();
     }
@@ -411,13 +420,13 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     const char* name = func->ast_var->name;
     /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
     fprintf(ctx->out, "%s:\n", name);
-    if(ctx->min_stack_alignment != 0)
+    if (ctx->min_stack_alignment != 0)
         fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
-    
+
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     memset(actx->regs, 0, sizeof(actx->regs));
     actx->stack_offset = 0;
-    for(size_t i = 0; i < func->ast_var->type.data.func.n_params; i++) {
+    for (size_t i = 0; i < func->ast_var->type.data.func.n_params; i++) {
         const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
         actx->stack_offset += ctx->get_sizeof(ctx, &param->type);
     }

@@ -2,6 +2,7 @@
 #define SSA_H 1
 
 #include "context.h"
+#include "diag.h"
 
 enum cc_ssa_param_type {
     SSA_PARAM_NONE, /* -- For temporaries */
@@ -94,8 +95,9 @@ enum cc_ssa_token_type {
     SSA_TOKEN_SIGN_EXT,
 };
 
-typedef struct {
+typedef struct cc_ssa_token {
     enum cc_ssa_token_type type;
+    cc_diag_info info;
     union {
         struct {
             cc_ssa_param left;
@@ -127,6 +129,7 @@ typedef struct {
 } cc_ssa_token;
 
 typedef struct cc_ssa_func {
+    const char* name;
     const struct cc_ast_variable* ast_var;
     cc_ssa_token* tokens;
     size_t n_tokens;
