@@ -401,7 +401,7 @@ error_handle:
 }
 
 static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
-    const cc_ast_variable* var, cc_ast_node** expr_result)
+    cc_ast_node* call_expr, cc_ast_node** expr_result)
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -410,9 +410,8 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
 
         /* Collect arguments (they can be optional) */
         cc_ast_node* call_node = cc_ast_create_call(ctx, node);
-        cc_ast_node* left_node
-            = cc_ast_create_var_ref(ctx, call_node->data.call.call_expr, var);
-
+        cc_ast_node* left_node = call_expr;
+        call_expr->parent = call_node->data.call.call_expr;
         /* Left side node (simple ident) */
         cc_ast_add_block_node(call_node->data.call.call_expr, left_node);
 
@@ -432,8 +431,8 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         *expr_result = call_node;
 
-        if (var->type.mode != AST_TYPE_MODE_FUNCTION)
-            cc_diag_error(ctx, "Calling non-function variable");
+        /*if (var->type.mode != AST_TYPE_MODE_FUNCTION)
+            cc_diag_error(ctx, "Calling non-function variable");*/
         return true;
     error_handle:
         cc_ast_destroy_node(call_node, true);
@@ -544,6 +543,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
 
         /* Obtain the sizeof first and foremost! */
         cc_ast_type vtype = { 0 };
+        /* Temporarily chage parenting to master node so variable and type
+           lookup can be done */
+        expr_node->parent = node;
         if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
             cc_diag_error(ctx, "Unable to deduce type");
             goto error_handle;
@@ -620,6 +622,13 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                 var_node->data.var.name, type.name);
     }
         return true;
+    case LEXER_TOKEN_LPAREN: {
+        cc_ast_node* result_node;
+        cc_parse_unary_call(ctx, node, expr_node, &result_node);
+        result_node->parent = node;
+        cc_ast_add_block_node(node, result_node);
+    }
+        return true;
     default:
         break;
     }
@@ -654,15 +663,7 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
             goto error_handle;
         }
-
-        if (cc_parse_unary_call(ctx, node, var, &expr_node)) {
-            /* Parsed the call.. */
-        } else { /* Not a call, just a variable reference */
-            if (var->type.mode == AST_TYPE_MODE_FUNCTION)
-                cc_diag_error(
-                    ctx, "Expected call for function '%s()'", var->name);
-            expr_node = cc_ast_create_var_ref(ctx, node, var);
-        }
+        expr_node = cc_ast_create_var_ref(ctx, node, var);
         matched_any = true;
     } break;
     case LEXER_TOKEN_STRING_LITERAL:
@@ -751,13 +752,14 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
                 /* Compound literal */
                 if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                && ctok->type == LEXER_TOKEN_LBRACE) {
+                    && ctok->type == LEXER_TOKEN_LBRACE) {
                     /* Compound literals are a hidden variable */
-                    cc_ast_variable var = {0};
+                    cc_ast_variable var = { 0 };
                     /* TODO: Generate compound literal names */
                     var.name = cc_strdup("__cnd_1");
                     cc_ast_copy_type(&var.type, &unop_node->data.unop.cast);
                     cc_parse_declarator_braced_initializer(ctx, node, &var);
+                    cc_ast_add_block_variable(node, &var);
                     return true;
                 }
             } else { /* (unary-expresion) */
