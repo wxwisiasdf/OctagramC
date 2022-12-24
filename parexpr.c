@@ -465,7 +465,7 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         of a concise expression, otherwise we have to stick with another
         unary expression. */
     cc_ast_type virtual_type = { 0 };
-    virtual_type.is_signed = ctx->is_default_signed;
+    virtual_type.data.num.is_signed = ctx->is_default_signed;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
         cc_lex_token_consume(ctx);
@@ -512,6 +512,117 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
             .is_float = false, .is_signed = false, .value.u = r });
     cc_ast_add_block_node(node, literal_node);
     return true;
+error_handle:
+    return false;
+}
+
+static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
+    cc_ast_node* expr_node, bool* parent_rerouted)
+{
+    /* With postfix increment we will do a:
+        <unop <op> <expr-node>> */
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+
+    switch (ctok->type) {
+    case LEXER_TOKEN_INCREMENT:
+    case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
+        cc_lex_token_consume(ctx); /* <unop <postinc> <expr>> */
+        cc_ast_node* pi_node = cc_ast_create_unop_expr(ctx, node,
+            ctok->type == LEXER_TOKEN_INCREMENT ? AST_UNOP_POSTINC
+                                                : AST_UNOP_POSTDEC);
+        expr_node->parent = pi_node->data.unop.child;
+        *parent_rerouted = true;
+        cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
+        cc_ast_add_block_node(node, pi_node);
+    }
+        return true;
+    /* Array accessor <expr>[<expr>] syntax */
+    case LEXER_TOKEN_LBRACKET: {
+        cc_lex_token_consume(ctx);
+
+        /* Obtain the sizeof first and foremost! */
+        cc_ast_type vtype = { 0 };
+        if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
+            cc_diag_error(ctx, "Unable to deduce type");
+            goto error_handle;
+        }
+
+        if (!vtype.n_cv_qual) {
+            cc_diag_error(ctx, "Accessed array type is non-pointer");
+            cc_ast_node* tmp_node = cc_ast_create_block(ctx, node);
+            cc_parse_expression(ctx, tmp_node);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+            cc_ast_destroy_node(tmp_node, true);
+            goto error_handle;
+        }
+        vtype.n_cv_qual--;
+
+        /* Create an expression of the form:
+            <unop deref <binop <array> + <binop <sizeof-elem * <index>>*/
+        cc_ast_node* arr_deref_node
+            = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
+        cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
+            ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
+        expr_node->parent = arr_index_node->data.binop.left;
+        *parent_rerouted = true;
+        cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
+
+        /* Now right side of the addition expression, the multiplication
+            part... this is fun! */
+        cc_ast_node* arr_index_mul_node = cc_ast_create_binop_expr(
+            ctx, arr_index_node->data.binop.right, AST_BINOP_MUL);
+        cc_parse_expression(ctx, arr_index_mul_node->data.binop.left);
+
+        cc_ast_node* arr_sizeof_node
+            = cc_ast_create_literal(ctx, arr_index_mul_node->data.binop.right,
+                (cc_ast_literal) { .is_float = false,
+                    .is_signed = false,
+                    .value.u = ctx->get_sizeof(ctx, &vtype) });
+        cc_ast_add_block_node(
+            arr_index_mul_node->data.binop.right, arr_sizeof_node);
+
+        cc_ast_add_block_node(
+            arr_index_node->data.binop.right, arr_index_mul_node);
+
+        /* Wrap all of that and we obtain the address we wish! */
+        cc_ast_add_block_node(arr_deref_node->data.unop.child, arr_index_node);
+        cc_optimizer_expr_condense(ctx, &arr_deref_node, true);
+        if (arr_deref_node == NULL) {
+            cc_diag_error(ctx, "Empty array access");
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+            goto error_handle;
+        }
+        cc_ast_add_block_node(node, arr_deref_node);
+
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+    }
+        return true;
+    case LEXER_TOKEN_DOT:
+    case LEXER_TOKEN_ARROW: {
+        cc_lex_token_consume(ctx);
+        cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
+            ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT : AST_BINOP_ARROW);
+        expr_node->parent = accessor_node->data.binop.left;
+        *parent_rerouted = true;
+        cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
+        cc_ast_node* var_node = cc_ast_create_field_ref(
+            ctx, accessor_node->data.binop.right, ctok->data);
+        cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
+        cc_ast_add_block_node(node, accessor_node);
+
+        cc_ast_type type = { 0 };
+        cc_ceval_deduce_type(ctx, expr_node, &type);
+        if (!cc_ast_is_field_of(&type, var_node->data.var.name))
+            cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
+                var_node->data.var.name, type.name);
+    }
+        return true;
+    default:
+        break;
+    }
 error_handle:
     return false;
 }
@@ -563,103 +674,9 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         expr_node = cc_ast_create_block(ctx, node);
         break;
     }
-
-    /* With postfix increment we will do a:
-        <unop <op> <expr-node>> */
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        switch (ctok->type) {
-        case LEXER_TOKEN_INCREMENT:
-        case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
-            cc_lex_token_consume(ctx); /* <unop <postinc> <expr>> */
-            cc_ast_node* pi_node = cc_ast_create_unop_expr(ctx, node,
-                ctok->type == LEXER_TOKEN_INCREMENT ? AST_UNOP_POSTINC
-                                                    : AST_UNOP_POSTDEC);
-            expr_node->parent = pi_node->data.unop.child;
-            cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
-            cc_ast_add_block_node(node, pi_node);
-            parent_rerouted = true;
-            matched_any = true;
-        } break;
-        /* Array accessor <expr>[<expr>] syntax */
-        case LEXER_TOKEN_LBRACKET: {
-            cc_lex_token_consume(ctx);
-
-            /* Obtain the sizeof first and foremost! */
-            cc_ast_type vtype = { 0 };
-            if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
-                cc_diag_error(ctx, "Unable to deduce type");
-                goto error_handle;
-            }
-
-            if (vtype.n_cv_qual == 0) {
-                cc_diag_error(ctx, "Accessed array type is non-pointer");
-                goto error_handle;
-            }
-            vtype.n_cv_qual--;
-
-            /* Create an expression of the form:
-                <unop deref <binop <array> + <binop <sizeof-elem * <index>>*/
-            cc_ast_node* arr_deref_node
-                = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
-            cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
-                ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
-            expr_node->parent = arr_index_node->data.binop.left;
-            cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
-
-            /* Now right side of the addition expression, the multiplication
-               part... this is fun! */
-            cc_ast_node* arr_index_mul_node = cc_ast_create_binop_expr(
-                ctx, arr_index_node->data.binop.right, AST_BINOP_MUL);
-            cc_parse_expression(ctx, arr_index_mul_node->data.binop.left);
-            
-            cc_ast_node* arr_sizeof_node = cc_ast_create_literal(
-                ctx, arr_index_mul_node->data.binop.right, (cc_ast_literal) {
-                    .is_float = false,
-                    .is_signed = false,
-                    .value.u = ctx->get_sizeof(ctx, &vtype)
-                });
-            cc_ast_add_block_node(
-                arr_index_mul_node->data.binop.right, arr_sizeof_node);
-            
-            cc_ast_add_block_node(
-                arr_index_node->data.binop.right, arr_index_mul_node);
-
-            /* Wrap all of that and we obtain the address we wish! */
-            cc_ast_add_block_node(
-                arr_deref_node->data.unop.child, arr_index_node);
-            cc_ast_add_block_node(node, arr_deref_node);
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
-            parent_rerouted = true;
-            matched_any = true;
-        } break;
-        case LEXER_TOKEN_DOT:
-        case LEXER_TOKEN_ARROW: {
-            cc_lex_token_consume(ctx);
-            cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
-                ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT
-                                              : AST_BINOP_ARROW);
-            expr_node->parent = accessor_node->data.binop.left;
-            cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
-            CC_PARSE_EXPECT(
-                ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
-            cc_ast_node* var_node = cc_ast_create_field_ref(
-                ctx, accessor_node->data.binop.right, ctok->data);
-            cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
-            cc_ast_add_block_node(node, accessor_node);
-            parent_rerouted = true;
-            matched_any = true;
-
-            cc_ast_type type = { 0 };
-            cc_ceval_deduce_type(ctx, expr_node, &type);
-            if (!cc_ast_is_field_of(&type, var_node->data.var.name)) {
-                cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
-                    var_node->data.var.name, type.name);
-            }
-        } break;
-        default:
-            break;
-        }
-    }
+    matched_any
+        = cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted)
+        || matched_any;
 finish_expr_setup:
     if (!parent_rerouted) {
         expr_node->parent = node;
@@ -725,8 +742,20 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                     ctx, unop_node, &unop_node->data.unop.cast)) {
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
             } else { /* (unary-expresion) */
-                cc_parse_expression(ctx, node);
+                cc_ast_destroy_node(unop_node, true);
+                cc_ast_node* block_node = cc_ast_create_block(ctx, node);
+                if (!cc_parse_expression(ctx, block_node)) {
+                    cc_diag_error(
+                        ctx, "Malformed expression within parenthesis");
+                    CC_PARSE_EXPECT(
+                        ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+                    goto error_handle;
+                }
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+
+                /* Optional unary expression after parenthesis */
+                cc_parse_unary_expression(ctx, block_node);
+                cc_ast_add_block_node(node, block_node);
                 return true;
             }
             break;
@@ -738,14 +767,14 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         if (binop_node != NULL) {
             cc_ast_add_block_node(binop_node->data.binop.left, literal_node);
             if (!cc_parse_unary_expression(ctx, binop_node->data.binop.right)) {
-                cc_diag_error(ctx, "Expected an unary expression for +/-");
+                cc_diag_error(ctx, "Expected an unary expression after binop");
                 goto error_handle;
             }
             cc_ast_add_block_node(node, binop_node);
             return true;
         } else if (unop_node != NULL) {
             if (!cc_parse_unary_expression(ctx, unop_node->data.unop.child)) {
-                cc_diag_error(ctx, "Expected an unary expression for ++/--");
+                cc_diag_error(ctx, "Expected an unary expression after unary");
                 goto error_handle;
             }
             cc_ast_add_block_node(node, unop_node);

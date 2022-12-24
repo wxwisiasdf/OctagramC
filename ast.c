@@ -120,6 +120,10 @@ cc_ast_node* cc_ast_create_literal_from_str(
         literal->value.u = 0;
         literal->is_signed = ctx->is_default_signed;
         literal->is_float = false;
+    } else if(strchr(s, '.') != NULL) {
+        literal->value.d = strtod(s, NULL);
+        literal->is_signed = false;
+        literal->is_float = true;
     } else if(s[0] == '0' && !isdigit(s[1])) {
         int base = 10;
         switch(s[1]) {
@@ -142,10 +146,6 @@ cc_ast_node* cc_ast_create_literal_from_str(
         literal->value.u = strtoul(&s[2], NULL, base);
         literal->is_signed = ctx->is_default_signed;
         literal->is_float = false;
-    } else if(strchr(s, '.') != NULL) {
-        literal->value.d = strtod(s, NULL);
-        literal->is_signed = false;
-        literal->is_float = true;
     } else {
         literal->value.u = strtoul(s, NULL, 10);
         literal->is_signed = ctx->is_default_signed;
@@ -446,6 +446,11 @@ void cc_ast_copy_type(
     memset(dest, 0, sizeof(*dest));
     dest->mode = src->mode;
 
+    dest->max_alignment = src->max_alignment;
+    dest->min_alignment = src->min_alignment;
+    dest->n_cv_qual = src->n_cv_qual;
+    memcpy(dest->cv_qual, src->cv_qual, sizeof(src->cv_qual));
+
     if (src->name != NULL)
         dest->name = cc_strdup(src->name);
 
@@ -493,6 +498,10 @@ void cc_ast_copy_type(
                 dest_member->name = cc_strdup(src_member->name);
             dest_member->literal = src_member->literal;
         }
+    } else {
+        dest->data.num.is_signed = src->data.num.is_signed;
+        dest->data.num.is_longer = src->data.num.is_longer;
+        dest->data.num.bitint_bits = src->data.num.bitint_bits;
     }
 }
 

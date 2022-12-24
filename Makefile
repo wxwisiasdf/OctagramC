@@ -6,7 +6,7 @@ all: build
 
 run: build
 #	valgrind --leak-check=full --track-origins=yes ./occ hello.in -370 -print-ast
-	gdb --args ./occ hello.in -370 -print-ast
+	gdb --args ./occ hello.in -print-ast
 
 build: occ
 

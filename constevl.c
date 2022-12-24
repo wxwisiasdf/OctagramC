@@ -34,6 +34,81 @@ typedef struct cc_ceval_io {
     cc_ast_literal literal;
 } cc_ceval_io;
 
+static cc_ast_literal cc_ceval_eval_cast_unop(cc_context* ctx,
+    cc_ast_node* node, cc_ceval_io** list, size_t* n_list,
+    const cc_ast_literal* child)
+{
+    const cc_ast_type* cast = &node->data.unop.cast;
+    switch (cast->mode) {
+    case AST_TYPE_MODE_CHAR:
+        if (cast->data.num.is_signed)
+            return (cc_ast_literal) { .is_float = false,
+                .is_signed = child->is_signed,
+                .value.s = (signed char)(child->is_float ? child->value.d
+                                                        : child->value.s) };
+        return (cc_ast_literal) { .is_float = false,
+            .is_signed = child->is_signed,
+            .value.s
+            = (unsigned char)(child->is_float ? child->value.d : child->value.u) };
+    case AST_TYPE_MODE_SHORT:
+        if (cast->data.num.is_signed)
+            return (cc_ast_literal) { .is_float = false,
+                .is_signed = child->is_signed,
+                .value.s = (signed short)(child->is_float ? child->value.d
+                                                         : child->value.s) };
+        return (cc_ast_literal) { .is_float = false,
+            .is_signed = child->is_signed,
+            .value.s = (unsigned short)(child->is_float ? child->value.d
+                                                       : child->value.u) };
+    case AST_TYPE_MODE_INT:
+        if (cast->data.num.is_signed)
+            return (cc_ast_literal) { .is_float = false,
+                .is_signed = child->is_signed,
+                .value.s = (signed int)(child->is_float ? child->value.d
+                                                       : child->value.s) };
+        return (cc_ast_literal) { .is_float = false,
+            .is_signed = child->is_signed,
+            .value.s
+            = (unsigned int)(child->is_float ? child->value.d : child->value.u) };
+    case AST_TYPE_MODE_LONG:
+        if (cast->data.num.is_signed)
+            return (cc_ast_literal) { .is_float = false,
+                .is_signed = child->is_signed,
+                .value.s = (signed long)(child->is_float ? child->value.d
+                                                        : child->value.s) };
+        return (cc_ast_literal) { .is_float = false,
+            .is_signed = child->is_signed,
+            .value.s
+            = (unsigned long)(child->is_float ? child->value.d : child->value.u) };
+    case AST_TYPE_MODE_FLOAT:
+        return (cc_ast_literal) {
+            .is_float = true,
+            .is_signed = child->is_signed,
+            .value.d = (float)(child->is_float
+                    ? child->value.d
+                    : (child->is_signed ? child->value.s : (float)child->value.u))
+        };
+    case AST_TYPE_MODE_DOUBLE:
+        return (cc_ast_literal) {
+            .is_float = true,
+            .is_signed = child->is_signed,
+            .value.d = (double)(child->is_float
+                    ? child->value.d
+                    : (child->is_signed ? child->value.s : (double)child->value.u))
+        };
+    default:
+        cc_ast_print(node);
+        cc_diag_error(ctx, "Unknown unop %i for consteval", node->data.unop.op);
+        break;
+    }
+error_handle:
+    return (cc_ast_literal) {
+        .is_signed = false,
+        .is_float = false,
+        .value.u = 0,
+    };
+}
+
 static cc_ast_literal cc_ceval_eval_1(
     cc_context* ctx, cc_ast_node* node, cc_ceval_io** list, size_t* n_list)
 {
@@ -146,75 +221,7 @@ static cc_ast_literal cc_ceval_eval_1(
         child = cc_ceval_eval_1(ctx, node->data.unop.child, list, n_list);
         switch (node->data.unop.op) {
         case AST_UNOP_CAST:
-            switch (node->data.unop.cast.mode) {
-            case AST_TYPE_MODE_CHAR:
-                if (node->data.unop.cast.is_signed)
-                    return (cc_ast_literal) { .is_float = false,
-                        .is_signed = child.is_signed,
-                        .value.s
-                        = (signed char)(child.is_float ? child.value.d
-                                                       : child.value.s) };
-                return (cc_ast_literal) { .is_float = false,
-                    .is_signed = child.is_signed,
-                    .value.s
-                    = (unsigned char)(child.is_float ? child.value.d
-                                                     : child.value.u) };
-            case AST_TYPE_MODE_SHORT:
-                if (node->data.unop.cast.is_signed)
-                    return (cc_ast_literal) { .is_float = false,
-                        .is_signed = child.is_signed,
-                        .value.s
-                        = (signed short)(child.is_float ? child.value.d
-                                                        : child.value.s) };
-                return (cc_ast_literal) { .is_float = false,
-                    .is_signed = child.is_signed,
-                    .value.s
-                    = (unsigned short)(child.is_float ? child.value.d
-                                                      : child.value.u) };
-            case AST_TYPE_MODE_INT:
-                if (node->data.unop.cast.is_signed)
-                    return (cc_ast_literal) { .is_float = false,
-                        .is_signed = child.is_signed,
-                        .value.s
-                        = (signed int)(child.is_float ? child.value.d
-                                                      : child.value.s) };
-                return (cc_ast_literal) { .is_float = false,
-                    .is_signed = child.is_signed,
-                    .value.s = (unsigned int)(child.is_float ? child.value.d
-                                                             : child.value.u) };
-            case AST_TYPE_MODE_LONG:
-                if (node->data.unop.cast.is_signed)
-                    return (cc_ast_literal) { .is_float = false,
-                        .is_signed = child.is_signed,
-                        .value.s
-                        = (signed long)(child.is_float ? child.value.d
-                                                       : child.value.s) };
-                return (cc_ast_literal) { .is_float = false,
-                    .is_signed = child.is_signed,
-                    .value.s
-                    = (unsigned long)(child.is_float ? child.value.d
-                                                     : child.value.u) };
-            case AST_TYPE_MODE_FLOAT:
-                return (cc_ast_literal) { .is_float = true,
-                    .is_signed = child.is_signed,
-                    .value.d = (float)(child.is_float
-                            ? child.value.d
-                            : (child.is_signed ? child.value.s
-                                               : (float)child.value.u)) };
-            case AST_TYPE_MODE_DOUBLE:
-                return (cc_ast_literal) { .is_float = true,
-                    .is_signed = child.is_signed,
-                    .value.d = (double)(child.is_float
-                            ? child.value.d
-                            : (child.is_signed ? child.value.s
-                                               : (double)child.value.u)) };
-            default:
-                cc_ast_print(node);
-                cc_diag_error(
-                    ctx, "Unknown unop %i for consteval", node->data.unop.op);
-                break;
-            }
-            break;
+            return cc_ceval_eval_cast_unop(ctx, node, list, n_list, &child);
         default:
             break;
         }
@@ -259,7 +266,8 @@ static unsigned int cc_ceval_get_rank(const cc_ast_type* type)
 {
     switch (type->mode) {
     case AST_TYPE_MODE_LONG:
-        return type->is_longer ? 9 : 8;
+    case AST_TYPE_MODE_FLOAT:
+        return type->data.num.is_longer ? 9 : 8;
     case AST_TYPE_MODE_ENUM:
     case AST_TYPE_MODE_INT:
         return 7;
@@ -323,7 +331,7 @@ bool cc_ceval_deduce_type(
     case AST_NODE_LITERAL:
         /* TODO: Literals with suffixes like zu, u, ul, etc */
         type->mode = AST_TYPE_MODE_INT;
-        type->is_signed = ctx->is_default_signed;
+        type->data.num.is_signed = ctx->is_default_signed;
         return true;
     case AST_NODE_BINOP:
         /* Assignments promote to their lvalue type */
@@ -383,12 +391,12 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     switch (node->type) {
     case AST_NODE_LITERAL:
         return true;
-    case AST_NODE_VARIABLE:
+    case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
         if (var->type.storage == AST_STORAGE_CONSTEXPR)
             return true;
-        return false;
+    } return false;
     default:
         return false;
     }

@@ -48,9 +48,11 @@ typedef struct {
         cc_ssa_constant constant;
         const char* var_name; /* Name of parameter */
         unsigned short tmpid; /* Temporal Id of variable */
-        unsigned short str_index; /* Index into the strings of the current
-                                     function */
         unsigned short label_id;
+        struct {
+            unsigned short tmpid;
+            const char* literal;
+        } string;
     } data;
 } cc_ssa_param;
 
@@ -137,6 +139,8 @@ cc_ssa_param cc_ssa_tempvar_param_1(
     cc_context* ctx, bool is_signed, unsigned short size);
 cc_ssa_param cc_ssa_tempvar_param(
     cc_context* ctx, const struct cc_ast_type* base_type);
+bool cc_ssa_is_param_same(
+    const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2);
 void cc_ssa_top(cc_context* ctx);
 
 #endif

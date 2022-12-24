@@ -129,7 +129,7 @@ bool cc_parse_struct_or_union_specifier(
             && ctok->type == LEXER_TOKEN_COLON) {
             cc_lex_token_consume(ctx);
             virtual_member.type.mode = AST_TYPE_MODE_BITINT;
-            virtual_member.type.bitint_bits = 0;
+            virtual_member.type.data.num.bitint_bits = 0;
 
             /* Constexpression follows, evaluate it nicely :) */
             cc_ast_literal literal = { 0 };
@@ -138,7 +138,7 @@ bool cc_parse_struct_or_union_specifier(
                 cc_diag_error(ctx, "Number of bits can't be negative");
                 goto error_handle;
             }
-            virtual_member.type.bitint_bits = literal.value.u;
+            virtual_member.type.data.num.bitint_bits = literal.value.u;
         }
         cc_ast_add_type_member(type, &virtual_member);
 
@@ -435,10 +435,20 @@ static bool cc_parse_type_specifier(
         type->mode = AST_TYPE_MODE_DOUBLE;
         break;
     case LEXER_TOKEN_signed:
-        type->is_signed = true;
-        break;
     case LEXER_TOKEN_unsigned:
-        type->is_signed = false;
+        if (type->mode == AST_TYPE_MODE_FLOAT
+            || type->mode == AST_TYPE_MODE_DOUBLE) {
+            cc_diag_error(
+                ctx, "Floating point can't have unsigned/signed specifiers");
+            cc_lex_token_consume(ctx);
+            goto error_handle;
+        }
+        if (type->mode == AST_TYPE_MODE_BOOL) {
+            cc_diag_error(ctx, "Boolean with signed/unsigned specifiers");
+            cc_lex_token_consume(ctx);
+            goto error_handle;
+        }
+        type->data.num.is_signed = ctok->type == LEXER_TOKEN_signed;
         break;
     case LEXER_TOKEN__BitInt: {
         type->mode = AST_TYPE_MODE_BITINT;
@@ -447,8 +457,13 @@ static bool cc_parse_type_specifier(
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
         cc_ast_literal literal = { 0 };
-        cc_parse_constant_expression(ctx, node, &literal);
-        type->bitint_bits = literal.value.u;
+        if (!cc_parse_constant_expression(ctx, node, &literal)) {
+            cc_diag_error(ctx, "Unable to parse expression");
+            type->data.num.bitint_bits = 1;
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+            goto error_handle;
+        }
+        type->data.num.bitint_bits = cc_ceval_literal_to_ushort(ctx, &literal);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } break;
     case LEXER_TOKEN__Bool:
@@ -558,7 +573,7 @@ bool cc_parse_declaration_specifier(
     const cc_lexer_token* ctok;
     bool qualified_once = false;
     type->storage = AST_STORAGE_AUTO;
-    type->is_signed = ctx->is_default_signed;
+    type->data.num.is_signed = ctx->is_default_signed;
 
     while (cc_parse_declaration_specifier_attributes(ctx, node, type))
         ;
@@ -589,7 +604,7 @@ error_handle:
 }
 
 /* TODO: parse lbrace the brace thing for arrays wtf am i??? ?!?!?! */
-bool cc_parse_declarator_assignment_expression(
+static bool cc_parse_declarator_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     cc_lexer_token* ctok;
@@ -621,7 +636,6 @@ bool cc_parse_declarator(
     cc_parse_declaration_specifier(ctx, node, &var->type);
 
     const cc_lexer_token* ctok;
-
     /* On cases such as struct b {} ; */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_SEMICOLON)
@@ -749,8 +763,11 @@ ignore_missing_ident:
             var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
 
         cc_ast_literal literal = { 0 };
-        cc_parse_constant_expression(ctx, node, &literal);
-        var->type.cv_qual[var->type.n_cv_qual].array_size = literal.value.u;
+        if (!cc_parse_constant_expression(ctx, node, &literal)) {
+            cc_diag_warning(ctx, "Variable length arrays are not supported");
+        }
+        var->type.cv_qual[var->type.n_cv_qual].array_size
+            = cc_ceval_literal_to_ushort(ctx, &literal);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 

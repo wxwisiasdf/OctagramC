@@ -4,9 +4,13 @@
 #include "context.h"
 #include "diag.h"
 #include "parser.h"
+#include "ssa.h"
 #include "util.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 enum cc_as386_reg_group {
     AS386_REG_GROUP_ALL,
@@ -29,10 +33,81 @@ static const char* reg_names[AS386_NUM_REGS]
     = { "%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "%ebp", "%esp" };
 
 typedef struct cc_as386_context {
-    int tmp;
+    bool regs[AS386_NUM_REGS];
+    bool temp[AS386_NUM_REGS];
+    unsigned int reg_mapping[AS386_NUM_REGS]; /* Reg mapping for tmpids */
+    unsigned int stack_offset;
 } cc_as386_context;
 
-unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
+static cc_as386_context* cc_as386_get_ctx(cc_context* ctx)
+{
+    return (cc_as386_context*)ctx->asgen_data;
+}
+
+static bool cc_as386_is_alloc_reg(enum cc_as386_reg regno)
+{
+    return !(regno == AS386_EBP || regno == AS386_ESP);
+}
+
+static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+        if (!cc_as386_is_alloc_reg(i))
+            continue;
+
+        if (!actx->regs[i]) {
+            actx->regs[i] = true;
+            actx->temp[i] = false;
+            return (enum cc_as386_reg)i;
+        }
+    }
+    abort();
+}
+
+static void cc_as386_regfree(cc_context* ctx, enum cc_as386_reg regno)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    actx->regs[regno] = false;
+}
+
+static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+        if (!cc_as386_is_alloc_reg(i))
+            continue;
+
+        if (actx->regs[i] && actx->reg_mapping[i] == tmpid) {
+            cc_as386_regfree(ctx, i);
+            return;
+        }
+    }
+    abort();
+}
+
+static enum cc_as386_reg cc_as386_get_tmpreg(
+    cc_context* ctx, unsigned int tmpid)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+        if (!cc_as386_is_alloc_reg(i))
+            continue;
+
+        if (actx->regs[i] && actx->reg_mapping[i] == tmpid)
+            return i;
+    }
+    abort();
+}
+
+static unsigned int cc_as386_get_alignof(
+    cc_context* ctx, const cc_ast_type* type)
+{
+    return 0;
+}
+
+static unsigned int cc_as386_get_sizeof(
+    cc_context* ctx, const cc_ast_type* type)
 {
     size_t sizeof_ptr = 4;
     if (type->n_cv_qual > 0) /* Pointer types */
@@ -51,6 +126,9 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
         return 2;
     case AST_TYPE_MODE_LONG:
         return 8;
+    case AST_TYPE_MODE_FLOAT:
+    case AST_TYPE_MODE_DOUBLE:
+        return 4;
     case AST_TYPE_MODE_FUNCTION:
         return sizeof_ptr;
     case AST_TYPE_MODE_ENUM:
@@ -78,6 +156,323 @@ unsigned int cc_as386_get_sizeof(cc_context* ctx, const cc_ast_type* type)
     return 0;
 }
 
+static unsigned int cc_as386_get_offsetof(
+    cc_context* ctx, const cc_ast_type* type, const char* field)
+{
+    assert(type->mode == AST_TYPE_MODE_STRUCT
+        || type->mode == AST_TYPE_MODE_UNION);
+
+    /* Unions have no offset */
+    if (type->mode == AST_TYPE_MODE_UNION)
+        return 0;
+
+    size_t upper_lim = 0;
+    for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+        size_t count = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+        if (!strcmp(type->data.s_or_u.members[i].name, field))
+            return upper_lim;
+        upper_lim = count > upper_lim ? count : upper_lim;
+    }
+    abort();
+}
+
+static void cc_as386_gen_assign(
+    cc_context* ctx, const cc_ssa_param* lhs, const cc_ssa_param* rhs)
+{
+    /* Redundant gen s*/
+    if (cc_ssa_is_param_same(lhs, rhs))
+        return;
+
+    switch (lhs->type) {
+    case SSA_PARAM_VARIABLE: {
+        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx);
+        switch (rhs->type) {
+        case SSA_PARAM_CONSTANT:
+            fprintf(ctx->out, "\tmovl\t%s,$%lu\n", reg_names[val_regno],
+                rhs->data.constant.value.u);
+            if (rhs->data.constant.is_negative)
+                fprintf(ctx->out, "\tmull\t%s,$-1\n", reg_names[val_regno]);
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tmovl\t%s,(%s)\n", reg_names[val_regno],
+                rhs->data.var_name);
+            fprintf(ctx->out, "\tmovl\t(%s),%%edi\n", reg_names[val_regno]);
+            break;
+        case SSA_PARAM_TMPVAR:
+            fprintf(ctx->out, "\tmovl\tR0,%s\n", reg_names[val_regno]);
+            break;
+        case SSA_PARAM_REF_TMPVAR:
+            fprintf(ctx->out, "\tmovl\t%%edi,(%s)\n", reg_names[val_regno]);
+            break;
+        default:
+            abort();
+        }
+
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
+        fprintf(ctx->out, "\tmovl\t%s,(%s)\n", reg_names[ptr_regno],
+            lhs->data.var_name);
+        fprintf(ctx->out, "\tmovl\t%s,(%s)\n", reg_names[val_regno],
+            reg_names[ptr_regno]);
+        cc_as386_regfree(ctx, ptr_regno);
+        cc_as386_regfree(ctx, val_regno);
+    } break;
+    case SSA_PARAM_TMPVAR:
+        switch (rhs->type) {
+        case SSA_PARAM_CONSTANT:
+            fprintf(ctx->out, "\tL\tR0,%lu\n", rhs->data.constant.value.u);
+            if (rhs->data.constant.is_negative)
+                fprintf(ctx->out, "\tM\tR0,-1\n");
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tLA\tR0,=A(%s)\n", rhs->data.var_name);
+            fprintf(ctx->out, "\tL\tR0,(R0)\n");
+            break;
+        case SSA_PARAM_TMPVAR:
+            fprintf(ctx->out, "\tLR\tR0,R0\n");
+            break;
+        default:
+            abort();
+        }
+        break;
+    case SSA_PARAM_RETVAL:
+        switch (rhs->type) {
+        case SSA_PARAM_CONSTANT:
+            fprintf(ctx->out, "\tL\tR15,%lu\n", rhs->data.constant.value.u);
+            if (rhs->data.constant.is_negative)
+                fprintf(ctx->out, "\tM\tR15,-1\n");
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tLA\tR15,=A(%s)\n", rhs->data.var_name);
+            fprintf(ctx->out, "\tL\tR15,(R0)\n");
+            break;
+        case SSA_PARAM_TMPVAR:
+            fprintf(ctx->out, "\tLR\tR15,R0\n");
+            break;
+        default:
+            abort();
+        }
+        break;
+    default:
+        abort();
+    }
+}
+
+static void cc_as386_gen_call_param(
+    cc_context* ctx, const cc_ssa_param* param, unsigned short offset)
+{
+    switch (param->type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmovl\t(%s),%%edi\n", param->data.var_name);
+        fprintf(ctx->out, "\tmovl\t%%edi,%u(%%esp)\n", offset);
+        break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tmovl\t%%edi,%u(%%esp)\n", offset);
+        break;
+    case SSA_PARAM_RETVAL:
+        fprintf(ctx->out, "\tmovl\t%%eax,%u(%%esp)\n", offset);
+        break;
+    case SSA_PARAM_STRING_LITERAL:
+        fprintf(ctx->out, "\tmovl\t$__ms_%u,%%eax\n", param->data.string.tmpid);
+        fprintf(ctx->out, "\tmovl\t%%eax,%u(%%esp)\n", offset);
+        break;
+    default:
+        abort();
+    }
+}
+
+static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
+{
+    unsigned short offset = 0;
+    assert(tok->type == SSA_TOKEN_CALL);
+    for (size_t i = 0; i < tok->data.call.n_params; i++) {
+        const cc_ssa_param* param = &tok->data.call.params[i];
+        cc_as386_gen_call_param(ctx, param, offset);
+        offset += param->size;
+    }
+
+    const cc_ssa_param* call_param = &tok->data.call.right;
+    switch (call_param->type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmovl\t(%s),%%edi\n", call_param->data.var_name);
+        fprintf(ctx->out, "\tcall\t%%edi\n");
+        break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tcall\t%%edi\n");
+        break;
+    case SSA_PARAM_RETVAL:
+        fprintf(ctx->out, "\tmovl\t%%eax,%%edi\n");
+        fprintf(ctx->out, "\tcall\t%%edi\n");
+        break;
+    default:
+        abort();
+    }
+}
+
+static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
+{
+    cc_ssa_param lhs = tok->data.binop.left;
+    cc_ssa_param rhs[2];
+    rhs[0] = tok->data.binop.right;
+    rhs[1] = tok->data.binop.extra;
+
+    cc_ssa_param tmp[2];
+    tmp[0] = cc_ssa_tempvar_param_1(ctx, false, 4);
+    tmp[1] = cc_ssa_tempvar_param_1(ctx, false, 4);
+    cc_as386_gen_assign(ctx, &tmp[0], &rhs[0]);
+    cc_as386_gen_assign(ctx, &tmp[1], &rhs[1]);
+
+    const char* insn_name;
+    switch (tok->type) {
+    case SSA_TOKEN_ADD:
+        insn_name = "add";
+        break;
+    case SSA_TOKEN_SUB:
+        insn_name = "sub";
+        break;
+    case SSA_TOKEN_MUL:
+        insn_name = "mul";
+        break;
+    case SSA_TOKEN_DIV:
+        insn_name = "div";
+        break;
+    case SSA_TOKEN_OR:
+        insn_name = "or";
+        break;
+    case SSA_TOKEN_XOR:
+        insn_name = "xor";
+        break;
+    case SSA_TOKEN_AND:
+        insn_name = "and";
+        break;
+    default:
+        abort();
+    }
+
+    fprintf(ctx->out, "\t%sl\t%%edi,%%edi\n", insn_name);
+    cc_as386_gen_assign(ctx, &lhs, &tmp[0]);
+}
+
+static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
+{
+    switch (tok->type) {
+    case SSA_TOKEN_RET:
+        fprintf(ctx->out, "\tret\n");
+        break;
+    case SSA_TOKEN_LABEL:
+        fprintf(ctx->out, "l_%i:\n", tok->data.label_id);
+        break;
+    case SSA_TOKEN_ADD:
+    case SSA_TOKEN_SUB:
+    case SSA_TOKEN_MUL:
+    case SSA_TOKEN_DIV:
+    case SSA_TOKEN_OR:
+    case SSA_TOKEN_XOR:
+    case SSA_TOKEN_AND:
+        cc_as386_gen_binop_arith(ctx, tok);
+        break;
+    case SSA_TOKEN_ASSIGN:
+        cc_as386_gen_assign(ctx, &tok->data.unop.left, &tok->data.unop.right);
+        break;
+    case SSA_TOKEN_CALL:
+        cc_as386_process_call(ctx, tok);
+        break;
+    default:
+        abort();
+    }
+}
+
+static void cc_as386_colstring_param(cc_context* ctx, const cc_ssa_param* param)
+{
+    if (param->type == SSA_PARAM_STRING_LITERAL)
+        fprintf(ctx->out, "__ms_%u:\n\t.ascii '%s'\n", param->data.string.tmpid,
+            param->data.string.literal);
+}
+
+/* Helper function for cc_as386_colstring_func */
+static void cc_as386_colstring_binop(cc_context* ctx, const cc_ssa_token* tok)
+{
+    cc_as386_colstring_param(ctx, &tok->data.binop.left);
+    cc_as386_colstring_param(ctx, &tok->data.binop.right);
+    cc_as386_colstring_param(ctx, &tok->data.binop.extra);
+}
+
+/* Helper function for cc_as386_colstring_func */
+static void cc_as386_colstring_unop(cc_context* ctx, const cc_ssa_token* tok)
+{
+    cc_as386_colstring_param(ctx, &tok->data.unop.left);
+    cc_as386_colstring_param(ctx, &tok->data.unop.right);
+}
+
+/* Helper function for cc_as386_colstring_func */
+static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
+{
+    for (size_t i = 0; i < tok->data.call.n_params; i++)
+        cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
+}
+
+void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
+{
+    const char* name = func->ast_var->name;
+    /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
+    fprintf(ctx->out, "%s:\n", name);
+    if(ctx->min_stack_alignment != 0)
+        fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
+    
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    memset(actx->regs, 0, sizeof(actx->regs));
+    actx->stack_offset = 0;
+    for(size_t i = 0; i < func->ast_var->type.data.func.n_params; i++) {
+        const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
+        actx->stack_offset += ctx->get_sizeof(ctx, &param->type);
+    }
+    fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
+
+    /* Process all tokens of this function */
+    for (size_t i = 0; i < func->n_tokens; i++)
+        cc_as386_process_token(ctx, &func->tokens[i]);
+
+    for (size_t i = 0; i < func->n_tokens; i++) {
+        const cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_ZERO_EXT:
+        case SSA_TOKEN_SIGN_EXT:
+            cc_as386_colstring_unop(ctx, tok);
+            break;
+        case SSA_TOKEN_ADD:
+        case SSA_TOKEN_SUB:
+        case SSA_TOKEN_AND:
+        case SSA_TOKEN_BRANCH:
+        case SSA_TOKEN_COMPARE:
+        case SSA_TOKEN_DIV:
+        case SSA_TOKEN_MUL:
+        case SSA_TOKEN_OR:
+        case SSA_TOKEN_XOR:
+        case SSA_TOKEN_GT:
+        case SSA_TOKEN_GTE:
+        case SSA_TOKEN_LT:
+        case SSA_TOKEN_LTE:
+        case SSA_TOKEN_EQ:
+        case SSA_TOKEN_NEQ:
+            cc_as386_colstring_binop(ctx, tok);
+            break;
+        case SSA_TOKEN_CALL:
+            cc_as386_colstring_call(ctx, tok);
+            break;
+        case SSA_TOKEN_RET:
+        case SSA_TOKEN_LABEL:
+        case SSA_TOKEN_ALLOCA:
+            /* No operation */
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+        case SSA_TOKEN_STORE_AT:
+            break;
+        default:
+            abort();
+        }
+    }
+}
+
 static void cc_as386_deinit(cc_context* ctx) { cc_free(ctx->asgen_data); }
 
 int cc_as386_init(cc_context* ctx)
@@ -85,5 +480,8 @@ int cc_as386_init(cc_context* ctx)
     ctx->asgen_data = cc_zalloc(sizeof(cc_as386_context));
     ctx->min_stack_alignment = 16;
     ctx->get_sizeof = &cc_as386_get_sizeof;
+    ctx->get_alignof = &cc_as386_get_alignof;
+    ctx->get_offsetof = &cc_as386_get_offsetof;
+    ctx->process_ssa_func = &cc_as386_process_func;
     return 0;
 }

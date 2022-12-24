@@ -76,14 +76,16 @@ typedef struct cc_ast_type {
                                1 = <cv> *<cv> <type> <ident>;
                                2 = <cv> *<cv> *<cv> <type> <ident>;
                                and so on... */
-    bool is_signed : 1;
-    bool is_longer : 1; /* Is long-long or lon-double? */
     bool is_typedef : 1; /* Set for typedefs */
     char* name; /* Name is optional for some types */
-    unsigned char bitint_bits; /* _BitInt bits */
     unsigned short min_alignment;
     unsigned short max_alignment;
     union {
+        struct {
+            bool is_signed : 1;
+            bool is_longer : 1; /* Is long-long or long-double? */
+            unsigned char bitint_bits; /* _BitInt bits */
+        } num;
         struct {
             struct cc_ast_type* return_type;
             struct cc_ast_variable* params;

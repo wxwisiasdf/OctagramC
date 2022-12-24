@@ -21,7 +21,8 @@ static void cc_ssa_print_param(const cc_ssa_param* param)
             printf("%lu", param->data.constant.value.u);
         break;
     case SSA_PARAM_STRING_LITERAL:
-        printf("string_(%u)\"%s\"", param->data.str_index, NULL);
+        printf("string_%u_\"%s\"", param->data.string.tmpid,
+            param->data.string.literal);
         break;
     case SSA_PARAM_VARIABLE:
         printf("var_%s", param->data.var_name);
@@ -260,7 +261,7 @@ static cc_ssa_param cc_ssa_retval_param(
         .type = SSA_PARAM_RETVAL,
         .storage = SSA_STORAGE_AUTO,
         .data = { 0 },
-        .is_signed = ret_type->is_signed,
+        .is_signed = ret_type->data.num.is_signed,
         .size = ctx->get_sizeof(ctx, ret_type),
         .version = 0,
     };
@@ -303,7 +304,7 @@ cc_ssa_param cc_ssa_tempvar_param_1(
 cc_ssa_param cc_ssa_tempvar_param(cc_context* ctx, const cc_ast_type* base_type)
 {
     return cc_ssa_tempvar_param_1(
-        ctx, base_type->is_signed, ctx->get_sizeof(ctx, base_type));
+        ctx, base_type->data.num.is_signed, ctx->get_sizeof(ctx, base_type));
 }
 
 static void cc_ssa_push_token(cc_ssa_func* func, cc_ssa_token tok)
@@ -553,6 +554,7 @@ static void cc_ssa_process_return(
 static void cc_ssa_process_string_literal(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
+    assert(node->type == AST_NODE_STRING_LITERAL);
     cc_ssa_token tok = { 0 };
 
     /* const char* */
@@ -563,6 +565,8 @@ static void cc_ssa_process_string_literal(
         .is_signed = false,
         .storage = SSA_STORAGE_AUTO,
         .version = 0,
+        .data.string.tmpid = cc_ssa_get_unique_tmpid(ctx),
+        .data.string.literal = node->data.string_literal,
     };
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;
@@ -673,34 +677,37 @@ static void cc_ssa_from_ast(
     }
 }
 
+static void cc_ssa_tmpassign_param(
+    cc_ssa_param* param, unsigned short tmpid, cc_ssa_param new_colour)
+{
+    if (param->type == SSA_PARAM_TMPVAR && param->data.tmpid == tmpid)
+        *param = new_colour;
+}
+
 /* Helper function for cc_ssa_tmpassign_func */
 static void cc_ssa_tmpassign_binop(
     unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
 {
-    if (tok->data.binop.left.type == SSA_PARAM_TMPVAR
-        && tok->data.binop.left.data.tmpid == tmpid)
-        tok->data.binop.left = new_colour;
-
-    if (tok->data.binop.right.type == SSA_PARAM_TMPVAR
-        && tok->data.binop.right.data.tmpid == tmpid)
-        tok->data.binop.right = new_colour;
-
-    if (tok->data.binop.extra.type == SSA_PARAM_TMPVAR
-        && tok->data.binop.extra.data.tmpid == tmpid)
-        tok->data.binop.extra = new_colour;
+    cc_ssa_tmpassign_param(&tok->data.binop.left, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.binop.right, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.binop.extra, tmpid, new_colour);
 }
 
 /* Helper function for cc_ssa_tmpassign_func */
 static void cc_ssa_tmpassign_unop(
     unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
 {
-    if (tok->data.unop.left.type == SSA_PARAM_TMPVAR
-        && tok->data.unop.left.data.tmpid == tmpid)
-        tok->data.unop.left = new_colour;
+    cc_ssa_tmpassign_param(&tok->data.unop.left, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.unop.right, tmpid, new_colour);
+}
 
-    if (tok->data.unop.right.type == SSA_PARAM_TMPVAR
-        && tok->data.unop.right.data.tmpid == tmpid)
-        tok->data.unop.right = new_colour;
+static void cc_ssa_tmpassign_call(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    cc_ssa_tmpassign_param(&tok->data.call.left, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.call.right, tmpid, new_colour);
+    for (size_t i = 0; i < tok->data.call.n_params; i++)
+        cc_ssa_tmpassign_param(&tok->data.call.params[i], tmpid, new_colour);
 }
 
 /* Temporal assignment elimination */
@@ -736,7 +743,6 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_SUB:
             case SSA_TOKEN_AND:
             case SSA_TOKEN_BRANCH:
-            case SSA_TOKEN_CALL:
             case SSA_TOKEN_COMPARE:
             case SSA_TOKEN_DIV:
             case SSA_TOKEN_MUL:
@@ -749,6 +755,9 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_EQ:
             case SSA_TOKEN_NEQ:
                 cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
+                break;
+            case SSA_TOKEN_CALL:
+                cc_ssa_tmpassign_call(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_RET:
             case SSA_TOKEN_LABEL:
@@ -766,8 +775,7 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
 }
 
 /* Helper function for cc_ssa_mark_ref_func */
-static void cc_ssa_mark_ref_binop(
-    unsigned short tmpid, cc_ssa_token* tok)
+static void cc_ssa_mark_ref_binop(unsigned short tmpid, cc_ssa_token* tok)
 {
     if (tok->data.binop.left.type == SSA_PARAM_TMPVAR
         && tok->data.binop.left.data.tmpid == tmpid)
@@ -783,8 +791,7 @@ static void cc_ssa_mark_ref_binop(
 }
 
 /* Helper function for cc_ssa_mark_ref_func */
-static void cc_ssa_mark_ref_unop(
-    unsigned short tmpid, cc_ssa_token* tok)
+static void cc_ssa_mark_ref_unop(unsigned short tmpid, cc_ssa_token* tok)
 {
     if (tok->data.unop.left.type == SSA_PARAM_TMPVAR
         && tok->data.unop.left.data.tmpid == tmpid)
@@ -805,13 +812,13 @@ static void cc_ssa_mark_ref_func(const cc_ssa_func* func)
         switch (tok->type) {
         case SSA_TOKEN_LOAD_FROM:
             tmpid = tok->data.unop.left.data.tmpid;
-            if(tok->data.unop.left.type == SSA_PARAM_TMPVAR)
+            if (tok->data.unop.left.type == SSA_PARAM_TMPVAR)
                 tok->data.unop.left.type = SSA_PARAM_REF_TMPVAR;
             eval = true;
             break;
         case SSA_TOKEN_STORE_AT:
             tmpid = tok->data.unop.right.data.tmpid;
-            if(tok->data.unop.right.type == SSA_PARAM_TMPVAR)
+            if (tok->data.unop.right.type == SSA_PARAM_TMPVAR)
                 tok->data.unop.right.type = SSA_PARAM_REF_TMPVAR;
             eval = true;
             break;
@@ -819,7 +826,7 @@ static void cc_ssa_mark_ref_func(const cc_ssa_func* func)
             break;
         }
 
-        if(!eval)
+        if (!eval)
             continue;
 
         for (size_t j = 0; j < func->n_tokens; j++) {
@@ -863,7 +870,7 @@ static void cc_ssa_mark_ref_func(const cc_ssa_func* func)
     }
 }
 
-static bool cc_ssa_is_param_same(
+bool cc_ssa_is_param_same(
     const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2)
 {
     if (p1->type != p2->type)

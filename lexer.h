@@ -51,7 +51,7 @@
     LEXER_TOKEN_LIST_R(char16_t), \
     LEXER_TOKEN_LIST_R(char32_t), \
     LEXER_TOKEN_LIST_R(char8_t), \
-    LEXER_TOKEN_LIST_R(wchar_t), \
+    /*LEXER_TOKEN_LIST_R(wchar_t),*/ \
     LEXER_TOKEN_LIST_R(concept), \
     LEXER_TOKEN_LIST_R(alignas), \
     LEXER_TOKEN_LIST_R(alignof), \
