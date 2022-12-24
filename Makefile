@@ -18,7 +18,7 @@ clean:
 
 # ==============================================================================
 occ: diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
-	graphviz.c mf370.o as386.o ssa.o partyp.o parexpr.o
+	mf370.o as386.o ssa.o partyp.o parexpr.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 %.o: %.c %.h

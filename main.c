@@ -3,13 +3,15 @@
    preprocessor is available one could do:
    
    cpp -ansi file.c | awk '!/^#/' | awk NF */
+#ifdef TARGET_AS386
 #include "as386.h"
+#elif defined(TARGET_MF370)
+#include "mf370.h"
+#endif
 #include "ast.h"
 #include "context.h"
 #include "diag.h"
-#include "graphviz.h"
 #include "lexer.h"
-#include "mf370.h"
 #include "optzer.h"
 #include "parser.h"
 #include "ssa.h"
@@ -23,8 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum cc_output_target { TARGET_AS386, TARGET_MF370, TARGET_GRAPHVIZ };
-
 int main(int argc, char** argv)
 {
     const char* output_filename = "out.asm";
@@ -32,7 +32,6 @@ int main(int argc, char** argv)
     cc_context ctx = { 0 };
 
     cc_alloc_init(true);
-    enum cc_output_target target = TARGET_AS386;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-o")) {
             i++;
@@ -51,18 +50,9 @@ int main(int argc, char** argv)
             }
         } else if (!strcmp(argv[i], "-print-ast")) {
             ctx.print_ast = true;
-        } else if (!strcmp(argv[i], "-386")) {
-            target = TARGET_AS386;
-        } else if (!strcmp(argv[i], "-370")) {
-            target = TARGET_MF370;
-        } else if (!strcmp(argv[i], "-gviz")) {
-            target = TARGET_GRAPHVIZ;
         } else if (!strcmp(argv[i], "-h")) {
-            printf("cc23 - A compiler for the C23 language, targeting 370 and "
+            printf("occ - A compiler for the C23 language, targeting 370 and "
                    "386\n");
-            printf("-386\tGenerate 386 code\n");
-            printf("-370\tGenerate 370 code\n");
-            printf("-graphviz\tGenerate graphviz graphs\n");
             printf("-o [filename]\tSet output filename\n");
         } else {
             input_filename = argv[i];
@@ -92,14 +82,11 @@ int main(int argc, char** argv)
 
     cc_lex_top(&ctx); /* Start lexing and make the token stream*/
     if (!ctx.error_cnt) {
-        switch (target) {
-        case TARGET_AS386:
-            cc_as386_init(&ctx); /* Start generating the assembly code */
-            break;
-        case TARGET_MF370:
-            cc_mf370_init(&ctx);
-            break;
-        }
+#ifdef TARGET_AS386
+        cc_as386_init(&ctx); /* Start generating the assembly code */
+#else defined(TARGET_MF370)
+        cc_mf370_init(&ctx);
+#endif
 
         cc_parse_top(&ctx); /* Generate the AST */
         cc_lex_deinit(&ctx); /* Lexer information no longer needed */
@@ -126,13 +113,6 @@ int main(int argc, char** argv)
                     ctx.stage = STAGE_CODEGEN;
                     for (size_t i = 0; i < ctx.n_ssa_funcs; i++)
                         ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
-                    switch (target) {
-                    case TARGET_GRAPHVIZ:
-                        cc_graphviz_top(&ctx);
-                        break;
-                    default:
-                        break;
-                    }
                 }
             }
         }

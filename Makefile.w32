@@ -4,12 +4,12 @@ CC=gccwin
 LD=ldwin
 CFLAGS=-S -O2 -fno-common -std=c99 -I. -I../pdos/pdpclib -D__WIN32__ -D__NOBIVA__
 OBJS=as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
-     graphviz.o backend.o mf370.o
+     graphviz.o mf370.o ssa.o
 
 all: clean cc.exe
 
 cc.exe: $(OBJS)
-  $(LD) -s -o cc.exe ../pdos/pdpclib/w32start.o $(OBJS) ../pdos/pdpclib/msvcrt.a
+  $(LD) -s -o occ.exe ../pdos/pdpclib/w32start.o $(OBJS) ../pdos/pdpclib/msvcrt.a
 
 .c.o:
   $(CC) $(CFLAGS) $<
