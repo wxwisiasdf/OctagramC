@@ -223,8 +223,8 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                     : "<unknown>"),
             .column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf),
             .line = ctx->n_diag_infos
-                ? ctx->diag_infos[ctx->n_diag_infos - 1].line
-                : 0,
+                ? ctx->diag_infos[ctx->n_diag_infos - 1].line - 1
+                : 1,
         };
         ctx->tokens = cc_realloc(
             ctx->tokens, sizeof(*ctx->tokens) * (ctx->n_tokens + 1));
