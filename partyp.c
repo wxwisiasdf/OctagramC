@@ -821,8 +821,8 @@ ignore_missing_ident:
             cc_diag_error(ctx, "Array exceeds pointer depth size");
             goto error_handle;
         }
-        var->type.cv_qual[var->type.n_cv_qual].array_size = 0;
-        var->type.cv_qual[var->type.n_cv_qual].is_array = true;
+        cc_ast_type_cv* array_cv = &var->type.cv_qual[var->type.n_cv_qual];
+        array_cv->is_array = true;
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_static)
@@ -837,7 +837,7 @@ ignore_missing_ident:
         if (!cc_parse_constant_expression(ctx, node, &literal)) {
             cc_diag_warning(ctx, "Variable length arrays are not supported");
         }
-        var->type.cv_qual[var->type.n_cv_qual].array_size
+        array_cv->array_size
             = cc_ceval_literal_to_ushort(ctx, &literal);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
