@@ -432,9 +432,12 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             var.body = cc_ast_create_block(ctx, node);
             bool old_is_func_body = ctx->is_func_body;
             ctx->is_func_body = true;
+            cc_ast_variable* old_ast_current_func = ctx->ast_current_func;
+            ctx->ast_current_func = &var;
             while (cc_parse_compund_statment(ctx, var.body))
                 ;
             cc_optimizer_expr_condense(ctx, &var.body, true);
+            ctx->ast_current_func = old_ast_current_func;
             ctx->is_func_body = old_is_func_body;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
             break;

@@ -55,6 +55,7 @@ typedef struct cc_context {
     unsigned int tmpid;
     bool is_default_signed; /* Default signedness of integers */
     void (*process_ssa_func)(struct cc_context* ctx, const struct cc_ssa_func* func);
+    struct cc_ast_variable* ast_current_func;
 } cc_context;
 
 #endif

@@ -29,6 +29,7 @@
     LEXER_TOKEN_LIST_R(constinit), \
     LEXER_TOKEN_LIST_R(consteval), \
     LEXER_TOKEN_LIST_R(co_return), \
+    LEXER_TOKEN_LIST_R(__func__), \
     LEXER_TOKEN_LIST_R(override), \
     LEXER_TOKEN_LIST_R(_Generic), \
     LEXER_TOKEN_LIST_R(_Complex), \
