@@ -60,7 +60,7 @@ static void makefile_wat386(FILE* f)
     size_t i;
     fprintf(f, "CC=wcl386\n");
     fprintf(f, "CFLAGS=-za99\n");
-    fprintf(f, "all: clean %s.exe\n", project_name);
+    fprintf(f, "all: %s.exe\n", project_name);
     fprintf(f, "%s.exe:", project_name);
     for (i = 0; i < (sizeof(files) / sizeof(files[0])); i++) {
         const char* file = subst_extension(files[i], ".c", ".obj");
@@ -75,9 +75,8 @@ static void makefile_wat386(FILE* f)
     fprintf(f, "\n");
     fprintf(f, ".c.o:\n");
     fprintf(f, "  $(CC) $(CFLAGS) -c -q $<\n");
-    fprintf(f, "  rm -f $*.s\n");
     fprintf(f, "clean:\n");
-    fprintf(f, "  rm -f *.o %s.exe\n", project_name);
+    fprintf(f, "  del *.o %s.exe\n", project_name);
 }
 
 static void makefile_lnx(FILE* f)

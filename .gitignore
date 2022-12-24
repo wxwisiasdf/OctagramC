@@ -5,3 +5,5 @@
 occ
 *.jcl
 Makefile
+autogen
+*.in

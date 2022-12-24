@@ -84,7 +84,7 @@ int main(int argc, char** argv)
     if (!ctx.error_cnt) {
 #ifdef TARGET_AS386
         cc_as386_init(&ctx); /* Start generating the assembly code */
-#else defined(TARGET_MF370)
+#elif defined(TARGET_MF370)
         cc_mf370_init(&ctx);
 #endif
 
