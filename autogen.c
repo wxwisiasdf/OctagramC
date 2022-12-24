@@ -87,6 +87,7 @@ static const char* mvs_name(const char* s)
 
 static void mvs_jcl(FILE* f)
 {
+    static const char* dd_names[4] = { "SOURCE", "INCLUDE", "LINKLIB", "JCL" };
     size_t i;
     fprintf(f,
         "//PMALIAS JOB CLASS=C,REGION=0K\n"
@@ -102,32 +103,32 @@ static void mvs_jcl(FILE* f)
 
     fprintf(f,
         "//PMDELET JOB CLASS=C,REGION=0K\n"
-        "//CREATE   PROC PMPREF='%s'\n"
-        "//DELETE   EXEC PGM=IEFBR14\n"
-        "//DD1      DD DSN=&PMPREF..SOURCE,DISP=(MOD,DELETE),\n"
-        "//       UNIT=SYSALLDA,SPACE=(TRK,(0))\n"
-        "//DD2      DD DSN=&PMPREF..INCLUDE,DISP=(MOD,DELETE),\n"
-        "//       UNIT=SYSALLDA,SPACE=(TRK,(0))\n"
-        "//DD4     DD DSN=&PMPREF..LINKLIB,DISP=(MOD,DELETE),\n"
-        "//       UNIT=SYSALLDA,SPACE=(TRK,(0))\n"
-        "//DD5      DD DSN=&PMPREF..JCL,DISP=(MOD,DELETE),\n"
-        "//       UNIT=SYSALLDA,SPACE=(TRK,(0))\n"
-        "//ALLOC    EXEC PGM=IEFBR14\n"
+        "//CREATE   PROC PMPREF='%s'\n",
+        mvs_name(project_name));
+    fprintf(f, "//DELETE   EXEC PGM=IEFBR14\n");
+    for (i = 0; i < 4; i++)
+        fprintf(f,
+            "//DD%i      DD DSN=&PMPREF..%s,DISP=(MOD,DELETE),\n"
+            "//       UNIT=SYSALLDA,SPACE=(TRK,(0))\n",
+            (int)i + 1, dd_names[i]);
+    fprintf(f, "//ALLOC    EXEC PGM=IEFBR14\n");
+    fprintf(f,
         "//DD1      DD DSN=&PMPREF..SOURCE,DISP=(,CATLG),\n"
         "// DCB=(RECFM=VB,LRECL=255,BLKSIZE=6144),\n"
         "// SPACE=(6144,(99,99,44)),UNIT=SYSALLDA\n"
         "//DD2      DD DSN=&PMPREF..INCLUDE,DISP=(,CATLG),\n"
         "// DCB=(RECFM=VB,LRECL=255,BLKSIZE=6144),\n"
-        "// SPACE=(6144,(19,19,44)),UNIT=SYSALLDA\n"
+        "// SPACE=(6144,(19,19,44)),UNIT=SYSALLDA\n");
+    fprintf(f,
         "//DD4      DD DSN=&PMPREF..LINKLIB,DISP=(,CATLG),\n"
         "// DCB=(RECFM=U,LRECL=0,BLKSIZE=6144),\n"
         "// SPACE=(6144,(46,46,44),,,ROUND),UNIT=SYSALLDA\n"
         "//DD5      DD DSN=&PMPREF..JCL,DISP=(,CATLG),\n"
         "// DCB=(RECFM=FB,LRECL=80,BLKSIZE=6080),\n"
-        "// SPACE=(6080,(16,16,44)),UNIT=SYSALLDA\n"
+        "// SPACE=(6080,(16,16,44)),UNIT=SYSALLDA\n");
+    fprintf(f,
         "//         PEND\n"
-        "//S1 EXEC CREATE\n",
-        mvs_name(project_name));
+        "//S1 EXEC CREATE\n");
 
     fprintf(f,
         "//PMTRANSF JOB CLASS=C,REGION=0K\n"
@@ -138,14 +139,15 @@ static void mvs_jcl(FILE* f)
         "//COPY     EXEC PGM=IEBGENER\n"
         "//SYSUT1   DD DSN=HERC02.IN,DISP=OLD,\n"
         "//         UNIT=TAPE,VOL=SER=PCTOMF,LABEL=(1,NL),\n"
-        "//         DCB=(RECFM=U,LRECL=0,BLKSIZE=6144)\n"
+        "//         DCB=(RECFM=U,LRECL=0,BLKSIZE=6144)\n",
+        mvs_name(project_name));
+    fprintf(f,
         "//SYSUT2   DD DSN=&PMPREF..ALLZIPS,DISP=(,CATLG),\n"
         "//         SPACE=(6144,(200,200),RLSE),UNIT=SYSALLDA,\n"
         "//         DCB=(RECFM=U,LRECL=0,BLKSIZE=6144)\n"
         "//SYSIN    DD DUMMY\n"
         "//SYSPRINT DD SYSOUT=*\n"
-        "//         PEND\n",
-        mvs_name(project_name));
+        "//         PEND\n");
 
     fprintf(f,
         "//S1 EXEC TRANSFER\n"
@@ -189,7 +191,8 @@ static void mvs_jcl(FILE* f)
     fprintf(f,
         "//PMCMPLE JOB CLASS=C,REGION=0K\n"
         "//PMCMP   PROC PMPREF='%s',MEMBER='',GCCPREF='GCC',\n"
-        "// PDPPREF='PDPCLIB',\n", mvs_name(project_name));
+        "// PDPPREF='PDPCLIB',\n",
+        mvs_name(project_name));
     fprintf(f,
         "// COS1='-S %s',\n"
         "// COS2='-o dd:out -'\n",
@@ -200,19 +203,22 @@ static void mvs_jcl(FILE* f)
         "//STEPLIB  DD DSN=&GCCPREF..LINKLIB,DISP=SHR\n"
         "//SYSIN    DD DSN=&PMPREF..SOURCE(&MEMBER),DISP=SHR\n"
         "//INCLUDE  DD DSN=&PMPREF..INCLUDE,DISP=SHR,DCB=BLKSIZE=32720\n"
-        "//         DD DSN=&PDPPREF..INCLUDE,DISP=SHR\n"
+        "//         DD DSN=&PDPPREF..INCLUDE,DISP=SHR\n");
+    fprintf(f,
         "//SYSINCL  DD DSN=&PMPREF..INCLUDE,DISP=SHR,DCB=BLKSIZE=32720\n"
         "//         DD DSN=&PDPPREF..INCLUDE,DISP=SHR\n"
         "//OUT      DD DSN=&&TEMP1,DISP=(,PASS),UNIT=SYSALLDA,\n"
         "//            DCB=(LRECL=80,BLKSIZE=6080,RECFM=FB),\n"
-        "//            SPACE=(6080,(500,500))\n"
+        "//            SPACE=(6080,(500,500))\n");
+    fprintf(f,
         "//SYSPRINT DD SYSOUT=*\n"
         "//SYSTERM  DD SYSOUT=*\n"
         "//ASM      EXEC PGM=ASMA90,\n"
         "//            PARM='DECK,LIST',\n"
         "//            COND=(4,LT,COMP)\n"
         "//SYSLIB   DD DSN=SYS1.MACLIB,DISP=SHR,DCB=BLKSIZE=32720\n"
-        "//         DD DSN=&PDPPREF..MACLIB,DISP=SHR\n"
+        "//         DD DSN=&PDPPREF..MACLIB,DISP=SHR\n");
+    fprintf(f,
         "//SYSUT1   DD UNIT=SYSALLDA,SPACE=(CYL,(2,1))\n"
         "//SYSUT2   DD UNIT=SYSALLDA,SPACE=(CYL,(2,1))\n"
         "//SYSUT3   DD UNIT=SYSALLDA,SPACE=(CYL,(2,1))\n"
