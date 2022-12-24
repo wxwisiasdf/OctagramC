@@ -16,17 +16,35 @@ static const char* project_name = "occ";
 static const char* gcc_opt = "-DTARGET_AS386=1 -std=c99 -O3 -I.";
 static const char* pdpclib_path = "../pdos/pdpclib";
 
-/* Makefile for windows */
-static void makefile_win(FILE* f)
+static const char* subst_extension(
+    const char* str, const char* s1, const char* s2)
 {
+    static char tmpbuf[80];
+    char* s;
+    strcpy(tmpbuf, str);
+    if ((s = strstr(tmpbuf, s1)) != NULL) {
+        memcpy(s, s2, strlen(s2));
+        s[strlen(s2)] = '\0';
+    }
+    return tmpbuf;
+}
+
+/* Makefile for windows */
+static void makefile_gccwin(FILE* f)
+{
+    size_t i;
     fprintf(f, "AS=aswin\n");
     fprintf(f, "CC=gccwin\n");
     fprintf(f, "LD=ldwin\n");
     fprintf(f, "CFLAGS=%s -fno-common -D__WIN32__ -D__NOBIVA__ -I%s\n", gcc_opt,
         pdpclib_path);
-
     fprintf(f, "all: clean %s.exe\n", project_name);
-    fprintf(f, "%s.exe: $(OBJS)\n", project_name);
+    fprintf(f, "%s.exe: ", project_name);
+    for (i = 0; i < (sizeof(files) / sizeof(files[0])); i++) {
+        const char* file = subst_extension(files[i], ".c", ".obj");
+        fprintf(f, " %s", file);
+    }
+    fprintf(f, "\n");
     fprintf(f, "  $(LD) -s -o %s.exe %s/w32start.o $(OBJS) %s/msvcrt.a\n",
         project_name, pdpclib_path, pdpclib_path);
     fprintf(f, ".c.o:\n");
@@ -37,15 +55,29 @@ static void makefile_win(FILE* f)
     fprintf(f, "  rm -f *.o %s.exe\n", project_name);
 }
 
-static const char* subst_extension(
-    const char* str, const char* s1, const char* s2)
+static void makefile_wat386(FILE* f)
 {
-    static char tmpbuf[80];
-    char* s;
-    strcpy(tmpbuf, str);
-    if ((s = strstr(tmpbuf, s1)) != NULL)
-        memcpy(s, s2, strlen(s2 + 1));
-    return tmpbuf;
+    size_t i;
+    fprintf(f, "CC=wcl386\n");
+    fprintf(f, "CFLAGS=-za99\n");
+    fprintf(f, "all: clean %s.exe\n", project_name);
+    fprintf(f, "%s.exe:", project_name);
+    for (i = 0; i < (sizeof(files) / sizeof(files[0])); i++) {
+        const char* file = subst_extension(files[i], ".c", ".obj");
+        fprintf(f, " %s", file);
+    }
+    fprintf(f, "\n");
+    fprintf(f, "  wcl386 -q -fe=%s.exe ", project_name);
+    for (i = 0; i < (sizeof(files) / sizeof(files[0])); i++) {
+        const char* file = subst_extension(files[i], ".c", ".obj");
+        fprintf(f, " %s", file);
+    }
+    fprintf(f, "\n");
+    fprintf(f, ".c.o:\n");
+    fprintf(f, "  $(CC) $(CFLAGS) -c -q $<\n");
+    fprintf(f, "  rm -f $*.s\n");
+    fprintf(f, "clean:\n");
+    fprintf(f, "  rm -f *.o %s.exe\n", project_name);
 }
 
 static void makefile_lnx(FILE* f)
@@ -275,13 +307,20 @@ int main(int argc, char** argv)
             return -1;
         }
         makefile_lnx(f);
-    } else if (!strcmp(argv[1], "win")) {
+    } else if (!strcmp(argv[1], "gccwin")) {
         f = fopen("Makefile", "wt");
         if (f == NULL) {
             fprintf(stderr, "Unable to create Makefile!\n");
             return -1;
         }
-        makefile_win(f);
+        makefile_gccwin(f);
+    } else if (!strcmp(argv[1], "wat386")) {
+        f = fopen("Makefile", "wt");
+        if (f == NULL) {
+            fprintf(stderr, "Unable to create Makefile!\n");
+            return -1;
+        }
+        makefile_wat386(f);
     } else if (!strcmp(argv[1], "mvs")) {
         f = fopen("occ.jcl", "wt");
         if (f == NULL) {
@@ -291,7 +330,7 @@ int main(int argc, char** argv)
         mvs_jcl(f);
     } else {
     usage:
-        fprintf(stderr, "Usage: %s [unix|win|mvs]\n", argv[0]);
+        fprintf(stderr, "Usage: %s [unix|gccwin|wat386|ow2|mvs]\n", argv[0]);
         return -1;
     }
 
