@@ -90,9 +90,8 @@ cc_ast_node* cc_ast_create_var_ref(
 cc_ast_node* cc_ast_create_field_ref(
     cc_context* ctx, cc_ast_node* parent, const char* fieldname)
 {
-    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_VARIABLE);
-    node->data.var.name = cc_strdup(fieldname);
-    node->data.var.is_field = true;
+    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD);
+    node->data.field_name = cc_strdup(fieldname);
     return node;
 }
 
@@ -515,14 +514,14 @@ void cc_ast_add_type_member(
     dest->data.s_or_u.members[dest->data.s_or_u.n_members++] = *src;
 }
 
-bool cc_ast_is_field_of(const cc_ast_type* type, const char* field)
+cc_ast_variable* cc_ast_get_field_of(const cc_ast_type* type, const char* field)
 {
     assert(type->mode == AST_TYPE_MODE_STRUCT
         || type->mode == AST_TYPE_MODE_UNION);
     for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
         if (!strcmp(type->data.s_or_u.members[i].name, field))
-            return true;
-    return false;
+            return &type->data.s_or_u.members[i];
+    return NULL;
 }
 
 #if 0
@@ -909,20 +908,17 @@ void cc_ast_print(const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
-        printf("<var %s ",
-            node->data.var.is_field ? node->data.var.name : var->name);
-        if (!node->data.var.is_field) {
-            switch (var->type.mode) {
-            case AST_TYPE_MODE_FUNCTION:
-                printf("(fn)");
-                break;
-            case AST_TYPE_MODE_INT:
-                printf("(int)");
-                break;
-            default:
-                printf("(*)");
-                break;
-            }
+        printf("<var %s ", var->name);
+        switch (var->type.mode) {
+        case AST_TYPE_MODE_FUNCTION:
+            printf("(fn)");
+            break;
+        case AST_TYPE_MODE_INT:
+            printf("(int)");
+            break;
+        default:
+            printf("(*)");
+            break;
         }
         printf(">");
     } break;

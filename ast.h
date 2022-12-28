@@ -130,6 +130,7 @@ enum cc_ast_node_type {
     AST_NODE_STRING_LITERAL,
     AST_NODE_SWITCH,
     AST_NODE_REGISTER,
+    AST_NODE_FIELD
 };
 
 enum cc_ast_binop_type {
@@ -178,6 +179,7 @@ typedef struct cc_ast_node {
     unsigned short size_type; /* Size to operate upon */
     union {
         cc_ast_literal literal;
+        const char* field_name;
         /* For pattern matching, we only use reg_group to specify which
            group of registers are allowed to be matched.
            
@@ -192,7 +194,6 @@ typedef struct cc_ast_node {
             char* name;
             unsigned short version; /* Used by SSA */
             bool is_temporal : 1;
-            bool is_field : 1; /* Treating this variable as a field */
         } var;
         struct {
             struct cc_ast_node* call_expr;
@@ -289,6 +290,7 @@ void cc_ast_iterate(const cc_ast_node *node,
 cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned short id);
 void cc_ast_print(const cc_ast_node* node);
-bool cc_ast_is_field_of(const cc_ast_type* type, const char* field);
+cc_ast_variable* cc_ast_get_field_of(
+    const cc_ast_type* type, const char* field);
 
 #endif

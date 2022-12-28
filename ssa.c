@@ -240,7 +240,7 @@ static cc_ssa_param cc_ssa_variable_to_param(
 {
     cc_ast_type tmp_type = var->type;
     tmp_type.n_cv_qual++;
-    assert(tmp_type.n_cv_qual < MAX_CV_QUALIFIERS);
+    assert(tmp_type.n_cv_qual <= MAX_CV_QUALIFIERS);
     return (cc_ssa_param) {
         .type = SSA_PARAM_VARIABLE,
         .storage = cc_ssa_ast_storage_to_ssa(var->type.storage),

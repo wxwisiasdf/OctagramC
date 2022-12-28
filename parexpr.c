@@ -289,7 +289,7 @@ error_handle:
 
 /* Parse an assignment expression of the form
    <lhs-expr> <assignment-operand> <rhs-expr>
-   
+
    LHS can be specified with the lhs argument, in such a case a unary
    function won't do shit */
 bool cc_parse_assignment_expression(
@@ -387,6 +387,9 @@ bool cc_parse_assignment_expression(
             cc_ast_add_block_node(assign_node->data.binop.right,
                 cc_ast_create_field_ref(
                     ctx, assign_node->data.binop.right, ctok->data));
+            /* Condense variable from block */
+            cc_optimizer_expr_condense(
+                ctx, &assign_node->data.binop.right, true);
         } else {
             cc_parse_assignment_expression(
                 ctx, assign_node->data.binop.right, NULL);
@@ -546,10 +549,28 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         /* Temporarily chage parenting to master node so variable and type
            lookup can be done */
         expr_node->parent = node;
-        if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
-            cc_diag_error(ctx, "Unable to deduce type");
-            goto error_handle;
+        if (expr_node->type == AST_NODE_BLOCK
+            && !expr_node->data.block.n_children) {
+            if (!cc_ceval_deduce_type(ctx, node, &vtype)) {
+                cc_diag_error(ctx, "Unable to deduce type");
+                goto error_handle;
+            }
+            printf("SELECT-PARENT:\n");
+        } else {
+            if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
+                cc_diag_error(ctx, "Unable to deduce type");
+                goto error_handle;
+            }
+            printf("SELECT-CHILDREN:\n");
         }
+
+        printf("EXPR-NODE:\n");
+        cc_ast_print(expr_node);
+        printf("\n");
+
+        printf("MASTER-NODE:\n");
+        cc_ast_print(node);
+        printf("\n");
 
         if (!vtype.n_cv_qual) {
             cc_diag_error(ctx, "Accessed array type is non-pointer");
@@ -613,11 +634,14 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         cc_ast_node* var_node = cc_ast_create_field_ref(
             ctx, accessor_node->data.binop.right, ctok->data);
         cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
+        /* Condense the single field */
+        cc_optimizer_expr_condense(ctx, &accessor_node->data.binop.right, true);
+
         cc_ast_add_block_node(node, accessor_node);
 
         cc_ast_type type = { 0 };
         cc_ceval_deduce_type(ctx, expr_node, &type);
-        if (!cc_ast_is_field_of(&type, var_node->data.var.name))
+        if (cc_ast_get_field_of(&type, var_node->data.var.name) == NULL)
             cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
                 var_node->data.var.name, type.name);
     }

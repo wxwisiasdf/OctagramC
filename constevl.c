@@ -358,6 +358,25 @@ bool cc_ceval_deduce_type(
         /* Assignments promote to their lvalue type */
         if (node->data.binop.op == AST_BINOP_ASSIGN)
             return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
+        else if (node->data.binop.op == AST_BINOP_DOT) {
+            cc_ast_type vtype;
+            if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &vtype)) {
+                cc_diag_error(ctx, "Can't deduce type of left struct");
+                goto error_handle;
+            }
+
+            assert(node->data.binop.right->type == AST_NODE_FIELD);
+            cc_ast_variable* field_var = cc_ast_get_field_of(
+                &vtype, node->data.binop.right->data.field_name);
+            if (field_var == NULL) {
+                cc_diag_error(ctx, "Unable to obtain field '%s'",
+                    node->data.binop.right->data.field_name);
+                goto error_handle;
+            }
+
+            *type = field_var->type;
+            return true;
+        }
         /*cc_ceval_deduce_type(ctx, node->data.binop.right, type);*/
         return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
     case AST_NODE_UNOP:
@@ -389,9 +408,8 @@ bool cc_ceval_deduce_type(
     case AST_NODE_BLOCK:
         if (!node->data.block.n_children)
             return true;
-        assert(node->data.block.n_children == 1); /* We can't really deduce
-                                                     the type of a big block! */
-        return cc_ceval_deduce_type(ctx, &node->data.block.children[0], type);
+        return cc_ceval_deduce_type(ctx,
+            &node->data.block.children[node->data.block.n_children - 1], type);
     default:
         abort();
     }
