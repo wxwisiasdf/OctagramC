@@ -719,6 +719,7 @@ static void cc_ssa_from_ast(
         cc_ssa_process_literal(ctx, node, param);
         break;
     case AST_NODE_RETURN:
+        ctx->func_has_return = true;
         cc_ssa_process_return(ctx, node, param);
         break;
     case AST_NODE_STRING_LITERAL:
