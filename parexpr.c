@@ -647,10 +647,67 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     }
         return true;
     case LEXER_TOKEN_LPAREN: {
-        cc_ast_node* result_node;
+        cc_ast_node* result_node = NULL;
         cc_parse_unary_call(ctx, node, expr_node, &result_node);
         result_node->parent = node;
         cc_ast_add_block_node(node, result_node);
+
+        /* Do linting for parameters (for example when passing an integer as
+           as pointer) - warning about those is not required if I recall
+           correctly, however everyone nowadays expects a good linter. */
+        cc_ast_type type = { 0 };
+        if (cc_ceval_deduce_type(ctx, result_node, &type)) {
+            assert(result_node->type == AST_NODE_CALL);
+            if (type.mode != AST_TYPE_MODE_FUNCTION) {
+                if (type.n_cv_qual > 0) {
+                    cc_diag_error(
+                        ctx, "Calling non-function pointer, consider casting");
+                    goto error_handle;
+                }
+                cc_diag_error(ctx, "Calling non-function type");
+                goto error_handle;
+            }
+
+            if (result_node->data.call.n_params > type.data.func.n_params
+                && !type.data.func.variadic) {
+                cc_diag_error(ctx,
+                    "Too many parameters on call to non-variadic function");
+                goto error_handle;
+            }
+
+            /* Only evaluate the "shared number count of parameters", that is
+               calling a variadic function without a parameter(s) on what would
+               be the ellipsis, is completely valid; In other words:
+               
+               printf("hi %i", 10); - Is valid
+               printf(); - Is not valid
+               printf("hi"); - Is valid */
+            for (size_t i = 0; i < result_node->data.call.n_params
+                 && i < type.data.func.n_params;
+                 i++) {
+                cc_ast_type call_param_type = { 0 };
+                if (cc_ceval_deduce_type(ctx, &result_node->data.call.params[i],
+                        &call_param_type)) {
+                    cc_ast_variable* param = &type.data.func.params[i];
+
+                    /* Expect pointer, but obtained non-pointer */
+                    if (param->type.n_cv_qual > 0
+                        && call_param_type.n_cv_qual == 0) {
+                        cc_diag_warning(ctx,
+                            "Passing argument to %i '%s'; implicitly "
+                            "converting to "
+                            "a pointer",
+                            i + 1,
+                            param->type.name == NULL ? "<anonymous>"
+                                                     : param->type.name);
+                    }
+                }
+            }
+        } else {
+            cc_diag_error(
+                ctx, "Unable to deduce type for runtime-evaluated call");
+            goto error_handle;
+        }
     }
         return true;
     default:
