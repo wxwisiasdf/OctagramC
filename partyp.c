@@ -779,9 +779,8 @@ ignore_missing_ident:
             ctx->is_parsing_prototype = true;
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
                 var->type.data.func.params
-                    = cc_realloc(var->type.data.func.params,
-                        sizeof(cc_ast_variable)
-                            * (var->type.data.func.n_params + 1));
+                    = cc_realloc_array(var->type.data.func.params,
+                        var->type.data.func.n_params + 1);
                 cc_ast_variable* param
                     = &var->type.data.func
                            .params[var->type.data.func.n_params++];
@@ -790,7 +789,8 @@ ignore_missing_ident:
                 if (virtual_param_var.name != NULL)
                     param->name = cc_strdup(virtual_param_var.name);
 
-                /* Destroy... */
+                /* Clear virtual parameter name */
+                cc_ast_destroy_var(&virtual_param_var, false);
                 memset(&virtual_param_var, 0, sizeof(virtual_param_var));
 
                 if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -837,8 +837,7 @@ ignore_missing_ident:
         if (!cc_parse_constant_expression(ctx, node, &literal)) {
             cc_diag_warning(ctx, "Variable length arrays are not supported");
         }
-        array_cv->array_size
-            = cc_ceval_literal_to_ushort(ctx, &literal);
+        array_cv->array_size = cc_ceval_literal_to_ushort(ctx, &literal);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 
