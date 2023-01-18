@@ -16,6 +16,9 @@
 #include <string.h>
 
 static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node);
+static bool cc_parse_compund_statment_potential_declarator(
+    cc_context* ctx, cc_ast_node* node, bool expect_semicolon);
+
 static bool cc_parse_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
@@ -61,14 +64,14 @@ static bool cc_parse_iteration_statment(cc_context* ctx, cc_ast_node* node)
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
 
         cc_ast_node* for_node = cc_ast_create_block(ctx, node);
-        cc_ast_node* init_node = cc_ast_create_block(ctx, for_node);
-        cc_parse_expression(ctx, init_node);
+        cc_parse_compund_statment_potential_declarator(ctx, for_node, false);
 
+        /* Temporarily reassign parent of this node so the variables declared
+           inside here are visable to the rest of the for loop */
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
 
         cc_ast_node* if_node = cc_ast_create_if_expr(ctx, for_node);
         cc_parse_expression(ctx, if_node->data.if_expr.cond);
-
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
 
         cc_ast_node* step_node
@@ -90,7 +93,6 @@ static bool cc_parse_iteration_statment(cc_context* ctx, cc_ast_node* node)
         /* Initialize, then evaluate, then do body and then perform step! */
         cc_ast_add_block_node(if_node->data.if_expr.block, step_node);
         cc_ast_add_block_node(if_node->data.if_expr.block, jmp_node);
-        cc_ast_add_block_node(for_node, init_node); /* Init*/
         cc_ast_add_block_node(for_node, if_node); /* Perform "if" */
         cc_ast_add_block_node(node, for_node);
         return true;
@@ -239,6 +241,38 @@ error_handle:
     return false;
 }
 
+/* Parses part of the compound statment which **could** potentially be a
+   declaration of a new variable,  */
+static bool cc_parse_compund_statment_potential_declarator(
+    cc_context* ctx, cc_ast_node* node, bool expect_semicolon)
+{
+    const cc_lexer_token* ctok;
+    /* First try interpreting as an expression, then if that
+        does NOT work, fallback to the declarator */
+    if (!cc_parse_expression(ctx, node)) {
+        cc_ast_variable nvar = { 0 };
+        bool is_parsing_typedef = false;
+        if (!cc_parse_declarator_list(ctx, node, &nvar, &is_parsing_typedef))
+            goto error_handle;
+        if (!is_parsing_typedef) {
+            if (nvar.name == NULL) {
+                cc_diag_warning(ctx, "Anonymous variable declared");
+                cc_ast_destroy_var(&nvar, false);
+                if (expect_semicolon)
+                    CC_PARSE_EXPECT(
+                        ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
+                goto error_handle;
+            }
+            cc_ast_add_block_variable(node, &nvar);
+        }
+    }
+    if (expect_semicolon)
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
+    return true;
+error_handle:
+    return false;
+}
+
 static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
@@ -346,28 +380,9 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 }
             }
         } break;
-        default: {
-            /* First try interpreting as an expression, then if that
-               does NOT work, fallback to the declarator */
-            if (!cc_parse_expression(ctx, node)) {
-                cc_ast_variable nvar = { 0 };
-                bool is_parsing_typedef = false;
-                if (!cc_parse_declarator_list(
-                        ctx, node, &nvar, &is_parsing_typedef))
-                    goto error_handle;
-                if (!is_parsing_typedef) {
-                    if (nvar.name == NULL) {
-                        cc_diag_warning(ctx,
-                            "Anonymous variable declared on external block");
-                        cc_ast_destroy_var(&nvar, false);
-                        CC_PARSE_EXPECT(
-                            ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
-                        goto error_handle;
-                    }
-                    cc_ast_add_block_variable(node, &nvar);
-                }
-            }
-        } break;
+        default:
+            return cc_parse_compund_statment_potential_declarator(
+                ctx, node, true);
         }
     } else {
         return false;
@@ -393,6 +408,16 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     cc_ast_variable var = { 0 };
     bool is_parsing_typedef = false;
     cc_parse_declarator_list(ctx, node, &var, &is_parsing_typedef);
+
+    if (var.name != NULL) {
+        if (var.name[0] == '_' && isupper(var.name[1])
+            && !(var.type.storage & AST_STORAGE_EXTERN)) {
+            cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
+        } else if (var.name[0] == '_' && var.name[1] == '_'
+            && !(var.type.storage & AST_STORAGE_EXTERN)) {
+            cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
+        }
+    }
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         switch (ctok->type) {
