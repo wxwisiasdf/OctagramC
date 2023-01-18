@@ -66,6 +66,7 @@ enum cc_ssa_token_type {
     SSA_TOKEN_RET,
     SSA_TOKEN_BRANCH,
     SSA_TOKEN_ALLOCA,
+    SSA_TOKEN_COPY,
     /* Binary op */
     SSA_TOKEN_GT,
     SSA_TOKEN_GTE,
@@ -113,6 +114,11 @@ typedef struct cc_ssa_token {
             cc_ssa_param size;
             cc_ssa_param align;
         } alloca;
+        struct {
+            cc_ssa_param src;
+            cc_ssa_param dest;
+            cc_ssa_param size;
+        } copy;
         struct {
             cc_ssa_param left;
             cc_ssa_param right;
