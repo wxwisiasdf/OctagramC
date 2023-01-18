@@ -311,6 +311,49 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     }
 }
 
+static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
+{
+    assert(tok->type == SSA_TOKEN_BRANCH);
+
+    const cc_ssa_param* on_true_param = &tok->data.branch.t_branch;
+    switch (on_true_param->type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmovl\t%s,%%edi\n", on_true_param->data.var_name);
+        fprintf(ctx->out, "\tje\t%%edi\n");
+        break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tje\t%%edi\n");
+        break;
+    case SSA_PARAM_RETVAL:
+        fprintf(ctx->out, "\tje\t%%eax\n");
+        break;
+    case SSA_PARAM_LABEL:
+        fprintf(ctx->out, "\tje\tl_%i\n", on_true_param->data.label_id);
+        break;
+    default:
+        abort();
+    }
+
+    const cc_ssa_param* on_false_param = &tok->data.branch.f_branch;
+    switch (on_false_param->type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmovl\t%s,%%edi\n", on_false_param->data.var_name);
+        fprintf(ctx->out, "\tjmp\t%%edi\n");
+        break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tjmp\t%%edi\n");
+        break;
+    case SSA_PARAM_RETVAL:
+        fprintf(ctx->out, "\tjmp\t%%eax\n");
+        break;
+    case SSA_PARAM_LABEL:
+        fprintf(ctx->out, "\tjmp\tl_%i\n", on_false_param->data.label_id);
+        break;
+    default:
+        abort();
+    }
+}
+
 static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
 {
     cc_ssa_param lhs = tok->data.binop.left;
@@ -378,6 +421,9 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_TOKEN_CALL:
         cc_as386_process_call(ctx, tok);
+        break;
+    case SSA_TOKEN_BRANCH:
+        cc_as386_process_branch(ctx, tok);
         break;
     case SSA_TOKEN_ALLOCA:
         break;
