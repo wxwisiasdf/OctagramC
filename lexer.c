@@ -63,7 +63,7 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
         const char* m = lexer_token_match[i];
         if (m == NULL)
             continue;
-        
+
         if (!strncmp(ctx->cptr, m, strlen(m))) {
             if (ISSTARTIDENT(m[0]) && ISIDENT(ctx->cptr[strlen(m)]))
                 continue;
@@ -223,11 +223,10 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                     : "<unknown>"),
             .column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf),
             .line = ctx->n_diag_infos
-                ? ctx->diag_infos[ctx->n_diag_infos - 1].line - 1
+                ? ctx->diag_infos[ctx->n_diag_infos - 1].line
                 : 1,
         };
-        ctx->tokens = cc_realloc(
-            ctx->tokens, sizeof(*ctx->tokens) * (ctx->n_tokens + 1));
+        ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_tokens + 1);
         ctx->tokens[ctx->n_tokens++] = tok;
     }
 }
