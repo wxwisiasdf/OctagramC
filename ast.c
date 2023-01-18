@@ -466,6 +466,7 @@ void cc_ast_copy_type(
                 dest->data.func.params[i].name
                     = cc_strdup(src->data.func.params[i].name);
         }
+        dest->data.func.variadic = src->data.func.variadic;
 
         assert(src->data.func.return_type != NULL);
         dest->data.func.return_type
