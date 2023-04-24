@@ -425,10 +425,6 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         switch (ctok->type) {
         case LEXER_TOKEN_SEMICOLON: /* Prototype/declaration */
-            /* Function prototype usually ends up with ");" */
-            if ((ctok = cc_lex_token_peek(ctx, -1)) != NULL
-                && ctok->type == LEXER_TOKEN_RPAREN)
-                cc_swap_func_decl(&var.type);
             cc_lex_token_consume(ctx);
             break;
         case LEXER_TOKEN_LBRACE: /* Function body */

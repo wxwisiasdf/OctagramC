@@ -745,15 +745,18 @@ bool cc_parse_declarator(
     const cc_lexer_token* ctok;
     cc_parse_declaration_specifier(ctx, node, &var->type);
 
-    /* On cases such as struct b {} ; */
+    /* On cases such as struct b { <...> }; */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_SEMICOLON) {
         /* Empty structures, unions or enums do not require a diagnostic(?)
            but we'll provide one anyways. */
-        if(var->type.mode == AST_TYPE_MODE_ENUM
-        || var->type.mode == AST_TYPE_MODE_UNION
-        || var->type.mode == AST_TYPE_MODE_STRUCT)
-            cc_diag_warning(ctx, "Empty structure, union or enum");
+        if((var->type.mode == AST_TYPE_MODE_ENUM
+        && var->type.data.enumer.n_elems == 0))
+            cc_diag_warning(ctx, "Empty enum");
+        else if((var->type.mode == AST_TYPE_MODE_STRUCT
+        || var->type.mode == AST_TYPE_MODE_UNION)
+        && var->type.data.s_or_u.n_members == 0)
+            cc_diag_warning(ctx, "Empty structure/union");
         return true;
     }
 
@@ -812,6 +815,7 @@ ignore_missing_ident:
             var->type.data.func.variadic = true;
             cc_lex_token_consume(ctx);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+            cc_diag_warning(ctx, "Fully variadic function is not portable");
         } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_void
             && (ctok = cc_lex_token_peek(ctx, 1)) != NULL
@@ -823,11 +827,11 @@ ignore_missing_ident:
             cc_ast_variable virtual_param_var = { 0 };
             ctx->is_parsing_prototype = true;
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
+                cc_ast_variable* param;
                 var->type.data.func.params
                     = cc_realloc_array(var->type.data.func.params,
                         var->type.data.func.n_params + 1);
-                cc_ast_variable* param
-                    = &var->type.data.func
+                param = &var->type.data.func
                            .params[var->type.data.func.n_params++];
                 cc_ast_copy_type(&param->type, &virtual_param_var.type);
                 param->name = NULL;
@@ -877,12 +881,13 @@ ignore_missing_ident:
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_static)
             var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
-
-        cc_ast_literal literal = { 0 };
-        if (!cc_parse_constant_expression(ctx, node, &literal)) {
-            cc_diag_warning(ctx, "Variable length arrays are not supported");
-        }
-        array_cv->array_size = cc_ceval_literal_to_ushort(ctx, &literal);
+        
+        /* TODO: VLA arrays */
+        if (!cc_parse_assignment_expression(ctx, node, NULL))
+            cc_diag_error(ctx, "Expected expression for declarator");
+        
+        /*array_cv->array_size = cc_ceval_literal_to_ushort(ctx, &literal);*/
+        array_cv->array_size = 100;
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 

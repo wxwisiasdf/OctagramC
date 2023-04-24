@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Prevent infinite recursion for printing functions */
+static bool body_print_lock = false;
+
 unsigned short cc_ast_alloc_label_id(cc_context* ctx)
 {
     if ((ctx->label_id + 1) >= USHRT_MAX)
@@ -775,7 +778,8 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         printf("<var (null)>");
         return;
     }
-    
+
+    body_print_lock = true;   
     printf("<var %s ", var->name);
 
     switch (var->type.mode) {
@@ -818,10 +822,11 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         if(var->type.data.func.variadic)
             printf("<...>");
         printf(")");
-        if (var->body != NULL)
+        if (!body_print_lock && var->body != NULL)
             cc_ast_print(var->body);
     }
     printf(">");
+    body_print_lock = false;
 }
 
 void cc_ast_print(const cc_ast_node* node)

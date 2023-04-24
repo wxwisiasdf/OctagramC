@@ -15,6 +15,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node);
+static bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node);
+
 bool cc_parse_constant_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_literal* r)
 {
@@ -23,7 +26,7 @@ bool cc_parse_constant_expression(
        intermediare and facilitate execution. */
     cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
     /* Parse like a normal expression */
-    cc_parse_expression(ctx, const_expr);
+    cc_parse_conditional_expression(ctx, const_expr);
     if (!cc_ceval_constant_expression(ctx, &const_expr, r)) {
         cc_diag_error(ctx, "Unable to evaluate constant expression");
         if (const_expr != NULL)
@@ -33,6 +36,48 @@ bool cc_parse_constant_expression(
     if (const_expr != NULL)
         cc_ast_destroy_node(const_expr, true);
     return true;
+}
+
+static bool cc_parse_cast_expression(cc_context* ctx, cc_ast_node* node)
+{
+    const cc_lexer_token* ctok;
+    cc_ast_node *cast_node = NULL;
+    if (cc_parse_unary_expression(ctx, node)) {
+        return true;
+    } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && (ctok->type == LEXER_TOKEN_LPAREN)) { /* (cast) */
+        cc_lex_token_consume(ctx);
+        cast_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_CAST);
+        if (!cc_parse_declaration_specifier(
+                ctx, cast_node, &cast_node->data.unop.cast)) {
+            cc_diag_error(ctx, "Unary expression expected a cast");
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+            return false;
+        }
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+#if 0
+        /* Compound literal */
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_LBRACE) {
+            /* Compound literals are a hidden variable */
+            cc_ast_variable var = { 0 };
+            /* TODO: Generate compound literal names */
+            var.name = cc_strdup("__cnd_1");
+            cc_ast_copy_type(&var.type, &cast_node->data.unop.cast);
+            cc_parse_declarator_braced_initializer(ctx, node, &var);
+            cc_ast_add_block_variable(node, &var);
+            return true;
+        }
+#endif
+        if (!cc_parse_cast_expression(ctx, cast_node->data.unop.child)) {
+            cc_diag_error(ctx, "Expected an unary expression after unary");
+            goto error_handle;
+        }
+        cc_ast_add_block_node(node, cast_node);
+        return true;
+    }
+error_handle:
+    return false;
 }
 
 #define CC_PARSER_OPERATOR_FN(fn_name, lw_fn_name, tok_cond, binop_cond)       \
@@ -66,7 +111,7 @@ bool cc_parse_constant_expression(
     }
 
 CC_PARSER_OPERATOR_FN(cc_parse_multiplicative_expression,
-    cc_parse_unary_expression,
+    cc_parse_cast_expression,
     ctok->type == LEXER_TOKEN_ASTERISK || ctok->type == LEXER_TOKEN_MOD
     || ctok->type == LEXER_TOKEN_DIV,
     ctok->type == LEXER_TOKEN_ASTERISK ? AST_BINOP_MUL :
@@ -251,42 +296,35 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
     cc_ast_node* call_expr, cc_ast_node** expr_result)
 {
     const cc_lexer_token* ctok;
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_LPAREN) {
-        cc_lex_token_consume(ctx);
+    cc_ast_node* call_node;
+    cc_ast_node* virtual_node;
 
-        /* Collect arguments (they can be optional) */
-        cc_ast_node* call_node = cc_ast_create_call(ctx, node);
-        cc_ast_node* left_node = call_expr;
-        call_expr->parent = call_node->data.call.call_expr;
-        /* Left side node (simple ident) */
-        cc_ast_add_block_node(call_node->data.call.call_expr, left_node);
+    /* Collect arguments (they can be optional) */
+    call_node = cc_ast_create_call(ctx, node);
+    call_expr->parent = call_node->data.call.call_expr;
+    /* Left side node (simple ident) */
+    cc_ast_add_block_node(call_node->data.call.call_expr, call_expr);
 
-        cc_ast_node* virtual_node = cc_ast_create_block(ctx, call_node);
-        while (cc_parse_assignment_expression(ctx, virtual_node, NULL)) {
-            cc_ast_add_call_param(call_node, virtual_node);
-            virtual_node = cc_ast_create_block(ctx, call_node);
-            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                && ctok->type == LEXER_TOKEN_COMMA) {
-                cc_lex_token_consume(ctx);
-                continue;
-            }
-            break;
+    virtual_node = cc_ast_create_block(ctx, call_node);
+    while (cc_parse_assignment_expression(ctx, virtual_node, NULL)) {
+        cc_ast_add_call_param(call_node, virtual_node);
+        virtual_node = cc_ast_create_block(ctx, call_node);
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_COMMA) {
+            cc_lex_token_consume(ctx);
+            continue;
         }
-        cc_ast_destroy_node(virtual_node, true);
-        *expr_result = call_node;
-        return true;
-    error_handle:
-        cc_ast_destroy_node(call_node, true);
-        cc_ast_destroy_node(virtual_node, true);
-        return false;
+        break;
     }
-    return false;
+    cc_ast_destroy_node(virtual_node, true);
+    *expr_result = call_node;
+    return true;
 }
 
 static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
+    cc_ast_type virtual_type = { 0 };
     cc_ast_node* virtual_node;
     bool deduce_required;
     bool do_alignof;
@@ -311,12 +349,11 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     /* Parenthesis following means we can evaluate and obtain the size
         of a concise expression, otherwise we have to stick with another
         unary expression. */
-    cc_ast_type virtual_type = { 0 };
     virtual_type.data.num.is_signed = ctx->is_default_signed;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
-        cc_lex_token_consume(ctx);
         cc_ast_variable virtual_var = { 0 };
+        cc_lex_token_consume(ctx);
         if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
             cc_diag_error(
                 ctx, "Expected unary expression after alignof/sizeof");
@@ -424,12 +461,17 @@ error_handle:
     ;
 }
 
+/* Parses the postfix operator part of the postfix expression. The parent
+   rerouting argument tells if this function did rearrange the expr_node
+   in such a way that expr_node->parent is no longer node, but rather
+   another node. This is needed for increments and decrements for example. */
 static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
-    cc_ast_node* expr_node, bool* parent_rerouted)
+    cc_ast_node* expr_node, bool *parent_rerouted)
 {
     /* With postfix increment we will do a:
         <unop <op> <expr-node>> */
     const cc_lexer_token* ctok;
+    *parent_rerouted = false;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
@@ -532,8 +574,10 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     case LEXER_TOKEN_LPAREN: {
         cc_ast_node* result_node = NULL;
         cc_ast_type type = { 0 };
+        cc_lex_token_consume(ctx);
 
         cc_parse_unary_call(ctx, node, expr_node, &result_node);
+        *parent_rerouted = true;
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
 
         result_node->parent = node;
@@ -560,55 +604,23 @@ error_handle:
 static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    bool matched_any = true;
-    bool parent_rerouted = false;
-    cc_ast_node* expr_node = NULL;
+    cc_ast_node* expr_node;
+    bool parent_rerouted;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
-    switch (ctok->type) {
-    case LEXER_TOKEN_NUMBER:
-        cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
-        goto finish_expr_setup;
-    case LEXER_TOKEN_CHAR_LITERAL:
-        cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
-        goto finish_expr_setup;
-    case LEXER_TOKEN_IDENT: {
-        const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
-        cc_lex_token_consume(ctx);
-        if (var == NULL) {
-            cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
-            goto error_handle;
-        }
-        expr_node = cc_ast_create_var_ref(ctx, node, var);
-    } break;
-    case LEXER_TOKEN_STRING_LITERAL:
-        cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
-        break;
-    case LEXER_TOKEN___func__:
-        cc_lex_token_consume(ctx);
-        if (ctx->ast_current_func == NULL)
-            cc_diag_warning(ctx, "__func__ used outside of a function");
-        expr_node = cc_ast_create_string_literal(ctx, node,
-            ctx->ast_current_func != NULL ? ctx->ast_current_func->name : "");
-        break;
-    default:
-        expr_node = cc_ast_create_block(ctx, node);
-        matched_any = false;
-        break;
-    }
-    matched_any
-        = cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted)
-        || matched_any;
-finish_expr_setup:
-    if (!parent_rerouted) {
-        expr_node->parent = node;
+    expr_node = cc_ast_create_block(ctx, node);
+    if(cc_parse_primary_expression(ctx, expr_node)) {
+        /* Optional operator after primary expression uwu */
+        cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted);
+    } else if(cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted)) {
+
+    } else
+        goto error_handle;
+    if(!parent_rerouted) {
         cc_ast_add_block_node(node, expr_node);
     }
-    return matched_any;
+    return true;
 error_handle:
     if (expr_node != NULL)
         cc_ast_destroy_node(expr_node, true);
@@ -619,10 +631,9 @@ error_handle:
 bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    if (cc_parse_unary_sizeof_or_alignof(ctx, node))
+    if (cc_parse_postfix_expression(ctx, node))
         return true;
-
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
+    else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
         cc_ast_node *binop_node = NULL;
         cc_ast_node *literal_node = NULL;
         cc_ast_node *unop_node = NULL;
@@ -663,40 +674,9 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
             cc_lex_token_consume(ctx);
             unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_NOT);
             break;
-        case LEXER_TOKEN_LPAREN: /* (cast) */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_CAST);
-            if (cc_parse_declaration_specifier(
-                    ctx, unop_node, &unop_node->data.unop.cast)) {
-                CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-                /* Compound literal */
-                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                    && ctok->type == LEXER_TOKEN_LBRACE) {
-                    /* Compound literals are a hidden variable */
-                    cc_ast_variable var = { 0 };
-                    /* TODO: Generate compound literal names */
-                    var.name = cc_strdup("__cnd_1");
-                    cc_ast_copy_type(&var.type, &unop_node->data.unop.cast);
-                    cc_parse_declarator_braced_initializer(ctx, node, &var);
-                    cc_ast_add_block_variable(node, &var);
-                    return true;
-                }
-            } else { /* (unary-expresion) */
-                cc_ast_destroy_node(unop_node, true);
-                cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-                if (!cc_parse_expression(ctx, block_node)) {
-                    cc_diag_error(
-                        ctx, "Malformed expression within parenthesis");
-                    CC_PARSE_EXPECT(
-                        ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-                    goto error_handle;
-                }
-                CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-                cc_ast_add_block_node(node, block_node);
-                return true;
-            }
-            break;
         default:
+            if (cc_parse_unary_sizeof_or_alignof(ctx, node))
+                return true;
             break;
         }
 
@@ -718,12 +698,65 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
             return true;
         }
     }
-
-    bool has_match = false;
-    while (cc_parse_postfix_expression(ctx, node))
-        has_match = true;
-    return has_match;
 error_handle:
+    return false;
+}
+
+static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
+{
+    const cc_lexer_token* ctok;
+    cc_ast_node* expr_node = NULL;
+
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    switch (ctok->type) {
+    case LEXER_TOKEN_NUMBER:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
+        break;
+    case LEXER_TOKEN_CHAR_LITERAL:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
+        break;
+    case LEXER_TOKEN_IDENT: {
+        const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
+        cc_lex_token_consume(ctx);
+        if (var == NULL) {
+            cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
+            goto error_handle;
+        }
+        expr_node = cc_ast_create_var_ref(ctx, node, var);
+    } break;
+    case LEXER_TOKEN_STRING_LITERAL:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
+        break;
+    case LEXER_TOKEN___func__:
+        cc_lex_token_consume(ctx);
+        if (ctx->ast_current_func == NULL)
+            cc_diag_warning(ctx, "__func__ used outside of a function");
+        expr_node = cc_ast_create_string_literal(ctx, node,
+            ctx->ast_current_func != NULL ? ctx->ast_current_func->name : "");
+        break;
+    case LEXER_TOKEN_LPAREN:
+        cc_lex_token_consume(ctx);
+        expr_node = cc_ast_create_block(ctx, node);
+        if (!cc_parse_expression(ctx, expr_node)) {
+            cc_diag_error(
+                ctx, "Malformed expression within parenthesis");
+            CC_PARSE_EXPECT(
+                ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+            goto error_handle;
+        }
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+        break;
+    default:
+        return false;
+    }
+    cc_ast_add_block_node(node, expr_node);
+    return true;
+error_handle:
+    cc_ast_destroy_node(expr_node, true);
     return false;
 }
 
