@@ -167,6 +167,7 @@ enum cc_ast_binop_type {
 };
 
 enum cc_ast_unop_type {
+    AST_UNOP_NONE,
     AST_UNOP_NOT,
     AST_UNOP_COND_NOT,
     AST_UNOP_CAST,
@@ -248,6 +249,8 @@ typedef struct cc_ast_node {
 } cc_ast_node;
 
 unsigned short cc_ast_alloc_label_id(cc_context* ctx);
+cc_ast_node* cc_ast_create_any(
+    cc_context* ctx, cc_ast_node* parent, enum cc_ast_node_type type);
 cc_ast_node* cc_ast_create_block(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_binop_expr(
     cc_context* ctx, cc_ast_node* parent, enum cc_ast_binop_type type);
@@ -284,7 +287,7 @@ cc_ast_variable* cc_ast_find_variable(
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
 cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node);
 cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node);
-void cc_ast_copy_node(
+void cc_ast_copy_node(cc_context* ctx,
     cc_ast_node* restrict dest, const cc_ast_node* restrict src);
 void cc_ast_copy_type(
     cc_ast_type* restrict dest, const cc_ast_type* restrict src);

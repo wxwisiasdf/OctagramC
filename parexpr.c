@@ -265,7 +265,7 @@ bool cc_parse_assignment_expression(
             cc_ast_node* binop_node = cc_ast_create_binop_expr(
                 ctx, assign_node->data.binop.right, binop_type);
             assign_node->data.binop.op = AST_BINOP_ASSIGN;
-            cc_ast_copy_node(
+            cc_ast_copy_node(ctx,
                 binop_node->data.binop.left, assign_node->data.binop.left);
             cc_parse_assignment_expression(
                 ctx, binop_node->data.binop.right, NULL);
@@ -326,9 +326,8 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     cc_ast_type virtual_type = { 0 };
     cc_ast_node* virtual_node;
-    bool deduce_required;
+    bool deduce_required = true;
     bool do_alignof;
-    unsigned int r;
     bool old_v;
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
@@ -344,7 +343,6 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     virtual_node = cc_ast_create_block(ctx, node);
     old_v = ctx->declaration_ident_optional;
     ctx->declaration_ident_optional = true;
-    deduce_required = true;
 
     /* Parenthesis following means we can evaluate and obtain the size
         of a concise expression, otherwise we have to stick with another
@@ -354,12 +352,14 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         && ctok->type == LEXER_TOKEN_LPAREN) {
         cc_ast_variable virtual_var = { 0 };
         cc_lex_token_consume(ctx);
-        if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
-            cc_diag_error(
-                ctx, "Expected unary expression after alignof/sizeof");
-            ctx->declaration_ident_optional = old_v;
-            cc_ast_destroy_node(virtual_node, true);
-            goto error_handle;
+        if (!cc_parse_unary_expression(ctx, virtual_node)) {
+            if (!cc_parse_declarator(ctx, virtual_node, &virtual_var)) {
+                cc_diag_error(
+                    ctx, "Expected unary expression after alignof/sizeof");
+                ctx->declaration_ident_optional = old_v;
+                cc_ast_destroy_node(virtual_node, true);
+                goto error_handle;
+            }
         }
         /* Type can be deduced from variable alone */
         if (virtual_var.type.mode != AST_TYPE_MODE_NONE) {
@@ -388,21 +388,32 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
-                   : ctx->get_sizeof(ctx, &virtual_type);
-
-    cc_ast_node* literal_node = cc_ast_create_literal(ctx, node,
-        (cc_ast_literal) {
-            .is_float = false, .is_signed = false, .value.u = r });
-    cc_ast_add_block_node(node, literal_node);
+    if(virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
+        const cc_ast_node* array_size_expr
+            = virtual_type.cv_qual[virtual_type.n_cv_qual].array_size_expr;
+        assert(array_size_expr != NULL);
+        /* TODO: We should have a "create block by type" function
+           so we don't crash when we do not receive a block node! */
+        cc_ast_node* expr_node = cc_ast_create_block(ctx, node);
+        cc_ast_copy_node(ctx, expr_node, array_size_expr);
+        expr_node->parent = node;
+        cc_ast_add_block_node(node, expr_node);
+    } else {
+        unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
+                    : ctx->get_sizeof(ctx, &virtual_type);
+        cc_ast_node* literal_node = cc_ast_create_literal(ctx, node,
+            (cc_ast_literal) {
+                .is_float = false, .is_signed = false, .value.u = r });
+        cc_ast_add_block_node(node, literal_node);
+    }
     return true;
 error_handle:
     return false;
 }
 
-/* Produce and verify diagnostics for calls to functions
-   this is it's own function because signatures for libc functions are
-   also part of our diagnostics. */
+/* Produce and verify diagnostics for calls to functions this is it's own
+   function because signatures for libc functions are also part of our
+   diagnostics. */
 static void cc_lint_call_node(
     cc_context* ctx, cc_ast_node* node, cc_ast_type type)
 {
@@ -454,7 +465,9 @@ static void cc_lint_call_node(
                     i + 1,
                     param->type.name == NULL ? "<anonymous>"
                                              : param->type.name);
-            }
+            } else if (param->type.n_cv_qual != call_param_type.n_cv_qual)
+                cc_diag_warning(ctx, "Difference in pointer depth in "
+                    "argument %i", i + 1);
         }
     }
 error_handle:
@@ -738,9 +751,11 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
         expr_node = cc_ast_create_string_literal(ctx, node,
             ctx->ast_current_func != NULL ? ctx->ast_current_func->name : "");
         break;
-    case LEXER_TOKEN_LPAREN:
+    case LEXER_TOKEN_LPAREN: {
+        cc_ast_type tmp_type = {0};
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_block(ctx, node);
+        /* TODO: Handle casts! */
         if (!cc_parse_expression(ctx, expr_node)) {
             cc_diag_error(
                 ctx, "Malformed expression within parenthesis");
@@ -749,7 +764,7 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
             goto error_handle;
         }
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-        break;
+    } break;
     default:
         return false;
     }

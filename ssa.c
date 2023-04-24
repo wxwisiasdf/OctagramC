@@ -239,7 +239,7 @@ static cc_ssa_param cc_ssa_variable_to_param(
     cc_context* ctx, const cc_ast_variable* var)
 {
     cc_ast_type tmp_type = var->type;
-    tmp_type.n_cv_qual++;
+    ++tmp_type.n_cv_qual;
     assert(tmp_type.n_cv_qual <= MAX_CV_QUALIFIERS);
     return (cc_ssa_param) {
         .type = SSA_PARAM_VARIABLE,
@@ -347,32 +347,34 @@ static void cc_ssa_process_binop(
 
     switch (node->data.binop.op) {
 #define HANDLE_POINTER_ARITH() \
-    /* Obtain sizes from types iff they are pointers (to properly perform \
-       pointer arithmethic). */ \
-    --lhs_type.n_cv_qual; \
-    lhs_psize = ctx->get_sizeof(ctx, &lhs_type); \
-    ++lhs_type.n_cv_qual; \
-    --rhs_type.n_cv_qual; \
-    rhs_psize = ctx->get_sizeof(ctx, &rhs_type); \
-    ++rhs_type.n_cv_qual; \
-    if(lhs_psize || rhs_psize) { \
-        cc_ast_literal sizeof_lit; \
-        cc_ssa_param tmp_param; \
-        sizeof_lit.is_float = false; \
-        sizeof_lit.is_signed = false; \
-        sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize; \
-        tmp_param = cc_ssa_literal_to_param(&sizeof_lit); \
-        parith_param = cc_ssa_tempvar_param( \
-            ctx, lhs_psize ? &lhs_type : &rhs_type); \
-        /* Assignment is an unop here */ \
-        tok.type = SSA_TOKEN_MUL; \
-        tok.data.binop.left = parith_param; \
-        tok.data.binop.right = lhs_psize ? lhs_param : rhs_param; \
-        tok.data.binop.extra = tmp_param; \
-        tok.info = node->info; \
-        tok.info.filename = cc_strdup(node->info.filename); \
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok); \
-        memset(&tok, 0, sizeof(tok)); \
+    if(lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) { \
+        /* Obtain sizes from types iff they are pointers (to properly perform \
+        pointer arithmethic). */ \
+        --lhs_type.n_cv_qual; \
+        lhs_psize = ctx->get_sizeof(ctx, &lhs_type); \
+        ++lhs_type.n_cv_qual; \
+        --rhs_type.n_cv_qual; \
+        rhs_psize = ctx->get_sizeof(ctx, &rhs_type); \
+        ++rhs_type.n_cv_qual; \
+        if(lhs_psize || rhs_psize) { \
+            cc_ast_literal sizeof_lit; \
+            cc_ssa_param tmp_param; \
+            sizeof_lit.is_float = false; \
+            sizeof_lit.is_signed = false; \
+            sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize; \
+            tmp_param = cc_ssa_literal_to_param(&sizeof_lit); \
+            parith_param = cc_ssa_tempvar_param( \
+                ctx, lhs_psize ? &lhs_type : &rhs_type); \
+            /* Assignment is an unop here */ \
+            tok.type = SSA_TOKEN_MUL; \
+            tok.data.binop.left = parith_param; \
+            tok.data.binop.right = lhs_psize ? lhs_param : rhs_param; \
+            tok.data.binop.extra = tmp_param; \
+            tok.info = node->info; \
+            tok.info.filename = cc_strdup(node->info.filename); \
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok); \
+            memset(&tok, 0, sizeof(tok)); \
+        } \
     }
     case AST_BINOP_ADD:
 HANDLE_POINTER_ARITH()
