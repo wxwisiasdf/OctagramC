@@ -357,8 +357,9 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                    this exception exists for some fucking reason??? */
                 if ((ctok = cc_lex_token_peek(ctx, 1)) != NULL
                     && ctok->type == LEXER_TOKEN_LPAREN) {
-                    ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                     cc_ast_variable nvar = { 0 };
+
+                    ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                     nvar.name = cc_strdup(ctok->data);
                     cc_swap_func_decl(&nvar.type);
                     nvar.type.storage = AST_STORAGE_EXTERN;
@@ -368,6 +369,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                         = cc_zalloc(sizeof(cc_ast_type));
                     nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
                     cc_ast_add_block_variable(node, &nvar);
+                    
+                    cc_diag_warning(ctx, "Implicit function declaration");
                     return cc_parse_compund_statment(ctx, node);
                 } else {
                     cc_ast_variable nvar = { 0 };
