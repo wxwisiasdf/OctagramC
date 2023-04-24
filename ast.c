@@ -809,9 +809,14 @@ static void cc_ast_print_var(const cc_ast_variable* var)
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
         size_t j;
+        /*printf("(return ");
+        cc_ast_print_var(var->type.data.func.return_type);
+        printf(")");*/
         printf("(");
         for (j = 0; j < var->type.data.func.n_params; j++)
             cc_ast_print_var(&var->type.data.func.params[j]);
+        if(var->type.data.func.variadic)
+            printf("<...>");
         printf(")");
         if (var->body != NULL)
             cc_ast_print(var->body);
@@ -854,7 +859,7 @@ void cc_ast_print(const cc_ast_node* node)
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
             if(i + 1 < node->data.block.n_children)
-                printf(";");
+                printf("$;$");
         }
         printf("}");
     } break;
@@ -865,7 +870,7 @@ void cc_ast_print(const cc_ast_node* node)
         printf(") params(");
         for (i = 0; i < node->data.call.n_params; i++) {
             cc_ast_print(&node->data.call.params[i]);
-            printf(";");
+            printf("$,$");
         }
         printf(")>");
     } break;
