@@ -35,270 +35,172 @@ bool cc_parse_constant_expression(
     return true;
 }
 
-static bool cc_parse_multiplicative_expression(
-    cc_context* ctx, cc_ast_node* node)
-{
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_unary_expression(ctx, block_node)) {
-        const cc_lexer_token* ctok;
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && (ctok->type == LEXER_TOKEN_ASTERISK
-                || ctok->type == LEXER_TOKEN_MOD
-                || ctok->type == LEXER_TOKEN_DIV)) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            switch (ctok->type) {
-            case LEXER_TOKEN_ASTERISK:
-                binop_node->data.binop.op = AST_BINOP_MUL;
-                break;
-            case LEXER_TOKEN_MOD:
-                binop_node->data.binop.op = AST_BINOP_MOD;
-                break;
-            case LEXER_TOKEN_DIV:
-                binop_node->data.binop.op = AST_BINOP_DIV;
-                break;
-            default:
-                break;
-            }
-            cc_parse_multiplicative_expression(
-                ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_additive_expression(cc_context* ctx, cc_ast_node* node)
-{
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_multiplicative_expression(ctx, block_node)) {
-        const cc_lexer_token* ctok;
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && (ctok->type == LEXER_TOKEN_PLUS
-                || ctok->type == LEXER_TOKEN_MINUS)) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            switch (ctok->type) {
-            case LEXER_TOKEN_PLUS:
-                binop_node->data.binop.op = AST_BINOP_ADD;
-                break;
-            case LEXER_TOKEN_MINUS:
-                binop_node->data.binop.op = AST_BINOP_SUB;
-                break;
-            default:
-                break;
-            }
-            cc_parse_additive_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_shift_expression(cc_context* ctx, cc_ast_node* node)
-{
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_additive_expression(ctx, block_node)) {
-        const cc_lexer_token* ctok;
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && (ctok->type == LEXER_TOKEN_LSHIFT
-                || ctok->type == LEXER_TOKEN_RSHIFT)) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            switch (ctok->type) {
-            case LEXER_TOKEN_LSHIFT:
-                binop_node->data.binop.op = AST_BINOP_LSHIFT;
-                break;
-            case LEXER_TOKEN_RSHIFT:
-                binop_node->data.binop.op = AST_BINOP_RSHIFT;
-                break;
-            default:
-                break;
-            }
-            cc_parse_shift_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_relational_expression(cc_context* ctx, cc_ast_node* node)
-{
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_shift_expression(ctx, block_node)) {
-        const cc_lexer_token* ctok;
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && (ctok->type == LEXER_TOKEN_GT || ctok->type == LEXER_TOKEN_GTE
-                || ctok->type == LEXER_TOKEN_LT
-                || ctok->type == LEXER_TOKEN_LTE)) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            switch (ctok->type) {
-            case LEXER_TOKEN_GT:
-                binop_node->data.binop.op = AST_BINOP_GT;
-                break;
-            case LEXER_TOKEN_GTE:
-                binop_node->data.binop.op = AST_BINOP_GTE;
-                break;
-            case LEXER_TOKEN_LT:
-                binop_node->data.binop.op = AST_BINOP_LT;
-                break;
-            case LEXER_TOKEN_LTE:
-                binop_node->data.binop.op = AST_BINOP_LTE;
-                break;
-            default:
-                break;
-            }
-            cc_parse_relational_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool cc_parse_equality_expression(cc_context* ctx, cc_ast_node* node)
-{
-    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_relational_expression(ctx, block_node)) {
-        const cc_lexer_token* ctok;
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && (ctok->type == LEXER_TOKEN_COND_EQ
-                || ctok->type == LEXER_TOKEN_COND_NEQ)) {
-            cc_ast_node* binop_node
-                = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-            cc_lex_token_consume(ctx);
-            block_node->parent = binop_node->data.binop.left;
-            cc_ast_add_block_node(binop_node->data.binop.left, block_node);
-            switch (ctok->type) {
-            case LEXER_TOKEN_COND_EQ:
-                binop_node->data.binop.op = AST_BINOP_COND_EQ;
-                break;
-            case LEXER_TOKEN_COND_NEQ:
-                binop_node->data.binop.op = AST_BINOP_COND_NEQ;
-                break;
-            default:
-                break;
-            }
-            cc_parse_equality_expression(ctx, binop_node->data.binop.right);
-            cc_ast_add_block_node(node, binop_node);
-        } else {
-            cc_ast_add_block_node(node, block_node);
-        }
-        return true;
-    }
-    return false;
-}
-
-#define CC_PARSER_OPERATOR_FN(fn_name, lw_fn_name, tok_type, binop_type)       \
+#define CC_PARSER_OPERATOR_FN(fn_name, lw_fn_name, tok_cond, binop_cond)       \
     static bool fn_name(cc_context* ctx, cc_ast_node* node)                    \
     {                                                                          \
-        cc_ast_node* block_node = cc_optimizer_is_empty_block(node)            \
-            ? node                                                             \
-            : cc_ast_create_block(ctx, node);                                  \
+        cc_ast_node* block_node = cc_ast_create_block(ctx, node);              \
         if (lw_fn_name(ctx, block_node)) {                                     \
             const cc_lexer_token* ctok;                                        \
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL                     \
-                && ctok->type == (tok_type)) {                                 \
+                && (tok_cond)) {                                               \
                 cc_ast_node* binop_node                                        \
-                    = cc_ast_create_binop_expr(ctx, node, binop_type);         \
+                    = cc_ast_create_binop_expr(ctx, node, binop_cond);         \
                 cc_lex_token_consume(ctx);                                     \
-                if (block_node == node)                                        \
-                    block_node = cc_ast_create_block(ctx, node);               \
                 block_node->parent = binop_node->data.binop.left;              \
                 cc_ast_add_block_node(                                         \
                     binop_node->data.binop.left, block_node);                  \
+                cc_optimizer_merge_block(ctx, &binop_node->data.binop.left,    \
+                    true);                                                     \
                 fn_name(ctx, binop_node->data.binop.right);                    \
-                cc_ast_add_block_node(node, binop_node);                       \
-            } else {                                                           \
-                if (block_node != node)                                        \
-                    cc_ast_add_block_node(node, block_node);                   \
+                cc_optimizer_merge_block(ctx, &binop_node->data.binop.right,   \
+                    true);                                                     \
+                block_node = binop_node;                                       \
             }                                                                  \
+            cc_optimizer_merge_block(ctx, &block_node, true);                  \
+            if(block_node != NULL)                                             \
+                cc_ast_add_block_node(node, block_node);                       \
             return true;                                                       \
         }                                                                      \
+        cc_ast_destroy_node(block_node, true);                                 \
         return false;                                                          \
     }
+
+CC_PARSER_OPERATOR_FN(cc_parse_multiplicative_expression,
+    cc_parse_unary_expression,
+    ctok->type == LEXER_TOKEN_ASTERISK || ctok->type == LEXER_TOKEN_MOD
+    || ctok->type == LEXER_TOKEN_DIV,
+    ctok->type == LEXER_TOKEN_ASTERISK ? AST_BINOP_MUL :
+        ctok->type == LEXER_TOKEN_MOD ? AST_BINOP_MOD : AST_BINOP_DIV)
+CC_PARSER_OPERATOR_FN(cc_parse_additive_expression,
+    cc_parse_multiplicative_expression,
+    ctok->type == LEXER_TOKEN_PLUS || ctok->type == LEXER_TOKEN_MINUS,
+    ctok->type == LEXER_TOKEN_PLUS ? AST_BINOP_ADD : AST_BINOP_SUB)
+CC_PARSER_OPERATOR_FN(cc_parse_shift_expression,
+    cc_parse_additive_expression,
+    ctok->type == LEXER_TOKEN_LSHIFT || ctok->type == LEXER_TOKEN_RSHIFT,
+    ctok->type == LEXER_TOKEN_LSHIFT ? AST_BINOP_LSHIFT : AST_BINOP_RSHIFT)
+CC_PARSER_OPERATOR_FN(cc_parse_relational_expression,
+    cc_parse_shift_expression,
+    ctok->type == LEXER_TOKEN_GT || ctok->type == LEXER_TOKEN_GTE
+    || ctok->type == LEXER_TOKEN_LT || ctok->type == LEXER_TOKEN_LTE,
+    ctok->type == LEXER_TOKEN_GT ? AST_BINOP_GT : ctok->type == LEXER_TOKEN_GTE
+    ? AST_BINOP_GTE : ctok->type == LEXER_TOKEN_LT ? AST_BINOP_LT
+    : AST_BINOP_LTE)
+CC_PARSER_OPERATOR_FN(cc_parse_equality_expression,
+    cc_parse_relational_expression,
+    ctok->type == LEXER_TOKEN_COND_EQ || ctok->type == LEXER_TOKEN_COND_NEQ,
+    ctok->type == LEXER_TOKEN_COND_EQ ? AST_BINOP_COND_EQ : AST_BINOP_COND_NEQ)
 CC_PARSER_OPERATOR_FN(cc_parse_and_expression, cc_parse_equality_expression,
-    LEXER_TOKEN_AMPERSAND, AST_BINOP_AND)
+    ctok->type == LEXER_TOKEN_AMPERSAND, AST_BINOP_AND)
 CC_PARSER_OPERATOR_FN(cc_parse_exclusive_or_expression, cc_parse_and_expression,
-    LEXER_TOKEN_XOR, AST_BINOP_XOR)
+    ctok->type == LEXER_TOKEN_XOR, AST_BINOP_XOR)
 CC_PARSER_OPERATOR_FN(cc_parse_inclusive_or_expression,
-    cc_parse_exclusive_or_expression, LEXER_TOKEN_OR, AST_BINOP_OR)
+    cc_parse_exclusive_or_expression, ctok->type == LEXER_TOKEN_OR,
+    AST_BINOP_OR)
 CC_PARSER_OPERATOR_FN(cc_parse_logical_and_expression,
-    cc_parse_inclusive_or_expression, LEXER_TOKEN_LOGICAL_AND,
+    cc_parse_inclusive_or_expression, ctok->type == LEXER_TOKEN_LOGICAL_AND,
     AST_BINOP_COND_AND)
 CC_PARSER_OPERATOR_FN(cc_parse_logical_or_expression,
-    cc_parse_logical_and_expression, LEXER_TOKEN_LOGICAL_OR, AST_BINOP_COND_OR)
+    cc_parse_logical_and_expression, ctok->type == LEXER_TOKEN_LOGICAL_OR,
+    AST_BINOP_COND_OR)
 #undef CC_PARSER_OPERATOR_FN
 
 static bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
 {
-    cc_ast_node* expr = cc_ast_create_block(ctx, node);
-    if (cc_parse_logical_or_expression(ctx, expr)) {
+    cc_ast_node* block_node = cc_ast_create_block(ctx, node);
+    if (cc_parse_logical_or_expression(ctx, block_node)) {
         const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_TERNARY) {
             cc_lex_token_consume(ctx);
-
             /* If statment converter, a ternary of the form:
                 <expr-1> ? <expr-2> : <expr-3>
                is converted into:
                 if (<expr-1>) <expr-2> else <expr-3> */
             cc_ast_node* if_expr = cc_ast_create_if_expr(ctx, node);
-            expr->parent = if_expr->data.if_expr.cond;
-            cc_ast_add_block_node(if_expr->data.if_expr.cond, expr);
-
+            block_node->parent = if_expr->data.if_expr.cond;
+            cc_ast_add_block_node(if_expr->data.if_expr.cond, block_node);
             cc_parse_expression(ctx, if_expr->data.if_expr.block);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
             cc_parse_conditional_expression(
                 ctx, if_expr->data.if_expr.tail_else);
-
-            cc_ast_add_block_node(node, if_expr);
-        } else { /* Not a ternary, just add the expr directly */
-            cc_ast_add_block_node(node, expr);
+            block_node = if_expr;
         }
+        if (block_node != node)
+            cc_ast_add_block_node(node, block_node);
         return true;
     }
 error_handle:
-    cc_ast_destroy_node(expr, true);
+    if (block_node != node)
+        cc_ast_destroy_node(block_node, true);
     return false;
+}
+
+static bool cc_parse_assignment_operator(
+    cc_context* ctx, enum cc_ast_binop_type* type)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    /* Assignment operator */
+    switch (ctok->type) {
+    case LEXER_TOKEN_ASSIGN:
+        *type = AST_BINOP_ASSIGN;
+        break;
+    case LEXER_TOKEN_ASSIGN_AND:
+        *type = AST_BINOP_AND;
+        break;
+    case LEXER_TOKEN_ASSIGN_DIV:
+        *type = AST_BINOP_DIV;
+        break;
+    case LEXER_TOKEN_ASSIGN_MINUS:
+        *type = AST_BINOP_SUB;
+        break;
+    case LEXER_TOKEN_ASSIGN_MOD:
+        *type = AST_BINOP_MOD;
+        break;
+    case LEXER_TOKEN_ASSIGN_MUL:
+        *type = AST_BINOP_MUL;
+        break;
+    case LEXER_TOKEN_ASSIGN_OR:
+        *type = AST_BINOP_OR;
+        break;
+    case LEXER_TOKEN_ASSIGN_PLUS:
+        *type = AST_BINOP_ADD;
+        break;
+    case LEXER_TOKEN_ASSIGN_XOR:
+        *type = AST_BINOP_XOR;
+        break;
+    case LEXER_TOKEN_ASSIGN_LSHIFT:
+        *type = AST_BINOP_LSHIFT;
+        break;
+    case LEXER_TOKEN_ASSIGN_RSHIFT:
+        *type = AST_BINOP_RSHIFT;
+        break;
+    default:
+        *type = AST_BINOP_NONE;
+        return false;
+    }
+    cc_lex_token_consume(ctx);
+    return true;
 }
 
 /* Parse an assignment expression of the form
    <lhs-expr> <assignment-operand> <rhs-expr>
 
    LHS can be specified with the lhs argument, in such a case a unary
-   function won't do shit */
+   function won't do shit.
+   
+   var should be specified for initializer expressions - otherwise leave
+   empty. */
 bool cc_parse_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
-    cc_ast_node* assign_node
-        = cc_ast_create_binop_expr(ctx, node, AST_BINOP_NONE);
-
+    enum cc_ast_binop_type binop_type;
+    cc_ast_node* lhs_paren_node = NULL;
+    cc_ast_node* assign_node = cc_ast_create_binop_expr(
+        ctx, lhs_paren_node != NULL ? lhs_paren_node : node, AST_BINOP_NONE);
     if (var == NULL) {
         if (!cc_parse_conditional_expression(
                 ctx, assign_node->data.binop.left)) {
@@ -310,92 +212,34 @@ bool cc_parse_assignment_expression(
             = cc_ast_create_var_ref(ctx, assign_node->data.binop.left, var);
         cc_ast_add_block_node(assign_node->data.binop.left, var_node);
     }
-
-    /* TODO: Respect operator precedence */
-    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
-        goto finish_true;
-    /* Assignment operator */
-    enum cc_ast_binop_type binop_type = AST_BINOP_NONE;
-    bool expand_expr = false;
-    switch (ctok->type) {
-    case LEXER_TOKEN_ASSIGN:
-        binop_type = AST_BINOP_ASSIGN;
-        break;
-    case LEXER_TOKEN_ASSIGN_AND:
-        binop_type = AST_BINOP_AND;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_DIV:
-        binop_type = AST_BINOP_DIV;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_MINUS:
-        binop_type = AST_BINOP_SUB;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_MOD:
-        binop_type = AST_BINOP_MOD;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_MUL:
-        binop_type = AST_BINOP_MUL;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_OR:
-        binop_type = AST_BINOP_OR;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_PLUS:
-        binop_type = AST_BINOP_ADD;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_XOR:
-        binop_type = AST_BINOP_XOR;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_LSHIFT:
-        binop_type = AST_BINOP_LSHIFT;
-        expand_expr = true;
-        break;
-    case LEXER_TOKEN_ASSIGN_RSHIFT:
-        binop_type = AST_BINOP_RSHIFT;
-        expand_expr = true;
-        break;
-    default:
-        goto finish_true; /* Skip assignment and just finish */
-    }
-    cc_lex_token_consume(ctx);
-
-    /* Expand assignment <lhs> += <rhs> into <lhs> = <lhs> + <rhs> */
-    /*cc_ast_create_assign_expr();*/
-    assert(binop_type != AST_BINOP_NONE);
-    if (expand_expr) {
-        cc_ast_node* binop_node = cc_ast_create_binop_expr(
-            ctx, assign_node->data.binop.right, binop_type);
-        assign_node->data.binop.op = AST_BINOP_ASSIGN;
-        cc_ast_copy_node(
-            binop_node->data.binop.left, assign_node->data.binop.left);
-        cc_parse_assignment_expression(ctx, binop_node->data.binop.right, NULL);
-        cc_ast_add_block_node(assign_node->data.binop.right, binop_node);
-    } else {
-        assign_node->data.binop.op = binop_type;
-        /* Field name follows, thankfully for us (and our sanity), we are able
-           to use a direct identifier :D */
-        if (binop_type == AST_BINOP_DOT || binop_type == AST_BINOP_ARROW) {
-            CC_PARSE_EXPECT(
-                ctx, ctok, LEXER_TOKEN_IDENT, "Field-name expected");
-            cc_ast_add_block_node(assign_node->data.binop.right,
-                cc_ast_create_field_ref(
-                    ctx, assign_node->data.binop.right, ctok->data));
-            /* Condense variable from block */
-            cc_optimizer_expr_condense(
-                ctx, &assign_node->data.binop.right, true);
-        } else {
+    /* Match the assignment operator... */
+    if(cc_parse_assignment_operator(ctx, &binop_type)) {
+        /* Expand assignment <lhs> += <rhs> into <lhs> = <lhs> + <rhs> */
+        assert(binop_type != AST_BINOP_NONE);
+        if (binop_type != AST_BINOP_ASSIGN) {
+            cc_ast_node* binop_node = cc_ast_create_binop_expr(
+                ctx, assign_node->data.binop.right, binop_type);
+            assign_node->data.binop.op = AST_BINOP_ASSIGN;
+            cc_ast_copy_node(
+                binop_node->data.binop.left, assign_node->data.binop.left);
             cc_parse_assignment_expression(
-                ctx, assign_node->data.binop.right, NULL);
+                ctx, binop_node->data.binop.right, NULL);
+            cc_ast_add_block_node(assign_node->data.binop.right, binop_node);
+        } else {
+            assign_node->data.binop.op = binop_type;
+            /* Field name follows, thankfully for us (and our sanity), we are
+            able to use a direct identifier :D */
+            if (binop_type == AST_BINOP_DOT || binop_type == AST_BINOP_ARROW) {
+                CC_PARSE_EXPECT(
+                    ctx, ctok, LEXER_TOKEN_IDENT, "Field-name expected");
+                cc_ast_add_block_node(assign_node->data.binop.right,
+                    cc_ast_create_field_ref(
+                        ctx, assign_node->data.binop.right, ctok->data));
+            } else
+                cc_parse_assignment_expression(
+                    ctx, assign_node->data.binop.right, NULL);
         }
     }
-finish_true:
     cc_ast_add_block_node(node, assign_node);
     return true;
 error_handle:
@@ -448,20 +292,26 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
 static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
+    cc_ast_node* virtual_node;
+    bool deduce_required;
+    bool do_alignof;
+    unsigned int r;
+    bool old_v;
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
         || (ctok->type != LEXER_TOKEN_sizeof
             && ctok->type != LEXER_TOKEN_alignof))
         return false;
 
-    bool do_alignof = ctok->type == LEXER_TOKEN_alignof;
+    do_alignof = ctok->type == LEXER_TOKEN_alignof;
     cc_lex_token_consume(ctx);
 
     /* This block is just a virtual block and will be destroyed
         once we finish evaluating our alignof/sizeof. */
-    cc_ast_node* virtual_node = cc_ast_create_block(ctx, node);
-    bool old_v = ctx->declaration_ident_optional;
+    virtual_node = cc_ast_create_block(ctx, node);
+    old_v = ctx->declaration_ident_optional;
     ctx->declaration_ident_optional = true;
-    bool deduce_required = true;
+    deduce_required = true;
 
     /* Parenthesis following means we can evaluate and obtain the size
         of a concise expression, otherwise we have to stick with another
@@ -506,8 +356,8 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
-                                : ctx->get_sizeof(ctx, &virtual_type);
+    r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
+                   : ctx->get_sizeof(ctx, &virtual_type);
 
     cc_ast_node* literal_node = cc_ast_create_literal(ctx, node,
         (cc_ast_literal) {
@@ -555,22 +405,12 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                 cc_diag_error(ctx, "Unable to deduce type");
                 goto error_handle;
             }
-            printf("SELECT-PARENT:\n");
         } else {
             if (!cc_ceval_deduce_type(ctx, expr_node, &vtype)) {
                 cc_diag_error(ctx, "Unable to deduce type");
                 goto error_handle;
             }
-            printf("SELECT-CHILDREN:\n");
         }
-
-        printf("EXPR-NODE:\n");
-        cc_ast_print(expr_node);
-        printf("\n");
-
-        printf("MASTER-NODE:\n");
-        cc_ast_print(node);
-        printf("\n");
 
         if (!vtype.n_cv_qual) {
             cc_diag_error(ctx, "Accessed array type is non-pointer");
@@ -583,7 +423,7 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         vtype.n_cv_qual--;
 
         /* Create an expression of the form:
-            <unop deref <binop <array> + <binop <sizeof-elem * <index>>*/
+            <unop deref <binop <array> + index>>*/
         cc_ast_node* arr_deref_node
             = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
         cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
@@ -591,23 +431,7 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         expr_node->parent = arr_index_node->data.binop.left;
         *parent_rerouted = true;
         cc_ast_add_block_node(arr_index_node->data.binop.left, expr_node);
-
-        /* Now right side of the addition expression, the multiplication
-            part... this is fun! */
-        cc_ast_node* arr_index_mul_node = cc_ast_create_binop_expr(
-            ctx, arr_index_node->data.binop.right, AST_BINOP_MUL);
-        cc_parse_expression(ctx, arr_index_mul_node->data.binop.left);
-
-        cc_ast_node* arr_sizeof_node
-            = cc_ast_create_literal(ctx, arr_index_mul_node->data.binop.right,
-                (cc_ast_literal) { .is_float = false,
-                    .is_signed = false,
-                    .value.u = ctx->get_sizeof(ctx, &vtype) });
-        cc_ast_add_block_node(
-            arr_index_mul_node->data.binop.right, arr_sizeof_node);
-
-        cc_ast_add_block_node(
-            arr_index_node->data.binop.right, arr_index_mul_node);
+        cc_parse_expression(ctx, arr_index_node->data.binop.right);
 
         /* Wrap all of that and we obtain the address we wish! */
         cc_ast_add_block_node(arr_deref_node->data.unop.child, arr_index_node);
@@ -624,14 +448,18 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         return true;
     case LEXER_TOKEN_DOT:
     case LEXER_TOKEN_ARROW: {
+        cc_ast_node* accessor_node;
+        cc_ast_node* var_node;
+        cc_ast_type type = { 0 };
+
         cc_lex_token_consume(ctx);
-        cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, node,
+        accessor_node = cc_ast_create_binop_expr(ctx, node,
             ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT : AST_BINOP_ARROW);
         expr_node->parent = accessor_node->data.binop.left;
         *parent_rerouted = true;
         cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
-        cc_ast_node* var_node = cc_ast_create_field_ref(
+        var_node = cc_ast_create_field_ref(
             ctx, accessor_node->data.binop.right, ctok->data);
         cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
         /* Condense the single field */
@@ -639,7 +467,6 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
 
         cc_ast_add_block_node(node, accessor_node);
 
-        cc_ast_type type = { 0 };
         cc_ceval_deduce_type(ctx, expr_node, &type);
         if (cc_ast_get_field_of(&type, var_node->data.var.name) == NULL)
             cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
@@ -648,6 +475,8 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         return true;
     case LEXER_TOKEN_LPAREN: {
         cc_ast_node* result_node = NULL;
+        cc_ast_type type = { 0 };
+
         cc_parse_unary_call(ctx, node, expr_node, &result_node);
         result_node->parent = node;
         cc_ast_add_block_node(node, result_node);
@@ -655,8 +484,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         /* Do linting for parameters (for example when passing an integer as
            as pointer) - warning about those is not required if I recall
            correctly, however everyone nowadays expects a good linter. */
-        cc_ast_type type = { 0 };
         if (cc_ceval_deduce_type(ctx, result_node, &type)) {
+            size_t i;
+
             assert(result_node->type == AST_NODE_CALL);
             if (type.mode != AST_TYPE_MODE_FUNCTION) {
                 if (type.n_cv_qual > 0) {
@@ -682,7 +512,7 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                printf("hi %i", 10); - Is valid
                printf(); - Is not valid
                printf("hi"); - Is valid */
-            for (size_t i = 0; i < result_node->data.call.n_params
+            for (i = 0; i < result_node->data.call.n_params
                  && i < type.data.func.n_params;
                  i++) {
                 cc_ast_type call_param_type = { 0 };
@@ -695,8 +525,7 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                         && call_param_type.n_cv_qual == 0) {
                         cc_diag_warning(ctx,
                             "Passing argument to %i '%s'; implicitly "
-                            "converting to "
-                            "a pointer",
+                            "converting to a pointer",
                             i + 1,
                             param->type.name == NULL ? "<anonymous>"
                                                      : param->type.name);
@@ -720,22 +549,20 @@ error_handle:
 static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
+    bool matched_any = true;
+    bool parent_rerouted = false;
+    cc_ast_node* expr_node = NULL;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
-    bool matched_any = false;
-    bool parent_rerouted = false;
-    cc_ast_node* expr_node = NULL;
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
-        matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_CHAR_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
-        matched_any = true;
         goto finish_expr_setup;
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
@@ -745,12 +572,10 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             goto error_handle;
         }
         expr_node = cc_ast_create_var_ref(ctx, node, var);
-        matched_any = true;
     } break;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
-        matched_any = true;
         break;
     case LEXER_TOKEN___func__:
         cc_lex_token_consume(ctx);
@@ -758,10 +583,10 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
             cc_diag_warning(ctx, "__func__ used outside of a function");
         expr_node = cc_ast_create_string_literal(ctx, node,
             ctx->ast_current_func != NULL ? ctx->ast_current_func->name : "");
-        matched_any = true;
         break;
     default:
         expr_node = cc_ast_create_block(ctx, node);
+        matched_any = false;
         break;
     }
     matched_any
@@ -787,7 +612,9 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
         return true;
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        cc_ast_node *binop_node = NULL, *literal_node = NULL, *unop_node = NULL;
+        cc_ast_node *binop_node = NULL;
+        cc_ast_node *literal_node = NULL;
+        cc_ast_node *unop_node = NULL;
         switch (ctok->type) {
         case LEXER_TOKEN_PLUS: /* Prefix +*/
             cc_lex_token_consume(ctx);
@@ -854,9 +681,6 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
                     goto error_handle;
                 }
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
-
-                /* Optional unary expression after parenthesis */
-                cc_parse_unary_expression(ctx, block_node);
                 cc_ast_add_block_node(node, block_node);
                 return true;
             }
@@ -903,5 +727,6 @@ bool cc_parse_expression(cc_context* ctx, cc_ast_node* node)
         }
         return true;
     }
+error_handle:
     return false;
 }

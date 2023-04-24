@@ -52,7 +52,8 @@ static bool cc_as386_is_alloc_reg(enum cc_as386_reg regno)
 static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < AS386_NUM_REGS; i++) {
         if (!cc_as386_is_alloc_reg(i))
             continue;
 
@@ -74,7 +75,8 @@ static void cc_as386_regfree(cc_context* ctx, enum cc_as386_reg regno)
 static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < AS386_NUM_REGS; i++) {
         if (!cc_as386_is_alloc_reg(i))
             continue;
 
@@ -90,7 +92,8 @@ static enum cc_as386_reg cc_as386_get_tmpreg(
     cc_context* ctx, unsigned int tmpid)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    for (size_t i = 0; i < AS386_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < AS386_NUM_REGS; i++) {
         if (!cc_as386_is_alloc_reg(i))
             continue;
 
@@ -135,13 +138,15 @@ static unsigned int cc_as386_get_sizeof(
         return 4;
     case AST_TYPE_MODE_STRUCT: {
         size_t total = 0;
-        for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
+        size_t i;
+        for (i = 0; i < type->data.s_or_u.n_members; i++)
             total += ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
         return total;
     }
     case AST_TYPE_MODE_UNION: {
         size_t upper_lim = 0;
-        for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+        size_t i;
+        for (i = 0; i < type->data.s_or_u.n_members; i++) {
             size_t count
                 = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
             upper_lim = count > upper_lim ? count : upper_lim;
@@ -159,6 +164,8 @@ static unsigned int cc_as386_get_sizeof(
 static unsigned int cc_as386_get_offsetof(
     cc_context* ctx, const cc_ast_type* type, const char* field)
 {
+    size_t upper_lim = 0;
+    size_t i;
     assert(type->mode == AST_TYPE_MODE_STRUCT
         || type->mode == AST_TYPE_MODE_UNION);
 
@@ -166,8 +173,7 @@ static unsigned int cc_as386_get_offsetof(
     if (type->mode == AST_TYPE_MODE_UNION)
         return 0;
 
-    size_t upper_lim = 0;
-    for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+    for (i = 0; i < type->data.s_or_u.n_members; i++) {
         size_t count = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
         if (!strcmp(type->data.s_or_u.members[i].name, field))
             return upper_lim;
@@ -199,9 +205,6 @@ static void cc_as386_gen_assign(
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%%edi,%s\n", reg_names[val_regno]);
-            break;
-        case SSA_PARAM_REF_TMPVAR:
-            fprintf(ctx->out, "\tmovl\t%%edi,(%s)\n", reg_names[val_regno]);
             break;
         case SSA_PARAM_STRING_LITERAL:
             fprintf(ctx->out, "\tmovl\t$__ms_%u,%s\n", rhs->data.string.tmpid,
@@ -285,15 +288,18 @@ static void cc_as386_gen_call_param(
 
 static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
 {
+    const cc_ssa_param* call_param;
     unsigned short offset = 0;
+    size_t i;
+
     assert(tok->type == SSA_TOKEN_CALL);
-    for (size_t i = 0; i < tok->data.call.n_params; i++) {
+    for (i = 0; i < tok->data.call.n_params; i++) {
         const cc_ssa_param* param = &tok->data.call.params[i];
         cc_as386_gen_call_param(ctx, param, offset);
         offset += param->size;
     }
 
-    const cc_ssa_param* call_param = &tok->data.call.right;
+    call_param = &tok->data.call.right;
     switch (call_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tmovl\t%s,%%edi\n", call_param->data.var_name);
@@ -313,9 +319,11 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
 
 static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
 {
+    const cc_ssa_param* on_true_param;
+    const cc_ssa_param* on_false_param;
     assert(tok->type == SSA_TOKEN_BRANCH);
 
-    const cc_ssa_param* on_true_param = &tok->data.branch.t_branch;
+    on_true_param = &tok->data.branch.t_branch;
     switch (on_true_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tmovl\t%s,%%edi\n", on_true_param->data.var_name);
@@ -334,7 +342,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         abort();
     }
 
-    const cc_ssa_param* on_false_param = &tok->data.branch.f_branch;
+    on_false_param = &tok->data.branch.f_branch;
     switch (on_false_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tmovl\t%s,%%edi\n", on_false_param->data.var_name);
@@ -457,13 +465,16 @@ static void cc_as386_colstring_unop(cc_context* ctx, const cc_ssa_token* tok)
 /* Helper function for cc_as386_colstring_func */
 static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 {
-    for (size_t i = 0; i < tok->data.call.n_params; i++)
+    size_t i;
+    for (i = 0; i < tok->data.call.n_params; i++)
         cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
 }
 
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     const char* name = func->ast_var->name;
+    size_t i;
+
     /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
     fprintf(ctx->out, "%s:\n", name);
     if (ctx->min_stack_alignment != 0)
@@ -472,17 +483,17 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     memset(actx->regs, 0, sizeof(actx->regs));
     actx->stack_offset = 0;
-    for (size_t i = 0; i < func->ast_var->type.data.func.n_params; i++) {
+    for (i = 0; i < func->ast_var->type.data.func.n_params; i++) {
         const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
         actx->stack_offset += ctx->get_sizeof(ctx, &param->type);
     }
     fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
 
     /* Process all tokens of this function */
-    for (size_t i = 0; i < func->n_tokens; i++)
+    for (i = 0; i < func->n_tokens; i++)
         cc_as386_process_token(ctx, &func->tokens[i]);
 
-    for (size_t i = 0; i < func->n_tokens; i++) {
+    for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:

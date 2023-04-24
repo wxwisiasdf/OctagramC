@@ -21,15 +21,18 @@
 static void cc_diag_print_diag(
     cc_diag_info info, const char* severity, const char* fmt, va_list args)
 {
+    FILE* fp;
     fprintf(stderr,
         "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%u: ", severity,
         info.filename, info.line);
     vfprintf(stderr, fmt, args);
 
-    FILE* fp = fopen(info.filename, "rt");
+    fp = fopen(info.filename, "rt");
     if (fp != NULL) {
         char tmpbuf[80];
         unsigned short line = 0;
+        size_t i;
+
         while (fgets(tmpbuf, sizeof(tmpbuf), fp) != NULL
             && line != info.line - 1) {
             size_t len = strlen(tmpbuf);
@@ -37,7 +40,7 @@ static void cc_diag_print_diag(
                 line++;
         }
         fprintf(stderr, "\n%s", tmpbuf);
-        for (size_t i = 0; i < info.column; i++)
+        for (i = 0; i < info.column; i++)
             fputc(' ', stderr);
         fprintf(stderr, "^\n");
         fclose(fp);
@@ -116,14 +119,17 @@ void cc_diag_increment_linenum(cc_context* ctx)
 
 void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
 {
-    for (size_t i = 0; i < ctx->n_diag_infos; i++) {
+    size_t i;
+    for (i = 0; i < ctx->n_diag_infos; i++) {
         cc_diag_info* info = &ctx->diag_infos[i];
         if (!strcmp(info->filename, new_info.filename)) {
+            size_t j;
+
             info->line = new_info.line;
             cc_free(new_info.filename); /* Discard new_info's filename */
             i++;
             /* Cutoff includes after returning to this one */
-            for (size_t j = i; j < ctx->n_diag_infos; j++) {
+            for (j = i; j < ctx->n_diag_infos; j++) {
                 cc_diag_info* info = &ctx->diag_infos[j];
                 cc_free(info->filename);
             }

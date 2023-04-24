@@ -3,7 +3,4 @@
 .vscode/
 *.S
 occ
-*.jcl
-Makefile
-autogen
 *.in

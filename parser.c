@@ -339,8 +339,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(node, break_node);
         } break;
         case LEXER_TOKEN_return: {
-            cc_ast_node* ret_node = cc_ast_create_ret_expr(ctx, node);
             cc_lex_token_consume(ctx);
+            cc_ast_node* ret_node = cc_ast_create_ret_expr(ctx, node);
             cc_parse_expression(ctx, ret_node->data.return_expr);
             cc_ast_add_block_node(node, ret_node);
         } break;
@@ -461,6 +461,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             ctx->ast_current_func = &var;
             while (cc_parse_compund_statment(ctx, var.body))
                 ;
+                
             cc_optimizer_expr_condense(ctx, &var.body, true);
             ctx->ast_current_func = old_ast_current_func;
             ctx->is_func_body = old_is_func_body;

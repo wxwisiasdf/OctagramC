@@ -55,7 +55,8 @@ static bool cc_mf370_is_alloc_reg(enum cc_mf370_reg regno)
 static enum cc_mf370_reg cc_mf370_regalloc(cc_context* ctx, unsigned int tmpid)
 {
     cc_mf370_context* actx = cc_mf370_get_ctx(ctx);
-    for (size_t i = 0; i < MF370_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < MF370_NUM_REGS; i++) {
         if (!cc_mf370_is_alloc_reg(i))
             continue;
 
@@ -77,7 +78,8 @@ static void cc_mf370_regfree(cc_context* ctx, enum cc_mf370_reg regno)
 static void cc_mf370_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
 {
     cc_mf370_context* actx = cc_mf370_get_ctx(ctx);
-    for (size_t i = 0; i < MF370_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < MF370_NUM_REGS; i++) {
         if (!cc_mf370_is_alloc_reg(i))
             continue;
 
@@ -93,7 +95,8 @@ static enum cc_mf370_reg cc_mf370_get_tmpreg(
     cc_context* ctx, unsigned int tmpid)
 {
     cc_mf370_context* actx = cc_mf370_get_ctx(ctx);
-    for (size_t i = 0; i < MF370_NUM_REGS; i++) {
+    size_t i;
+    for (i = 0; i < MF370_NUM_REGS; i++) {
         if (!cc_mf370_is_alloc_reg(i))
             continue;
 
@@ -138,13 +141,15 @@ static unsigned int cc_mf370_get_sizeof(
         return 4;
     case AST_TYPE_MODE_STRUCT: {
         size_t total = 0;
-        for (size_t i = 0; i < type->data.s_or_u.n_members; i++)
+        size_t i;
+        for (i = 0; i < type->data.s_or_u.n_members; i++)
             total += ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
         return total;
     }
     case AST_TYPE_MODE_UNION: {
         size_t upper_lim = 0;
-        for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+        size_t i;
+        for (i = 0; i < type->data.s_or_u.n_members; i++) {
             size_t count
                 = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
             upper_lim = count > upper_lim ? count : upper_lim;
@@ -162,15 +167,15 @@ static unsigned int cc_mf370_get_sizeof(
 static unsigned int cc_mf370_get_offsetof(
     cc_context* ctx, const cc_ast_type* type, const char* field)
 {
+    size_t upper_lim = 0;
+    size_t i;
     assert(type->mode == AST_TYPE_MODE_STRUCT
         || type->mode == AST_TYPE_MODE_UNION);
 
     /* Unions have no offset */
     if (type->mode == AST_TYPE_MODE_UNION)
         return 0;
-
-    size_t upper_lim = 0;
-    for (size_t i = 0; i < type->data.s_or_u.n_members; i++) {
+    for (i = 0; i < type->data.s_or_u.n_members; i++) {
         size_t count = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
         if (!strcmp(type->data.s_or_u.members[i].name, field))
             return upper_lim;
@@ -183,10 +188,10 @@ static const char* cc_mf370_logical_label(const char* name)
 {
     static char buf[8];
     size_t n = strlen(name) >= sizeof(buf) - 1 ? sizeof(buf) : strlen(name) + 1;
+    size_t i;
     memcpy(buf, name, n);
     buf[n - 1] = '\0';
-
-    for (size_t i = 0; i < sizeof(buf); i++) {
+    for (i = 0; i < sizeof(buf); i++) {
         if (buf[i] == '_')
             buf[i] = '@';
         buf[i] = toupper(buf[i]);
@@ -218,9 +223,6 @@ static void cc_mf370_gen_assign(
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tLR\tR0,%s\n", reg_names[val_regno]);
-            break;
-        case SSA_PARAM_REF_TMPVAR:
-            fprintf(ctx->out, "\tL\tR0,(%s)\n", reg_names[val_regno]);
             break;
         default:
             abort();
@@ -305,8 +307,9 @@ static void cc_mf370_gen_call_param(
 static void cc_mf370_process_call(cc_context* ctx, const cc_ssa_token* tok)
 {
     unsigned short offset = 0;
+    size_t i;
     assert(tok->type == SSA_TOKEN_CALL);
-    for (size_t i = 0; i < tok->data.call.n_params; i++) {
+    for (i = 0; i < tok->data.call.n_params; i++) {
         const cc_ssa_param* param = &tok->data.call.params[i];
         cc_mf370_gen_call_param(ctx, param, offset);
         offset += param->size;
@@ -413,13 +416,16 @@ static void cc_mf370_colstring_unop(cc_context* ctx, const cc_ssa_token* tok)
 /* Helper function for cc_mf370_colstring_func */
 static void cc_mf370_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 {
-    for (size_t i = 0; i < tok->data.call.n_params; i++)
+    size_t i;
+    for (i = 0; i < tok->data.call.n_params; i++)
         cc_mf370_colstring_param(ctx, &tok->data.call.params[i]);
 }
 
 void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     const char* name = func->ast_var->name;
+    size_t i;
+
     /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
     fprintf(ctx->out, "* X-epilogue\n");
     fprintf(ctx->out, "\tPUSH\tUSING\n");
@@ -433,13 +439,13 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
     assert(ctx->min_stack_alignment == 0);
 
     /* Process all tokens of this function */
-    for (size_t i = 0; i < func->n_tokens; i++)
+    for (i = 0; i < func->n_tokens; i++)
         cc_mf370_process_token(ctx, &func->tokens[i]);
 
     fprintf(ctx->out, "\tPOP\tUSING\n");
     fprintf(ctx->out, "\tLTORG\t,\n");
 
-    for (size_t i = 0; i < func->n_tokens; i++) {
+    for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:

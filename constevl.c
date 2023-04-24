@@ -120,11 +120,12 @@ static cc_ast_literal cc_ceval_eval_1(
     cc_ast_literal lhs, rhs, child;
     switch (node->type) {
     case AST_NODE_VARIABLE: {
-        for (size_t i = 0; i < *n_list; i++)
+        const cc_ast_variable* var;
+        size_t i;
+        for (i = 0; i < *n_list; i++)
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
-        const cc_ast_variable* var
-            = cc_ast_find_variable(node->data.var.name, node);
+        var = cc_ast_find_variable(node->data.var.name, node);
         if (var != NULL && var->type.storage == AST_STORAGE_CONSTEXPR
             && var->initializer != NULL)
             return cc_ceval_eval_1(ctx, var->initializer, list, n_list);
@@ -208,13 +209,15 @@ static cc_ast_literal cc_ceval_eval_1(
     case AST_NODE_LITERAL:
         return node->data.literal;
     case AST_NODE_CALL: {
+        size_t i;
+
         assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
         cc_ast_variable* var = cc_ast_find_variable(
             node->data.call.call_expr->data.var.name, node);
         assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
 
         assert(var->type.data.func.n_params == node->data.call.n_params);
-        for (size_t i = 0; i < var->type.data.func.n_params; i++) {
+        for (i = 0; i < var->type.data.func.n_params; i++) {
             *list = cc_realloc_array(*list, *n_list + 1);
             (*list)[(*n_list)++] = (cc_ceval_io) { .name
                 = var->type.data.func.params[i].name,
@@ -317,12 +320,8 @@ static void cc_ceval_promote_type(cc_ast_type* dest, const cc_ast_type* src)
         return;
     }
 
-    unsigned int dest_rank = cc_ceval_get_rank(dest);
-    unsigned int src_rank = cc_ceval_get_rank(src);
-    if (src_rank >= dest_rank) {
+    if (cc_ceval_get_rank(src) >= cc_ceval_get_rank(dest))
         *dest = *src;
-        return;
-    }
 }
 
 /* Deduces a type from a node, the type written into type is a non-owning

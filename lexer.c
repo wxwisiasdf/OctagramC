@@ -59,7 +59,8 @@ void cc_lex_print_token(const cc_lexer_token* tok)
    and advances the cptr of the state */
 static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
 {
-    for (size_t i = 0; i < ARRAY_SIZE(lexer_token_match); i++) {
+    size_t i;
+    for (i = 0; i < ARRAY_SIZE(lexer_token_match); i++) {
         const char* m = lexer_token_match[i];
         if (m == NULL)
             continue;
@@ -260,7 +261,8 @@ static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
 
 void cc_lex_deinit(cc_context* ctx)
 {
-    for (size_t i = 0; i < ctx->n_tokens; i++)
+    size_t i;
+    for (i = 0; i < ctx->n_tokens; i++)
         cc_lex_destroy_token(&ctx->tokens[i], false);
     cc_free(ctx->tokens);
     ctx->n_tokens = 0;

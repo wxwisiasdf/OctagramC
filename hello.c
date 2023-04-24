@@ -47,3 +47,8 @@ enum sus {
     printf("Hello world!\n");
     return (char)eval_test(10);
 }
+
+int mdim[4][4];
+int a1(int n) {
+    return mdim[n];
+}

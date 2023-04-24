@@ -1,6 +1,10 @@
 #ifndef LEXER_H
 #define LEXER_H 1
 
+#ifdef restrict
+#undef restrict
+#endif
+
 #include "context.h"
 #include "diag.h"
 
@@ -171,8 +175,14 @@
     LEXER_TOKEN_LIST_1(STRING_LITERAL, NULL)
 
 #define LEXER_TOKEN_LIST_1(x, v) LEXER_TOKEN_##x
-enum cc_lexer_token_type { LEXER_TOKEN_LIST, NUM_LEXER_TOKENS, };
+enum cc_lexer_token_type { LEXER_TOKEN_LIST, NUM_LEXER_TOKENS };
 #undef LEXER_TOKEN_LIST_1
+
+#ifdef __STDC__
+#ifndef restrict
+#define restrict
+#endif
+#endif
 
 typedef struct cc_lexer_token {
     enum cc_lexer_token_type type;

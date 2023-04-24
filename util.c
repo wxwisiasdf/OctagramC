@@ -28,8 +28,11 @@ void cc_alloc_init(bool track)
 
 void cc_alloc_deinit(void)
 {
-    size_t total = 0, total_string = 0, n_strings = 0;
-    for (size_t i = 0; i < g_alloc_ctx.n_ptrs; i++) {
+    size_t total = 0;
+    size_t total_string = 0;
+    size_t n_strings = 0;
+    size_t i;
+    for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
         total += g_alloc_ctx.ptrs[i].size;
         if (g_alloc_ctx.ptrs[i].is_string) {
             total_string += g_alloc_ctx.ptrs[i].size;
@@ -46,7 +49,7 @@ void cc_alloc_deinit(void)
         (float)g_alloc_ctx.total_normal / 1000.f,
         g_alloc_ctx.total_strings / 1000.f);
 
-    for (size_t i = 0; i < g_alloc_ctx.n_ptrs; i++)
+    for (i = 0; i < g_alloc_ctx.n_ptrs; i++)
         free(g_alloc_ctx.ptrs[i].p);
     free(g_alloc_ctx.ptrs);
     g_alloc_ctx.ptrs = NULL;
@@ -68,9 +71,10 @@ static void cc_alloc_add(void* p, size_t size)
 
 static void cc_alloc_remove(void* p)
 {
+    size_t i;
     if (!g_alloc_ctx.active)
         return;
-    for (size_t i = 0; i < g_alloc_ctx.n_ptrs; i++) {
+    for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
         if (g_alloc_ctx.ptrs[i].p == p) {
             memmove(&g_alloc_ctx.ptrs[i], &g_alloc_ctx.ptrs[i + 1],
                 sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs - i - 1));

@@ -14,6 +14,53 @@ bool cc_optimizer_is_empty_block(const cc_ast_node* node)
     return node->data.block.n_children == 0 && node->data.block.n_vars == 0;
 }
 
+/* Merges and squashes a block. */
+void cc_optimizer_merge_block(
+    cc_context* ctx, cc_ast_node** pnode, bool managed)
+{
+    cc_ast_node* node = *pnode;
+    size_t i;
+
+    if(node == NULL || node->type != AST_NODE_BLOCK)
+        return;
+
+    for (i = 0; i < node->data.block.n_children; ++i) {
+        cc_ast_node* tnode = &node->data.block.children[i];
+        cc_optimizer_merge_block(ctx, &tnode, false);
+        if (tnode == NULL) /* If removed then just remove from block */
+            cc_ast_remove_block_node(node, i--);
+    }
+
+    /* Do not remove nodes that are jumped into */
+    if (node->ref_count)
+        return;
+    /* Do not delete case labels we use to jump */
+    if (node->data.block.is_case)
+        return;
+
+    /* Empty block with no effect whatsoever, typedefs are NOT accounted
+        as a typedef doesn't affect the overall program that much */
+    if (cc_optimizer_is_empty_block(node)) {
+        cc_ast_destroy_node(node, managed);
+        *pnode = NULL;
+    }
+    /* Blocks of the form { <expr> } can be coalesced to simply form
+        <expr> */
+    else if (node->data.block.n_children == 1 && node->data.block.n_types == 0
+        && node->data.block.n_vars == 0) {
+        /* Copy <expr> over */
+        cc_ast_node new_node = node->data.block.children[0];
+        new_node.parent = node->parent;
+        /* Destroy the now (invalid) block - however DO NOT DEALLOCATE
+            it as we can use the memory again but with our new expr type */
+        cc_free(node->data.block.children);
+        node->data.block.children = NULL;
+        node->data.block.n_children = 0;
+        cc_ast_destroy_node(node, false);
+        **pnode = new_node; /* Copy */
+    }
+}
+
 /* Condense/simplify expressions of an AST tree and remove redundancies
    Use funcbody to disallow block elimination on function bodies */
 void cc_optimizer_expr_condense(
@@ -27,6 +74,7 @@ void cc_optimizer_expr_condense(
     case AST_NODE_BINOP:
         cc_optimizer_expr_condense(ctx, &node->data.binop.left, true);
         cc_optimizer_expr_condense(ctx, &node->data.binop.right, true);
+
         if (node->ref_count) /* Do not remove nodes that are jumped into */
             return;
 
@@ -61,91 +109,24 @@ void cc_optimizer_expr_condense(
             **pnode = new_node;
         }
         break;
-    case AST_NODE_BLOCK:
-        for (size_t i = 0; i < node->data.block.n_vars; i++) {
+    case AST_NODE_BLOCK: {
+        size_t i;
+        for (i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
             cc_optimizer_expr_condense(ctx, &var->body, true);
         }
-
-        for (size_t i = 0; i < node->data.block.n_children; i++) {
+        for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_node* tnode = &node->data.block.children[i];
             cc_optimizer_expr_condense(ctx, &tnode, false);
-            if (tnode == NULL) { /* If removed then just remove from block */
-                cc_ast_remove_block_node(node, i);
-                i--;
-            }
+            if (tnode == NULL) /* If removed then just remove from block */
+                cc_ast_remove_block_node(node, i--);
         }
-
-        /* Do not remove nodes that are jumped into */
-        if (node->ref_count)
-            return;
-        /* Do not delete case labels we use to jump */
-        if (node->data.block.is_case)
-            return;
-
-        /* Empty block with no effect whatsoever, typedefs are NOT accounted
-           as a typedef doesn't affect the overall program that much */
-        if (cc_optimizer_is_empty_block(node)) {
-            cc_ast_destroy_node(node, managed);
-            *pnode = NULL;
-            return;
-        }
-
-        /* Blocks of the form { <expr> } can be coalesced to simply form
-           <expr> */
-        if (node->data.block.n_children == 1 && node->data.block.n_types == 0
-            && node->data.block.n_vars == 0) {
-            /* Copy <expr> over */
-            cc_ast_node new_node = node->data.block.children[0];
-            new_node.parent = node->parent;
-            /* Destroy the now (invalid) block - however DO NOT DEALLOCATE
-               it as we can use the memory again but with our new expr type */
-            cc_free(node->data.block.children);
-            node->data.block.children = NULL;
-            node->data.block.n_children = 0;
-            cc_ast_destroy_node(node, false);
-            **pnode = new_node; /* Copy */
-            return;
-        }
-
-#if 0
-        if (node->data.block.n_children == 0) {
-            /* Block with no children nodes BUT with variables
-               and both are blocks */
-            if (node->parent != NULL && node->parent->type == AST_NODE_BLOCK) {
-                cc_ast_node* parent = node->parent;
-
-                /* Transfer children nodes to the upper node (parental) */
-                for (size_t i = 0; i < node->data.block.n_vars; i++)
-                    cc_ast_add_block_variable(
-                        parent, &node->data.block.vars[i]);
-                cc_free(node->data.block.vars);
-                node->data.block.vars = NULL;
-                node->data.block.n_vars = 0;
-
-                for (size_t i = 0; i < node->data.block.n_types; i++)
-                    cc_ast_add_block_type(parent, &node->data.block.types[i]);
-                cc_free(node->data.block.types);
-                node->data.block.types = NULL;
-                node->data.block.n_types = 0;
-
-                for (size_t i = 0; i < node->data.block.n_children; i++)
-                    cc_ast_add_block_node(
-                        parent, &node->data.block.children[i]);
-                cc_free(node->data.block.children);
-                node->data.block.children = NULL;
-                node->data.block.n_children = 0;
-
-                cc_ast_destroy_node(node, managed);
-                *pnode = NULL;
-                return;
-            }
-        }
-#endif
-        break;
-    case AST_NODE_CALL:
+        cc_optimizer_merge_block(ctx, pnode, managed);
+    } break;
+    case AST_NODE_CALL: {
+        size_t i;
         cc_optimizer_expr_condense(ctx, &node->data.call.call_expr, true);
-        for (size_t i = 0; i < node->data.call.n_params; i++) {
+        for (i = 0; i < node->data.call.n_params; i++) {
             cc_ast_node* tnode = &node->data.call.params[i];
             cc_optimizer_expr_condense(ctx, &tnode, false);
             assert(tnode != NULL); /* Empty parameters should be handled by
@@ -169,7 +150,7 @@ void cc_optimizer_expr_condense(
                 return;
             }
         }
-        break;
+    } break;
     case AST_NODE_IF:
         cc_optimizer_expr_condense(ctx, &node->data.if_expr.cond, true);
         cc_optimizer_expr_condense(ctx, &node->data.if_expr.block, true);

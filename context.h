@@ -10,7 +10,7 @@ enum cc_stage {
     STAGE_PARSER,
     STAGE_AST,
     STAGE_SSA,
-    STAGE_CODEGEN,
+    STAGE_CODEGEN
 };
 
 struct cc_ast_type;

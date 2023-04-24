@@ -74,6 +74,7 @@ bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    cc_ast_variable virtual_member = { 0 };
     if (ctok == NULL)
         return false;
 
@@ -119,7 +120,6 @@ bool cc_parse_struct_or_union_specifier(
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACE, "Expected '{'");
 
     /* TODO: Attributes */
-    cc_ast_variable virtual_member = { 0 };
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_RBRACE)
         goto empty_memberlist;
@@ -166,6 +166,8 @@ static bool cc_parse_enum_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok;
+    size_t i;
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
         || ctok->type != LEXER_TOKEN_enum)
         return false;
@@ -272,8 +274,9 @@ static bool cc_parse_enum_specifier(
             break;
     }
 
-    for (size_t i = 0; i < type->data.enumer.n_elems; i++) {
-        for (size_t j = 0; j < type->data.enumer.n_elems; j++) {
+    for (i = 0; i < type->data.enumer.n_elems; i++) {
+        size_t j;
+        for (j = 0; j < type->data.enumer.n_elems; j++) {
             if (i != j
                 && !memcmp(&type->data.enumer.elems[i].literal,
                     &type->data.enumer.elems[j].literal,
@@ -388,6 +391,8 @@ static bool cc_parse_typeof_specifier(
     if (ctok->type == LEXER_TOKEN_typeof
         || ctok->type == LEXER_TOKEN_typeof_unqual) {
         bool unqual = false;
+        size_t i;
+
         if (ctok->type == LEXER_TOKEN_typeof_unqual)
             unqual = true;
         cc_lex_token_consume(ctx);
@@ -403,7 +408,7 @@ static bool cc_parse_typeof_specifier(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
 
         /* Unqualify if typeof_unqual is used */
-        for (size_t i = 0; unqual && i < type->n_cv_qual; i++)
+        for (i = 0; unqual && i < type->n_cv_qual; i++)
             type->cv_qual[i] = (cc_ast_type_cv) { .is_atomic = false,
                 .is_const = false,
                 .is_restrict = false,
@@ -582,10 +587,8 @@ bool cc_parse_declaration_specifier(
     bool qualified_once = false;
     type->storage = AST_STORAGE_AUTO;
     type->data.num.is_signed = ctx->is_default_signed;
-
     while (cc_parse_declaration_specifier_attributes(ctx, node, type))
         ;
-
     /* Consume cv-qualifiers */
     while (cc_parse_storage_class_specifier(ctx, type)
         || cc_parse_type_specifier(ctx, node, type)

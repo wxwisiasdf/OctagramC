@@ -1,6 +1,12 @@
 #ifndef AST_H
 #define AST_H 1
 
+#ifdef __STDC__
+#ifndef restrict
+#define restrict
+#endif
+#endif
+
 #include "diag.h"
 #include <stdarg.h>
 #include <stdbool.h>
@@ -28,7 +34,7 @@ enum cc_ast_storage {
     AST_STORAGE_CONSTEXPR = 0x08,
     AST_STORAGE_GLOBAL = 0x10,
     AST_STORAGE_THREAD_LOCAL = 0x40,
-    AST_STORAGE_INLINE = 0x80,
+    AST_STORAGE_INLINE = 0x80
 };
 
 enum cc_ast_type_mode {
@@ -49,7 +55,7 @@ enum cc_ast_type_mode {
     AST_TYPE_MODE_STRUCT,
     AST_TYPE_MODE_UNION,
     AST_TYPE_MODE_ENUM,
-    AST_TYPE_MODE_FUNCTION,
+    AST_TYPE_MODE_FUNCTION
 };
 
 typedef struct cc_ast_literal {
@@ -155,7 +161,7 @@ enum cc_ast_binop_type {
     AST_BINOP_GT,
     AST_BINOP_GTE,
     AST_BINOP_LT,
-    AST_BINOP_LTE,
+    AST_BINOP_LTE
 };
 
 enum cc_ast_unop_type {
@@ -167,7 +173,7 @@ enum cc_ast_unop_type {
     AST_UNOP_POSTINC,
     AST_UNOP_PREINC,
     AST_UNOP_POSTDEC,
-    AST_UNOP_PREDEC,
+    AST_UNOP_PREDEC
 };
 
 typedef struct cc_ast_node {

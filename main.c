@@ -27,12 +27,12 @@
 
 int main(int argc, char** argv)
 {
-    const char* output_filename = "out.asm";
-    const char* input_filename = "main.c";
+    const char *output_filename = "out.asm", *input_filename = "main.c";
     cc_context ctx = { 0 };
+    int i;
 
     cc_alloc_init(true);
-    for (int i = 1; i < argc; i++) {
+    for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-o")) {
             i++;
             if (i < argc) {
@@ -110,8 +110,9 @@ int main(int argc, char** argv)
                 cc_ast_destroy_node(ctx.root, true);
 
                 if (!ctx.error_cnt) {
+                    size_t i;
                     ctx.stage = STAGE_CODEGEN;
-                    for (size_t i = 0; i < ctx.n_ssa_funcs; i++)
+                    for (i = 0; i < ctx.n_ssa_funcs; i++)
                         ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
                 }
             }

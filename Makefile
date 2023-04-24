@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c99 -DTARGET_AS386=1 -DANSI_COLOUR=1 -Wall -Wextra -pedantic \
+CFLAGS = -ansi -DTARGET_AS386=1 -DANSI_COLOUR=1 -Wall -Wextra -pedantic \
 	-Wno-unused-parameter -O0 -g
 all: build
 

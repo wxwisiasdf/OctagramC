@@ -1,6 +1,12 @@
 #ifndef SSA_H
 #define SSA_H 1
 
+#ifdef __STDC__
+#ifndef restrict
+#define restrict
+#endif
+#endif
+
 #include "context.h"
 #include "diag.h"
 
@@ -11,8 +17,7 @@ enum cc_ssa_param_type {
     SSA_PARAM_VARIABLE, /* Non-temporal */
     SSA_PARAM_RETVAL,
     SSA_PARAM_TMPVAR, /* Unnamed temporal variable */
-    SSA_PARAM_REF_TMPVAR,
-    SSA_PARAM_LABEL,
+    SSA_PARAM_LABEL
 };
 
 /* Same as ast.h storage linkage specifiers */
@@ -24,7 +29,7 @@ enum cc_ssa_storage {
     SSA_STORAGE_CONSTEXPR = 0x08,
     SSA_STORAGE_GLOBAL = 0x10,
     SSA_STORAGE_THREAD_LOCAL = 0x40,
-    SSA_STORAGE_INLINE = 0x80,
+    SSA_STORAGE_INLINE = 0x80
 };
 
 typedef struct {
@@ -93,7 +98,7 @@ enum cc_ssa_token_type {
     SSA_TOKEN_NOT,
     SSA_TOKEN_ASSIGN,
     SSA_TOKEN_ZERO_EXT,
-    SSA_TOKEN_SIGN_EXT,
+    SSA_TOKEN_SIGN_EXT
 };
 
 typedef struct cc_ssa_token {
