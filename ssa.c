@@ -345,15 +345,16 @@ static void cc_ssa_process_binop(
     if(lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
         abort();
 
-    /* Obtain sizes from types iff they are pointers (to properly perform
-       pointer arithmethic). */
-    --lhs_type.n_cv_qual;
-    lhs_psize = ctx->get_sizeof(ctx, &lhs_type);
-    --rhs_type.n_cv_qual;
-    rhs_psize = ctx->get_sizeof(ctx, &rhs_type);
-
     switch (node->data.binop.op) {
 #define HANDLE_POINTER_ARITH() \
+    /* Obtain sizes from types iff they are pointers (to properly perform \
+       pointer arithmethic). */ \
+    --lhs_type.n_cv_qual; \
+    lhs_psize = ctx->get_sizeof(ctx, &lhs_type); \
+    ++lhs_type.n_cv_qual; \
+    --rhs_type.n_cv_qual; \
+    rhs_psize = ctx->get_sizeof(ctx, &rhs_type); \
+    ++rhs_type.n_cv_qual; \
     if(lhs_psize || rhs_psize) { \
         cc_ast_literal sizeof_lit; \
         cc_ssa_param tmp_param; \
@@ -491,9 +492,6 @@ static void cc_ssa_process_block(
             } else {
                 enum cc_ast_storage storage
                     = var->type.storage & ~(AST_STORAGE_THREAD_LOCAL);
-                assert(storage == AST_STORAGE_EXTERN
-                    || storage == AST_STORAGE_GLOBAL
-                    || storage == AST_STORAGE_CONSTEXPR);
             }
         }
     }

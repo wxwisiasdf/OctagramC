@@ -126,8 +126,11 @@ static cc_ast_literal cc_ceval_eval_1(
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
         var = cc_ast_find_variable(node->data.var.name, node);
-        if (var != NULL && var->type.storage == AST_STORAGE_CONSTEXPR
-            && var->initializer != NULL)
+        if ((var->type.storage & AST_STORAGE_CONSTEXPR) == 0) {
+            cc_diag_warning(ctx, "Non-constexpr variable used in contexpr");
+            break;
+        }
+        if (var != NULL && var->initializer != NULL)
             return cc_ceval_eval_1(ctx, var->initializer, list, n_list);
         cc_diag_warning(ctx, "Unable to constexpr variable, defaulting to 0");
     } break;
@@ -342,7 +345,7 @@ bool cc_ceval_deduce_type(
             return false;
         assert(tmp_type.mode == AST_TYPE_MODE_FUNCTION
             && tmp_type.data.func.return_type != NULL);
-        *type = *tmp_type.data.func.return_type;
+        *type = tmp_type;
     }
         return true;
     case AST_NODE_STRING_LITERAL:
@@ -432,7 +435,7 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
-        if (var->type.storage == AST_STORAGE_CONSTEXPR)
+        if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
             return true;
     }
         return false;

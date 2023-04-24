@@ -139,7 +139,7 @@ void cc_optimizer_expr_condense(
             cc_ast_variable* var = cc_ast_find_variable(
                 node->data.call.call_expr->data.var.name, node);
             if (var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION
-                && var->type.storage == AST_STORAGE_CONSTEXPR) {
+                && (var->type.storage & AST_STORAGE_CONSTEXPR) != 0) {
                 /* Replace the call with the new constexpr-ed literal result */
                 cc_ast_node new_node = { 0 };
                 new_node.type = AST_NODE_LITERAL;

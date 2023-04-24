@@ -1,16 +1,11 @@
 char c[100];
-int main(int argc, char **argv) {
-    c[-1] = 10;
-    return 0;
-}
-
 extern int printf(const char *, ...);
 
-constexpr int eval_test(int x) {
+constexpr int eval_test(int x, int y) {
     return x;
 }
 
-struct [[packed]] [[align(eval_test(100))]] [[max_align(16)]] test {
+struct [[packed]] [[align(eval_test(100, 100))]] [[max_align(16)]] test {
     int memb1;
     short memb2;
     long memb3;
@@ -51,4 +46,10 @@ enum sus {
 int mdim[4][4];
 int a1(int n) {
     return mdim[n];
+}
+
+int main(int argc, char **argv) {
+    c[-1] = 10;
+    dl_limit(argc, argv);
+    return 0;
 }

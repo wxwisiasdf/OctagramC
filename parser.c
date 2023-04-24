@@ -441,10 +441,11 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             /* All functions that are not prototypes are treated as a variable. */
-            if (var.type.storage == AST_STORAGE_EXTERN) {
+            if ((var.type.storage & AST_STORAGE_EXTERN) != 0) {
                 cc_diag_warning(ctx,
                     "Function '%s' declared extern but defined here", var.name);
-                var.type.storage = AST_STORAGE_AUTO;
+                var.type.storage &= ~AST_STORAGE_EXTERN;
+                var.type.storage |= AST_STORAGE_GLOBAL;
             }
 
             /* Variable for the function prototype (then replaced) */
@@ -490,7 +491,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     if (!is_parsing_typedef) {
         /* Automatically give variables globality-scope if they don't
            have any other linkage specifiers. */
-        if (var.type.storage == AST_STORAGE_AUTO)
+        if (var.type.storage == AST_STORAGE_NONE)
             var.type.storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, &var);
     }

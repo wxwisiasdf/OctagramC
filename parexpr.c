@@ -274,12 +274,7 @@ static bool cc_parse_unary_call(cc_context* ctx, cc_ast_node* node,
             break;
         }
         cc_ast_destroy_node(virtual_node, true);
-
-        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         *expr_result = call_node;
-
-        /*if (var->type.mode != AST_TYPE_MODE_FUNCTION)
-            cc_diag_error(ctx, "Calling non-function variable");*/
         return true;
     error_handle:
         cc_ast_destroy_node(call_node, true);
@@ -366,6 +361,67 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     return true;
 error_handle:
     return false;
+}
+
+/* Produce and verify diagnostics for calls to functions
+   this is it's own function because signatures for libc functions are
+   also part of our diagnostics. */
+static void cc_lint_call_node(
+    cc_context* ctx, cc_ast_node* node, cc_ast_type type)
+{
+    size_t i;
+    assert(node->type == AST_NODE_CALL);
+    if (type.mode != AST_TYPE_MODE_FUNCTION) {
+        if (type.n_cv_qual > 0) {
+            cc_diag_error(
+                ctx, "Calling non-function pointer, consider casting");
+            goto error_handle;
+        }
+        cc_diag_error(ctx, "Calling non-function type");
+        goto error_handle;
+    }
+
+    if (node->data.call.n_params > type.data.func.n_params
+        && !type.data.func.variadic) {
+        cc_diag_error(ctx,
+            "Too many parameters on call to non-variadic function ("
+            "expected %u)", (unsigned int)type.data.func.n_params);
+        goto error_handle;
+    } else if (
+        node->data.call.n_params < type.data.func.n_params) {
+        cc_diag_error(ctx, "Too few parameters on call to %s function ("
+            "expected %u)",
+            type.data.func.variadic ? "variadic" : "non-variadic",
+            (unsigned int)type.data.func.n_params);
+        goto error_handle;
+    }
+
+    /* Only evaluate the "shared number count of parameters", that is
+      calling a variadic function without a parameter(s) on what would
+      be the ellipsis, is completely valid; In other words:
+
+      printf("hi %i", 10); - Is valid
+      printf(); - Is not valid
+      printf("hi"); - Is valid */
+    for (i = 0; i < node->data.call.n_params && i < type.data.func.n_params;
+        ++i) {
+        cc_ast_type call_param_type = { 0 };
+        if (cc_ceval_deduce_type(ctx, &node->data.call.params[i],
+                &call_param_type)) {
+            cc_ast_variable* param = &type.data.func.params[i];
+            /* Expect pointer, but obtained non-pointer */
+            if (param->type.n_cv_qual > 0
+                && call_param_type.n_cv_qual == 0) {
+                cc_diag_warning(ctx, "Passing argument to %i '%s'; implicitly "
+                    "converting to a pointer",
+                    i + 1,
+                    param->type.name == NULL ? "<anonymous>"
+                                             : param->type.name);
+            }
+        }
+    }
+error_handle:
+    ;
 }
 
 static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
@@ -478,6 +534,8 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         cc_ast_type type = { 0 };
 
         cc_parse_unary_call(ctx, node, expr_node, &result_node);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+
         result_node->parent = node;
         cc_ast_add_block_node(node, result_node);
 
@@ -485,60 +543,13 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
            as pointer) - warning about those is not required if I recall
            correctly, however everyone nowadays expects a good linter. */
         if (cc_ceval_deduce_type(ctx, result_node, &type)) {
-            size_t i;
-
-            assert(result_node->type == AST_NODE_CALL);
-            if (type.mode != AST_TYPE_MODE_FUNCTION) {
-                if (type.n_cv_qual > 0) {
-                    cc_diag_error(
-                        ctx, "Calling non-function pointer, consider casting");
-                    goto error_handle;
-                }
-                cc_diag_error(ctx, "Calling non-function type");
-                goto error_handle;
-            }
-
-            if (result_node->data.call.n_params > type.data.func.n_params
-                && !type.data.func.variadic) {
-                cc_diag_error(ctx,
-                    "Too many parameters on call to non-variadic function");
-                goto error_handle;
-            }
-
-            /* Only evaluate the "shared number count of parameters", that is
-               calling a variadic function without a parameter(s) on what would
-               be the ellipsis, is completely valid; In other words:
-               
-               printf("hi %i", 10); - Is valid
-               printf(); - Is not valid
-               printf("hi"); - Is valid */
-            for (i = 0; i < result_node->data.call.n_params
-                 && i < type.data.func.n_params;
-                 i++) {
-                cc_ast_type call_param_type = { 0 };
-                if (cc_ceval_deduce_type(ctx, &result_node->data.call.params[i],
-                        &call_param_type)) {
-                    cc_ast_variable* param = &type.data.func.params[i];
-
-                    /* Expect pointer, but obtained non-pointer */
-                    if (param->type.n_cv_qual > 0
-                        && call_param_type.n_cv_qual == 0) {
-                        cc_diag_warning(ctx,
-                            "Passing argument to %i '%s'; implicitly "
-                            "converting to a pointer",
-                            i + 1,
-                            param->type.name == NULL ? "<anonymous>"
-                                                     : param->type.name);
-                    }
-                }
-            }
+            cc_lint_call_node(ctx, result_node, type);
         } else {
             cc_diag_error(
                 ctx, "Unable to deduce type for runtime-evaluated call");
             goto error_handle;
         }
-    }
-        return true;
+    } return true;
     default:
         break;
     }

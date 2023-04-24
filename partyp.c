@@ -337,6 +337,10 @@ static bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
         break;
     case LEXER_TOKEN__Atomic:
         type->cv_qual[type->n_cv_qual].is_atomic = true;
+        if(type->mode == AST_TYPE_MODE_FUNCTION
+        || type->cv_qual[type->n_cv_qual].is_array)
+            cc_diag_error(ctx, "_Atomic can't modify function pointers or "
+                "arrays");
         break;
     default:
         return false;
@@ -360,7 +364,10 @@ void cc_swap_func_decl(cc_ast_type* type)
     /* Reset type of variable */
     memset(type, 0, sizeof(cc_ast_type));
     type->mode = AST_TYPE_MODE_FUNCTION;
+    type->storage = return_type->storage;
     type->data.func.return_type = return_type;
+    /* Some properties; return type do not posses any storage (it's ellided) */
+    return_type->storage = AST_STORAGE_NONE;
 }
 
 static bool cc_parse_typedef_name(
@@ -516,6 +523,9 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
         return false;
 
     switch (ctok->type) {
+    case LEXER_TOKEN_auto:
+        type->storage |= AST_STORAGE_AUTO;
+        break;
     case LEXER_TOKEN_extern:
         type->storage |= AST_STORAGE_EXTERN;
         break;
@@ -537,6 +547,31 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
     default:
         return false;
     }
+    /* Enforces type constraints */
+    if((type->storage & AST_STORAGE_THREAD_LOCAL) != 0) {
+        enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_THREAD_LOCAL;
+        if(tmp == AST_STORAGE_NONE
+        || (tmp & AST_STORAGE_STATIC) != 0
+        || (tmp & AST_STORAGE_EXTERN) != 0)
+            ;
+        else
+            cc_diag_error(ctx, "thread_local may only be used with static or"
+                "extern");
+    } else if((type->storage & AST_STORAGE_CONSTEXPR) != 0) {
+        enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_CONSTEXPR;
+        if(tmp == AST_STORAGE_NONE
+        || (tmp & AST_STORAGE_AUTO) != 0
+        || (tmp & AST_STORAGE_REGISTER) != 0
+        || (tmp & AST_STORAGE_STATIC) != 0)
+            ;
+        else
+            cc_diag_error(ctx, "constexpr may only be used with auto, register"
+                " or static");
+    } else if((type->storage & AST_STORAGE_AUTO) != 0) {
+        if(ctx->is_parsing_typedef == true)
+            cc_diag_error(ctx, "auto can't appear alongside typedef");
+    }
+error_handle: /* Normal finish */
     cc_lex_token_consume(ctx);
     return true;
 }
@@ -585,7 +620,7 @@ bool cc_parse_declaration_specifier(
 {
     const cc_lexer_token* ctok;
     bool qualified_once = false;
-    type->storage = AST_STORAGE_AUTO;
+    type->storage = AST_STORAGE_NONE;
     type->data.num.is_signed = ctx->is_default_signed;
     while (cc_parse_declaration_specifier_attributes(ctx, node, type))
         ;
@@ -707,13 +742,20 @@ error_handle:
 bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
+    const cc_lexer_token* ctok;
     cc_parse_declaration_specifier(ctx, node, &var->type);
 
-    const cc_lexer_token* ctok;
     /* On cases such as struct b {} ; */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_SEMICOLON)
+        && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        /* Empty structures, unions or enums do not require a diagnostic(?)
+           but we'll provide one anyways. */
+        if(var->type.mode == AST_TYPE_MODE_ENUM
+        || var->type.mode == AST_TYPE_MODE_UNION
+        || var->type.mode == AST_TYPE_MODE_STRUCT)
+            cc_diag_warning(ctx, "Empty structure, union or enum");
         return true;
+    }
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL) {
         cc_diag_error(ctx, "Expected identifier or '(' for declarator");
@@ -921,7 +963,7 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         cc_ast_copy_type(&stype, &var->type);
         /* Assign global storage to the variable if it is not inside a
            function body. */
-        if (!ctx->is_func_body && var->type.storage == AST_STORAGE_AUTO)
+        if (!ctx->is_func_body && var->type.storage == AST_STORAGE_NONE)
             var->type.storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, var);
         memset(var, 0, sizeof(*var));

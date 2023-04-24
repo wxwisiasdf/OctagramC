@@ -454,6 +454,8 @@ void cc_ast_copy_type(
 {
     memset(dest, 0, sizeof(*dest));
     dest->mode = src->mode;
+    dest->storage = src->storage;
+    dest->is_typedef = src->is_typedef;
 
     dest->max_alignment = src->max_alignment;
     dest->min_alignment = src->min_alignment;
@@ -767,6 +769,56 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
     }
 }
 
+static void cc_ast_print_var(const cc_ast_variable* var)
+{
+    if(var == NULL) {
+        printf("<var (null)>");
+        return;
+    }
+    
+    printf("<var %s ", var->name);
+
+    switch (var->type.mode) {
+    case AST_TYPE_MODE_FUNCTION:
+        printf("(fn)");
+        break;
+    case AST_TYPE_MODE_INT:
+        printf("(int)");
+        break;
+    default:
+        printf("(*)");
+        break;
+    }
+
+    if ((var->type.storage & AST_STORAGE_AUTO) != 0)
+        printf("auto,");
+    if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
+        printf("constexpr,");
+    if ((var->type.storage & AST_STORAGE_EXTERN) != 0)
+        printf("extern,");
+    if ((var->type.storage & AST_STORAGE_GLOBAL) != 0)
+        printf("global,");
+    if ((var->type.storage & AST_STORAGE_INLINE) != 0)
+        printf("inline,");
+    if ((var->type.storage & AST_STORAGE_REGISTER) != 0)
+        printf("register,");
+    if ((var->type.storage & AST_STORAGE_STATIC) != 0)
+        printf("static,");
+    if ((var->type.storage & AST_STORAGE_THREAD_LOCAL) != 0)
+        printf("thread_local,");
+
+    if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
+        size_t j;
+        printf("(");
+        for (j = 0; j < var->type.data.func.n_params; j++)
+            cc_ast_print_var(&var->type.data.func.params[j]);
+        printf(")");
+        if (var->body != NULL)
+            cc_ast_print(var->body);
+    }
+    printf(">");
+}
+
 void cc_ast_print(const cc_ast_node* node)
 {
     if (node == NULL) {
@@ -796,48 +848,8 @@ void cc_ast_print(const cc_ast_node* node)
             printf("type %s;\n", type->name);
         }
 
-        for (i = 0; i < node->data.block.n_vars; i++) {
-            const cc_ast_variable* var = &node->data.block.vars[i];
-            const char* storage_name;
-            switch (var->type.storage & ~(AST_STORAGE_THREAD_LOCAL)) {
-            case AST_STORAGE_AUTO:
-                storage_name = "auto";
-                break;
-            case AST_STORAGE_CONSTEXPR:
-                storage_name = "constexpr";
-                break;
-            case AST_STORAGE_EXTERN:
-                storage_name = "extern";
-                break;
-            case AST_STORAGE_GLOBAL:
-                storage_name = "global";
-                break;
-            case AST_STORAGE_INLINE:
-                storage_name = "inline";
-                break;
-            case AST_STORAGE_REGISTER:
-                storage_name = "register";
-                break;
-            case AST_STORAGE_STATIC:
-                storage_name = "static";
-                break;
-            default:
-                abort();
-            }
-            printf("var %s %s", var->name, storage_name);
-            if (var->type.storage & AST_STORAGE_THREAD_LOCAL)
-                printf("thread_local");
-            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
-                size_t j;
-                printf("(");
-                for (j = 0; j < var->type.data.func.n_params; j++)
-                    printf("%zu=%s, ", j, var->type.data.func.params[j].name);
-                printf(")");
-                if (var->body != NULL)
-                    cc_ast_print(var->body);
-            }
-            printf(";");
-        }
+        for (i = 0; i < node->data.block.n_vars; i++)
+            cc_ast_print_var(&node->data.block.vars[i]);
 
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
@@ -853,7 +865,7 @@ void cc_ast_print(const cc_ast_node* node)
         printf(") params(");
         for (i = 0; i < node->data.call.n_params; i++) {
             cc_ast_print(&node->data.call.params[i]);
-            printf("; ");
+            printf(";");
         }
         printf(")>");
     } break;
@@ -930,19 +942,7 @@ void cc_ast_print(const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
             = cc_ast_find_variable(node->data.var.name, node);
-        printf("<var %s", var->name);
-        switch (var->type.mode) {
-        case AST_TYPE_MODE_FUNCTION:
-            printf("(fn)");
-            break;
-        case AST_TYPE_MODE_INT:
-            printf("(int)");
-            break;
-        default:
-            printf("(*)");
-            break;
-        }
-        printf(">");
+        cc_ast_print_var(var);
     } break;
     default:
         printf("<?(%i)>", node->type);
