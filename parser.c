@@ -401,6 +401,9 @@ error_handle:
 static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
+    bool is_parsing_typedef = false;
+    cc_ast_variable var = { 0 };
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
@@ -408,10 +411,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
        typedef struct SomeThing {} NewName ident; */
 
     /* Declaration specifiers */
-    cc_ast_variable var = { 0 };
-    bool is_parsing_typedef = false;
     cc_parse_declarator_list(ctx, node, &var, &is_parsing_typedef);
-
     if (var.name != NULL) {
         if (var.name[0] == '_' && isupper(var.name[1])
             && !(var.type.storage & AST_STORAGE_EXTERN)) {

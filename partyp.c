@@ -775,7 +775,8 @@ bool cc_parse_declarator(
         cc_lex_token_consume(ctx);
         if (tpdef == NULL) {
             if (var->name != NULL) {
-                cc_diag_error(ctx, "More than one identifier on declaration");
+                cc_diag_error(ctx, "More than one identifier on declaration ("
+                    "%s and %s)", var->name, ctok->data);
                 goto error_handle;
             }
             var->name = cc_strdup(ctok->data);
@@ -863,6 +864,7 @@ ignore_missing_ident:
 
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LBRACKET) {
+        cc_ast_type_cv* array_cv;
         cc_lex_token_consume(ctx);
 
         var->type.n_cv_qual++; /* Increment for array (laundered) */
@@ -870,32 +872,30 @@ ignore_missing_ident:
             cc_diag_error(ctx, "Array exceeds pointer depth size");
             goto error_handle;
         }
-        cc_ast_type_cv* array_cv = &var->type.cv_qual[var->type.n_cv_qual];
+        array_cv = &var->type.cv_qual[var->type.n_cv_qual];
         array_cv->is_array = true;
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_static)
+            && ctok->type == LEXER_TOKEN_static) {
+            cc_lex_token_consume(ctx);
             var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
+        }
         while (cc_parse_type_qualifier(ctx, &var->type))
             ; /* Parse type qualifiers list */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_static)
+            && ctok->type == LEXER_TOKEN_static) {
+            cc_lex_token_consume(ctx);
             var->type.cv_qual[var->type.n_cv_qual].is_static_array = true;
-        
-        /* TODO: VLA arrays */
-        if (!cc_parse_assignment_expression(ctx, node, NULL))
-            cc_diag_error(ctx, "Expected expression for declarator");
-        
-        /*array_cv->array_size = cc_ceval_literal_to_ushort(ctx, &literal);*/
-        array_cv->array_size = 100;
-
-        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
-
-        if (var->type.cv_qual[var->type.n_cv_qual].array_size
-            > MAX_ARRAY_SIZE) {
-            cc_diag_error(ctx, "Array exceeds maximum constant size");
-            goto error_handle;
         }
+
+        /* The size is an expression because we also need to support VLA
+           arrays. Yes I'm aware this is quite terrifying for a lot of
+           people who code C, but VLAs are pretty cool! */
+        array_cv->array_size_expr = cc_ast_create_block(ctx, node);
+        /* Array can have no size "char a[]" for example, so it isn't
+           an error to have such arrays. */
+        cc_parse_assignment_expression(ctx, array_cv->array_size_expr, NULL);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
     }
 
     /* If we're assigning on declaration we will have to expand a separate
@@ -922,6 +922,7 @@ bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
     cc_ast_variable* var, bool* is_parsing_typedef)
 {
     const cc_lexer_token* ctok;
+    bool decl_result;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
@@ -929,7 +930,6 @@ bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
        typedef struct SomeThing {} NewName ident; */
 
     /* Declaration specifiers */
-    bool decl_result;
 comma_list_initializers: /* Jump here, reusing the variable's stack
                             location **but** copying over the type
                             with the various elements. */

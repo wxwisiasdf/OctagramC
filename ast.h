@@ -14,7 +14,8 @@
 
 /* AST Parsing */
 #define MAX_CV_QUALIFIERS 3
-#define MAX_ARRAY_SIZE 65534
+
+typedef struct cc_ast_node cc_ast_node;
 
 typedef struct cc_ast_type_cv {
     bool is_const : 1;
@@ -23,7 +24,7 @@ typedef struct cc_ast_type_cv {
     bool is_atomic : 1;
     bool is_array : 1; /* Treating this pointer as array? */
     bool is_static_array : 1; /* If the given size of the array is an static */
-    unsigned short array_size; /* Size of the array! */
+    cc_ast_node *array_size_expr; /* Expression for the size of the array */
 } cc_ast_type_cv;
 
 enum cc_ast_storage {
@@ -117,10 +118,10 @@ typedef struct cc_ast_type {
 } cc_ast_type;
 
 typedef struct cc_ast_variable {
-    cc_ast_type type;
     char* name;
     struct cc_ast_node* body; /* For functions. */
     struct cc_ast_node* initializer; /* Initializer for constexpr and such. */
+    cc_ast_type type;
 } cc_ast_variable;
 
 enum cc_ast_node_type {
