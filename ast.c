@@ -898,15 +898,15 @@ void cc_ast_print(const cc_ast_node* node)
         printf("(label-id %u)", node->label_id);
     switch (node->type) {
     case AST_NODE_BINOP:
-        printf("<binop(");
+        printf("<binop{");
         cc_ast_print(node->data.binop.left);
-        printf(")%s(", cc_ast_get_binop_op_name(node->data.binop.op));
+        printf("}%s{", cc_ast_get_binop_op_name(node->data.binop.op));
         cc_ast_print(node->data.binop.right);
-        printf(")>");
+        printf("}>");
         break;
     case AST_NODE_BLOCK: {
         size_t i;
-        printf("{(nodes %u)", (unsigned int)node->data.block.n_children);
+        printf("<block(%u){", (unsigned int)node->data.block.n_children);
         if (node->data.block.is_case)
             printf("case %lu,%s", node->data.block.case_val.value.u,
                 node->data.block.is_default ? "default" : "case");
@@ -922,36 +922,36 @@ void cc_ast_print(const cc_ast_node* node)
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
             if(i + 1 < node->data.block.n_children)
-                printf("$;$");
+                printf(",");
         }
-        printf("}");
+        printf("}>");
     } break;
     case AST_NODE_CALL: {
         size_t i;
-        printf("<call(");
+        printf("<call{");
         cc_ast_print(node->data.call.call_expr);
-        printf(") params(");
+        printf("}params{");
         for (i = 0; i < node->data.call.n_params; i++) {
             cc_ast_print(&node->data.call.params[i]);
-            printf("$,$");
+            printf(",");
         }
-        printf(")>");
+        printf("}>");
     } break;
     case AST_NODE_SWITCH:
-        printf("<switch(");
+        printf("<switch{");
         cc_ast_print(node->data.switch_expr.control);
-        printf(")block(");
+        printf("}block{");
         cc_ast_print(node->data.switch_expr.block);
-        printf(")>");
+        printf("}>");
         break;
     case AST_NODE_IF:
-        printf("<if(");
+        printf("<if{");
         cc_ast_print(node->data.if_expr.cond);
-        printf(")then(");
+        printf("}then{");
         cc_ast_print(node->data.if_expr.block);
-        printf(")else(");
+        printf("}else{");
         cc_ast_print(node->data.if_expr.tail_else);
-        printf(")>");
+        printf("}>");
         break;
     case AST_NODE_JUMP:
         printf("<jump-to %u>", node->data.jump_label_id);
@@ -963,9 +963,9 @@ void cc_ast_print(const cc_ast_node* node)
             printf("<literal %luu>", node->data.literal.value.u);
         break;
     case AST_NODE_RETURN:
-        printf("<return(");
+        printf("<return{");
         cc_ast_print(node->data.return_expr);
-        printf(")>");
+        printf("}>");
         break;
     case AST_NODE_STRING_LITERAL:
         printf("<string-literal %s>", node->data.string_literal);
@@ -1013,7 +1013,7 @@ void cc_ast_print(const cc_ast_node* node)
         cc_ast_print_var(var);
     } break;
     default:
-        printf("<?(%i)>", node->type);
+        printf("<?{%i}>", node->type);
         break;
     }
 }

@@ -192,6 +192,7 @@ static void cc_as386_gen_assign(
     switch (lhs->type) {
     case SSA_PARAM_VARIABLE: {
         enum cc_as386_reg val_regno = cc_as386_regalloc(ctx);
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
             fprintf(ctx->out, "\tmovl\t%s,$%lu\n", reg_names[val_regno],
@@ -213,8 +214,6 @@ static void cc_as386_gen_assign(
         default:
             abort();
         }
-
-        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
         fprintf(ctx->out, "\tmovl\t%s,%s\n", reg_names[val_regno],
             lhs->data.var_name);
         fprintf(ctx->out, "\tmovl\t%s,%s\n", reg_names[val_regno],

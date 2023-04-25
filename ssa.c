@@ -238,9 +238,6 @@ static cc_ssa_param cc_ssa_literal_to_param(const cc_ast_literal* literal)
 static cc_ssa_param cc_ssa_variable_to_param(
     cc_context* ctx, const cc_ast_variable* var)
 {
-    cc_ast_type tmp_type = var->type;
-    ++tmp_type.n_cv_qual;
-    assert(tmp_type.n_cv_qual <= MAX_CV_QUALIFIERS);
     return (cc_ssa_param) {
         .type = SSA_PARAM_VARIABLE,
         .storage = cc_ssa_ast_storage_to_ssa(var->type.storage),
@@ -248,7 +245,7 @@ static cc_ssa_param cc_ssa_variable_to_param(
             .var_name = cc_strdup(var->name),
         },
         .is_signed = false,
-        .size = ctx->get_sizeof(ctx, &tmp_type),
+        .size = ctx->get_sizeof(ctx, &var->type),
         .version = 0,
     };
 }
@@ -338,43 +335,75 @@ static void cc_ssa_process_binop(
         abort();
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
 
-    cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
-    cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
-
     /* Pointer with pointer arithmethic is illegal */
     if(lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
         abort();
+    else if(lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
+        /* Obtain sizes from types iff they are pointers (to properly perform
+        pointer arithmethic). */
+        if (lhs_type.n_cv_qual > 0) {
+            --lhs_type.n_cv_qual;
+            lhs_psize = ctx->get_sizeof(ctx, &lhs_type);
+            ++lhs_type.n_cv_qual;
+        }
+        if (rhs_type.n_cv_qual > 0) {
+            --rhs_type.n_cv_qual;
+            rhs_psize = ctx->get_sizeof(ctx, &rhs_type);
+            ++rhs_type.n_cv_qual;
+        }
+    }
+
+    if (lhs_psize || rhs_psize) {
+        cc_ssa_param tmp_param
+            = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);
+        if (lhs_psize) {
+            cc_ssa_from_ast(ctx, node->data.binop.left, tmp_param);
+            cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+
+            memset(&tok, 0, sizeof(tok));
+            tok.type = SSA_TOKEN_ASSIGN;
+            tok.data.unop.left = lhs_param;
+            tok.data.unop.right = tmp_param;
+            tok.info = node->info;
+            tok.info.filename = cc_strdup(node->info.filename);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        } else {
+            cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+            cc_ssa_from_ast(ctx, node->data.binop.right, tmp_param);
+
+            memset(&tok, 0, sizeof(tok));
+            tok.type = SSA_TOKEN_ASSIGN;
+            tok.data.unop.left = rhs_param;
+            tok.data.unop.right = tmp_param;
+            tok.info = node->info;
+            tok.info.filename = cc_strdup(node->info.filename);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        }
+    } else {
+        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+    }
 
     switch (node->data.binop.op) {
 #define HANDLE_POINTER_ARITH() \
-    if(lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) { \
-        /* Obtain sizes from types iff they are pointers (to properly perform \
-        pointer arithmethic). */ \
-        --lhs_type.n_cv_qual; \
-        lhs_psize = ctx->get_sizeof(ctx, &lhs_type); \
-        ++lhs_type.n_cv_qual; \
-        --rhs_type.n_cv_qual; \
-        rhs_psize = ctx->get_sizeof(ctx, &rhs_type); \
-        ++rhs_type.n_cv_qual; \
-        if(lhs_psize || rhs_psize) { \
-            cc_ast_literal sizeof_lit; \
-            cc_ssa_param tmp_param; \
-            sizeof_lit.is_float = false; \
-            sizeof_lit.is_signed = false; \
-            sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize; \
-            tmp_param = cc_ssa_literal_to_param(&sizeof_lit); \
-            parith_param = cc_ssa_tempvar_param( \
-                ctx, lhs_psize ? &lhs_type : &rhs_type); \
-            /* Assignment is an unop here */ \
-            tok.type = SSA_TOKEN_MUL; \
-            tok.data.binop.left = parith_param; \
-            tok.data.binop.right = lhs_psize ? lhs_param : rhs_param; \
-            tok.data.binop.extra = tmp_param; \
-            tok.info = node->info; \
-            tok.info.filename = cc_strdup(node->info.filename); \
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok); \
-            memset(&tok, 0, sizeof(tok)); \
-        } \
+    if(lhs_psize || rhs_psize) { \
+        cc_ast_literal sizeof_lit; \
+        cc_ssa_param tmp_param; \
+        sizeof_lit.is_float = false; \
+        sizeof_lit.is_signed = false; \
+        sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize; \
+        tmp_param = cc_ssa_literal_to_param(&sizeof_lit); \
+        parith_param = cc_ssa_tempvar_param( \
+            ctx, lhs_psize ? &lhs_type : &rhs_type); \
+        /* Assignment is an unop here */ \
+        tok.type = SSA_TOKEN_MUL; \
+        tok.data.binop.left = parith_param; \
+        tok.data.binop.right = lhs_psize ? lhs_param : rhs_param; \
+        tok.data.binop.extra = tmp_param; \
+        tok.info = node->info; \
+        tok.info.filename = cc_strdup(node->info.filename); \
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok); \
+        memset(&tok, 0, sizeof(tok)); \
     }
     case AST_BINOP_ADD:
 HANDLE_POINTER_ARITH()
@@ -391,23 +420,17 @@ HANDLE_POINTER_ARITH()
     case AST_BINOP_DIV:
         tok.type = SSA_TOKEN_DIV;
         break;
-    case AST_BINOP_ASSIGN:
+    case AST_BINOP_ASSIGN: {
+        /* Generate a sequence of tokens so we store the data onto lhs */
         /* Assignment is an unop here */
-        tok.type = SSA_TOKEN_ASSIGN;
-        tok.data.unop.left = lhs_param;
-        tok.data.unop.right = rhs_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-
         memset(&tok, 0, sizeof(tok));
-        tok.type = SSA_TOKEN_ASSIGN;
-        tok.data.unop.left = param;
+        tok.type = SSA_TOKEN_STORE_AT;
+        tok.data.unop.left = rhs_param;
         tok.data.unop.right = lhs_param;
         tok.info = node->info;
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        return;
+    } return;
     case AST_BINOP_GT:
         tok.type = SSA_TOKEN_GT;
         break;
@@ -429,6 +452,7 @@ HANDLE_POINTER_ARITH()
     default:
         abort();
     }
+
     tok.data.binop.left = param;
     tok.data.binop.right = lhs_psize ? parith_param : lhs_param;
     tok.data.binop.extra = rhs_psize ? parith_param : rhs_param;
@@ -564,33 +588,34 @@ static void cc_ssa_process_if(
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_BRANCH;
     tok.data.branch.eval = cond_param;
-    if (node->data.if_expr.tail_else != NULL) {
-        tok.data.branch.t_branch
-            = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
-        tok.data.branch.f_branch
-            = cc_ssa_label_param(ctx, node->data.if_expr.tail_else->label_id);
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
-        cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
-    } else {
-        cc_ssa_token label_tok = { 0 };
-        label_tok.type = SSA_TOKEN_LABEL;
-        label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
-        /* Tail else is null, we will have to synthetize a label after this if */
-        tok.data.branch.t_branch
-            = cc_ssa_label_param(ctx, node->data.if_expr.block->label_id);
-        tok.data.branch.f_branch
-            = cc_ssa_label_param(ctx, label_tok.data.label_id);
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
-        label_tok.info = node->info;
-        label_tok.info.filename = cc_strdup(node->info.filename);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, label_tok);
-    }
+
+    cc_ssa_token if_label_tok = { 0 };
+    cc_ssa_token else_label_tok = { 0 };
+
+    if_label_tok.type = SSA_TOKEN_LABEL;
+    if_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
+    if_label_tok.info = node->info;
+    if_label_tok.info.filename = cc_strdup(node->info.filename);
+
+    else_label_tok.type = SSA_TOKEN_LABEL;
+    else_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
+    else_label_tok.info = node->info;
+    else_label_tok.info.filename = cc_strdup(node->info.filename);
+
+    /* Tail else is null, we will have to synthetize a label after this if */
+    tok.data.branch.t_branch
+        = cc_ssa_label_param(ctx, if_label_tok.data.label_id);
+    tok.data.branch.f_branch
+        = cc_ssa_label_param(ctx, else_label_tok.data.label_id);
+    tok.info = node->info;
+    tok.info.filename = cc_strdup(node->info.filename);
+    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+    cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
+    cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
+
+    cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);
+    cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
 }
 
 static void cc_ssa_process_jump(
@@ -676,9 +701,16 @@ static void cc_ssa_process_unop(
     cc_ssa_param child_param = { 0 };
 
     switch (node->data.unop.op) {
-    case AST_UNOP_CAST:
+    case AST_UNOP_CAST: {
+        child_param = cc_ssa_tempvar_param(ctx, &child_type);
+        cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
         tok.type = SSA_TOKEN_ZERO_EXT;
-        break;
+        tok.data.unop.left = param;
+        tok.data.unop.right = child_param;
+        tok.info = node->info;
+        tok.info.filename = cc_strdup(node->info.filename);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } break;
     case AST_UNOP_DEREF:
         child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
@@ -688,18 +720,10 @@ static void cc_ssa_process_unop(
         tok.info = node->info;
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        return;
+        break;
     default:
         abort();
     }
-
-    child_param = cc_ssa_tempvar_param(ctx, &child_type);
-    cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-    tok.data.unop.left = param;
-    tok.data.unop.right = child_param;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
 static void cc_ssa_process_variable(
@@ -843,6 +867,8 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_ASSIGN:
             case SSA_TOKEN_ZERO_EXT:
             case SSA_TOKEN_SIGN_EXT:
+            case SSA_TOKEN_LOAD_FROM:
+            case SSA_TOKEN_STORE_AT:
                 cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ADD:
@@ -870,9 +896,6 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_ALLOCA:
                 /* No operation */
                 break;
-            case SSA_TOKEN_LOAD_FROM:
-            case SSA_TOKEN_STORE_AT:
-                break;
             default:
                 abort();
             }
@@ -899,6 +922,8 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_STORE_AT:
+        case SSA_TOKEN_LOAD_FROM:
             erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);
             /* Remove read without side effect */
@@ -945,15 +970,6 @@ static cc_ast_variable cc_ssa_create_func_var(const char* name)
 
 void cc_ssa_top(cc_context* ctx)
 {
-    assert(SSA_STORAGE_AUTO == SSA_STORAGE_AUTO);
-    assert(SSA_STORAGE_EXTERN == SSA_STORAGE_EXTERN);
-    assert(SSA_STORAGE_STATIC == SSA_STORAGE_STATIC);
-    assert(SSA_STORAGE_REGISTER == SSA_STORAGE_REGISTER);
-    assert(SSA_STORAGE_CONSTEXPR == SSA_STORAGE_CONSTEXPR);
-    assert(SSA_STORAGE_GLOBAL == SSA_STORAGE_GLOBAL);
-    assert(SSA_STORAGE_THREAD_LOCAL == SSA_STORAGE_THREAD_LOCAL);
-    assert(SSA_STORAGE_INLINE == SSA_STORAGE_INLINE);
-
     cc_ssa_func static_ctor_func = { 0 };
     cc_ast_variable static_ctor_var = cc_ssa_create_func_var("__gdtor");
     static_ctor_func.ast_var = &static_ctor_var;
