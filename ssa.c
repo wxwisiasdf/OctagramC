@@ -119,8 +119,8 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         printf(" = ");
         cc_ssa_print_param(&tok->data.unop.right);
         break;
-    case SSA_TOKEN_STORE_AT:
-        cc_ssa_print_token_unop(tok, "store_at");
+    case SSA_TOKEN_STORE_FROM:
+        cc_ssa_print_token_unop(tok, "store_from");
         break;
     case SSA_TOKEN_LOAD_FROM:
         cc_ssa_print_token_unop(tok, "load_from");
@@ -424,9 +424,9 @@ HANDLE_POINTER_ARITH()
         /* Generate a sequence of tokens so we store the data onto lhs */
         /* Assignment is an unop here */
         memset(&tok, 0, sizeof(tok));
-        tok.type = SSA_TOKEN_STORE_AT;
-        tok.data.unop.left = rhs_param;
-        tok.data.unop.right = lhs_param;
+        tok.type = SSA_TOKEN_STORE_FROM;
+        tok.data.unop.left = lhs_param;
+        tok.data.unop.right = rhs_param;
         tok.info = node->info;
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -868,7 +868,7 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_ZERO_EXT:
             case SSA_TOKEN_SIGN_EXT:
             case SSA_TOKEN_LOAD_FROM:
-            case SSA_TOKEN_STORE_AT:
+            case SSA_TOKEN_STORE_FROM:
                 cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ADD:
@@ -922,7 +922,7 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_STORE_AT:
+        case SSA_TOKEN_STORE_FROM:
         case SSA_TOKEN_LOAD_FROM:
             erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);

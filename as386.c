@@ -185,7 +185,7 @@ static unsigned int cc_as386_get_offsetof(
 static void cc_as386_gen_assign(
     cc_context* ctx, const cc_ssa_param* lhs, const cc_ssa_param* rhs)
 {
-    /* Redundant gen s*/
+    /* Redundant gens? */
     if (cc_ssa_is_param_same(lhs, rhs))
         return;
 
@@ -262,10 +262,94 @@ static void cc_as386_gen_assign(
     }
 }
 
+static void cc_as386_gen_store_from(
+    cc_context* ctx, const cc_ssa_param* lhs, const cc_ssa_param* rhs)
+{
+    /* Redundant gens? */
+    if (cc_ssa_is_param_same(lhs, rhs))
+        return;
+
+    switch (lhs->type) {
+    case SSA_PARAM_VARIABLE: {
+        switch (rhs->type) {
+        case SSA_PARAM_VARIABLE:
+            if (lhs->size == rhs->size) {
+                switch (lhs->size | rhs->size) {
+                case 1:
+                    fprintf(ctx->out, "\tmovb\t%s,%s\n", rhs->data.var_name, lhs->data.var_name);
+                    break;
+                case 2:
+                    fprintf(ctx->out, "\tmovw\t%s,%s\n", rhs->data.var_name, lhs->data.var_name);
+                    break;
+                case 4:
+                    fprintf(ctx->out, "\tmovl\t%s,%s\n", rhs->data.var_name, lhs->data.var_name);
+                    break;
+                case 8:
+                    fprintf(ctx->out, "\tmovq\t%s,%s\n", rhs->data.var_name, lhs->data.var_name);
+                    break;
+                default:
+                    fprintf(ctx->out, "\tpushl\t%%ecx\n");
+                    fprintf(ctx->out, "1:\n");
+                    fprintf(ctx->out, "\tmovl\t$%u,%%ecx\n", (unsigned char)lhs->size);
+                    fprintf(ctx->out, "\tmovb\t%s,%s\n", rhs->data.var_name, lhs->data.var_name);
+                    fprintf(ctx->out, "\tloop\t1b\n");
+                    fprintf(ctx->out, "\tpopl\t%%ecx\n");
+                    break;
+                }
+            } else {
+                abort();
+            }
+            break;
+        case SSA_PARAM_TMPVAR:
+            if (lhs->size == rhs->size) {
+                switch (lhs->size | rhs->size) {
+                case 1:
+                    fprintf(ctx->out, "\tmovb\t%s,%%edi\n", lhs->data.var_name);
+                    break;
+                case 2:
+                    fprintf(ctx->out, "\tmovw\t%s,%%edi\n", lhs->data.var_name);
+                    break;
+                case 4:
+                    fprintf(ctx->out, "\tmovl\t%s,%%edi\n", lhs->data.var_name);
+                    break;
+                case 8:
+                    fprintf(ctx->out, "\tmovq\t%s,%%edi\n", lhs->data.var_name);
+                    break;
+                default:
+                    abort();
+                }
+            } else {
+                abort();
+            }
+            break;
+        default:
+            abort();
+        }
+    } break;
+    default:
+        abort();
+    }
+}
+
+
+static void cc_as386_gen_load_from(
+    cc_context* ctx, const cc_ssa_param* lhs, const cc_ssa_param* rhs)
+{
+    /* Redundant gens? */
+    if (cc_ssa_is_param_same(lhs, rhs))
+        return;
+    
+    abort();
+}
+
 static void cc_as386_gen_call_param(
     cc_context* ctx, const cc_ssa_param* param, unsigned short offset)
 {
     switch (param->type) {
+    case SSA_PARAM_CONSTANT:
+        fprintf(ctx->out, "\tmovl\t%u,%u(%%esp)\n",
+            param->data.constant.value.u, offset);
+        break;
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tmovl\t%s,%%edi\n", param->data.var_name);
         fprintf(ctx->out, "\tmovl\t%%edi,%u(%%esp)\n", offset);
@@ -397,6 +481,25 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_AND:
         insn_name = "and";
         break;
+    case SSA_TOKEN_LT:
+    case SSA_TOKEN_LTE:
+    case SSA_TOKEN_GT:
+    case SSA_TOKEN_GTE:
+    case SSA_TOKEN_EQ:
+    case SSA_TOKEN_NEQ: {
+        insn_name = tok->type  == SSA_TOKEN_LT ? "jl"
+            : tok->type == SSA_TOKEN_LTE ? "jle"
+            : tok->type == SSA_TOKEN_GT ? "jg"
+            : tok->type == SSA_TOKEN_GTE ? "jge"
+            : tok->type == SSA_TOKEN_EQ ? "je" : "jne";
+        fprintf(ctx->out, "\t%s\t1f\n", insn_name);
+        fprintf(ctx->out, "1:\n");
+        fprintf(ctx->out, "\tmov\t$1,%%edi\n", insn_name);
+        fprintf(ctx->out, "\tjmp\t1f\n", insn_name);
+        fprintf(ctx->out, "1:\n");
+        fprintf(ctx->out, "\tmov\t$0,%%edi\n", insn_name);
+        cc_as386_gen_assign(ctx, &lhs, &tmp[0]);
+    } return;
     default:
         abort();
     }
@@ -409,6 +512,8 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
 {
     switch (tok->type) {
     case SSA_TOKEN_RET:
+        fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
+        fprintf(ctx->out, "\tpopl\t%%ebp\n");
         fprintf(ctx->out, "\tret\n");
         break;
     case SSA_TOKEN_LABEL:
@@ -421,10 +526,22 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_OR:
     case SSA_TOKEN_XOR:
     case SSA_TOKEN_AND:
+    case SSA_TOKEN_GT:
+    case SSA_TOKEN_GTE:
+    case SSA_TOKEN_LT:
+    case SSA_TOKEN_LTE:
+    case SSA_TOKEN_EQ:
+    case SSA_TOKEN_NEQ:
         cc_as386_gen_binop_arith(ctx, tok);
         break;
     case SSA_TOKEN_ASSIGN:
         cc_as386_gen_assign(ctx, &tok->data.unop.left, &tok->data.unop.right);
+        break;
+    case SSA_TOKEN_STORE_FROM:
+        cc_as386_gen_store_from(ctx, &tok->data.unop.left, &tok->data.unop.right);
+        break;
+    case SSA_TOKEN_LOAD_FROM:
+        cc_as386_gen_load_from(ctx, &tok->data.unop.left, &tok->data.unop.right);
         break;
     case SSA_TOKEN_CALL:
         cc_as386_process_call(ctx, tok);
@@ -442,8 +559,8 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
 static void cc_as386_colstring_param(cc_context* ctx, const cc_ssa_param* param)
 {
     if (param->type == SSA_PARAM_STRING_LITERAL)
-        fprintf(ctx->out, "__ms_%u:\n\t.ascii '%s'\n", param->data.string.tmpid,
-            param->data.string.literal);
+        fprintf(ctx->out, "__ms_%u:\n\t.ascii \"%s\\0\"\n",
+            param->data.string.tmpid, param->data.string.literal);
 }
 
 /* Helper function for cc_as386_colstring_func */
@@ -474,8 +591,17 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     const char* name = func->ast_var->name;
     size_t i;
 
-    /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
+    switch (func->ast_var->type.storage) {
+    case AST_STORAGE_GLOBAL:
+        fprintf(ctx->out, ".globl\t%s\n", name);
+        break;
+    default:
+        break;
+    }
+
     fprintf(ctx->out, "%s:\n", name);
+    fprintf(ctx->out, "\tpushl\t%%ebp\n");
+    fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
     if (ctx->min_stack_alignment != 0)
         fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
 
@@ -498,6 +624,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_ZERO_EXT:
         case SSA_TOKEN_SIGN_EXT:
+        case SSA_TOKEN_LOAD_FROM:
+        case SSA_TOKEN_STORE_FROM:
             cc_as386_colstring_unop(ctx, tok);
             break;
         case SSA_TOKEN_ADD:
@@ -524,9 +652,6 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_LABEL:
         case SSA_TOKEN_ALLOCA:
             /* No operation */
-            break;
-        case SSA_TOKEN_LOAD_FROM:
-        case SSA_TOKEN_STORE_AT:
             break;
         default:
             abort();

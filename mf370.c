@@ -451,6 +451,8 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_ZERO_EXT:
         case SSA_TOKEN_SIGN_EXT:
+        case SSA_TOKEN_LOAD_FROM:
+        case SSA_TOKEN_STORE_FROM:
             cc_mf370_colstring_unop(ctx, tok);
             break;
         case SSA_TOKEN_ADD:
@@ -477,9 +479,6 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_LABEL:
         case SSA_TOKEN_ALLOCA:
             /* No operation */
-            break;
-        case SSA_TOKEN_LOAD_FROM:
-        case SSA_TOKEN_STORE_AT:
             break;
         default:
             abort();
