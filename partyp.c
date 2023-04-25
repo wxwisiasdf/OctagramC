@@ -829,6 +829,11 @@ ignore_missing_ident:
             /* func(void), functions taking no parameters at all */
             cc_lex_token_consume(ctx);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_RPAREN) {
+            /* func(), functions taking any number of parameters */
+            var->type.data.func.variadic = true;
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         } else {
             cc_ast_variable virtual_param_var = { 0 };
             ctx->is_parsing_prototype = true;
