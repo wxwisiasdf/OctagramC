@@ -118,7 +118,7 @@ cc_ast_node* cc_ast_create_literal_from_str(
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
     cc_ast_literal* literal = &node->data.literal;
-    if (!memcmp(s, "0", 2)) {
+    if (!strcmp(s, "0")) {
         literal->value.u = 0;
         literal->is_signed = ctx->is_default_signed;
         literal->is_float = false;

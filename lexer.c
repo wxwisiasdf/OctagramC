@@ -77,11 +77,20 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
 
 static const char* cc_lex_literal(cc_context* ctx, const char* p)
 {
-    const char* s = p++;
     int base = 10;
 
-    if (*s == '0') {
+    if (*p == '0') {
+        ++p;
+
+        if (ISODIGIT(*p)) {
+            base = 8;
+            goto octal_num;
+        }
+
         switch (*p) {
+        case '.':
+            base = 10;
+            goto after_frac;
         case 'x':
             base = 16;
             break;
@@ -98,27 +107,26 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
             base = 10;
             break;
         default:
-            return p++;
+            return p;
         }
-        p++;
     }
 
     switch (base) {
     case 16:
-        while (isxdigit(*p))
-            p++;
+        for (; isxdigit(*p); ++p)
+            ;
         break;
     case 10:
-        while (isdigit(*p))
-            p++;
-
+        for (; isdigit(*p); ++p)
+            ;
+after_frac:
         if (*p == '.')
-            p++;
-
-        while (isdigit(*p))
-            p++;
+            ++p;
+        for (; isdigit(*p); ++p)
+            ;
         break;
     case 8:
+octal_num:
         while (ISODIGIT(*p))
             p++;
         break;
