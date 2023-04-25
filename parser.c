@@ -346,10 +346,10 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         } break;
         case LEXER_TOKEN_IDENT: {
             const cc_ast_variable* var = cc_ast_find_variable(
-                ctx->ast_current_func->name, ctok->data, node);
+                cc_get_cfunc_name(ctx), ctok->data, node);
             if (var == NULL)
-                cc_ast_find_variable(ctx->ast_current_func->name,
-                    ctok->data, node->parent);
+                cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data,
+                    node->parent);
 
             if (var != NULL) { /* Variable reference OR call/assignment */
                 cc_parse_expression(ctx, node);
@@ -463,7 +463,6 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             ctx->ast_current_func = &var;
             while (cc_parse_compund_statment(ctx, var.body))
                 ;
-                
             cc_optimizer_expr_condense(ctx, &var.body, true);
             ctx->ast_current_func = old_ast_current_func;
             ctx->is_func_body = old_is_func_body;

@@ -81,4 +81,6 @@ typedef struct cc_context {
     unsigned short min_stack_alignment;
 } cc_context;
 
+const char *cc_get_cfunc_name(const cc_context *ctx);
+
 #endif

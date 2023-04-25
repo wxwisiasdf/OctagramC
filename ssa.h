@@ -138,7 +138,6 @@ typedef struct cc_ssa_token {
 } cc_ssa_token;
 
 typedef struct cc_ssa_func {
-    const char* name;
     const struct cc_ast_variable* ast_var;
     cc_ssa_token* tokens;
     size_t n_tokens;

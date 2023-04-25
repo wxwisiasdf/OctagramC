@@ -192,6 +192,7 @@ typedef struct cc_lexer_token {
 
 cc_lexer_token* cc_lex_token_peek(cc_context* ctx, int offset);
 cc_lexer_token* cc_lex_token_consume(cc_context* ctx);
+cc_lexer_token* cc_lex_token_unconsume(cc_context* ctx);
 int cc_lex_top(cc_context* ctx);
 void cc_lex_print_token(const cc_lexer_token* tok);
 const cc_lexer_token* cc_lex_skip_until(

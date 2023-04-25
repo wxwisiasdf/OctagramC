@@ -25,6 +25,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+const char *cc_get_cfunc_name(const cc_context *ctx)
+{
+    if (ctx->ssa_current_func != NULL)
+        return ctx->ssa_current_func->ast_var->name;
+    if (ctx->ast_current_func != NULL)
+        return ctx->ast_current_func->name;
+    return NULL;
+}
+
 int main(int argc, char** argv)
 {
     const char *output_filename = "out.asm", *input_filename = "main.c";

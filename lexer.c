@@ -159,6 +159,13 @@ cc_lexer_token* cc_lex_token_consume(cc_context* ctx)
     return &ctx->tokens[ctx->c_token++];
 }
 
+cc_lexer_token* cc_lex_token_unconsume(cc_context* ctx)
+{
+    if (ctx->c_token == 0)
+        return NULL;
+    return &ctx->tokens[--ctx->c_token];
+}
+
 const cc_lexer_token* cc_lex_skip_until(
     cc_context* ctx, enum cc_lexer_token_type type)
 {

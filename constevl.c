@@ -125,7 +125,7 @@ static cc_ast_literal cc_ceval_eval_1(
         for (i = 0; i < *n_list; i++)
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
-        var = cc_ast_find_variable(ctx->ast_current_func->name,
+        var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.var.name, node);
         if ((var->type.storage & AST_STORAGE_CONSTEXPR) == 0) {
             cc_diag_warning(ctx, "Non-constexpr variable used in contexpr");
@@ -216,7 +216,7 @@ static cc_ast_literal cc_ceval_eval_1(
         size_t i;
 
         assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
-        cc_ast_variable* var = cc_ast_find_variable(ctx->ast_current_func->name,
+        cc_ast_variable* var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.call.call_expr->data.var.name, node);
         assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
 
@@ -275,7 +275,9 @@ cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
     cc_ceval_io* list = NULL;
     size_t n_list = 0;
     cc_ast_literal literal = cc_ceval_eval_1(ctx, node, &list, &n_list);
+    const cc_ast_variable* old_fn = ctx->ast_current_func;
     cc_free(list);
+    ctx->ast_current_func = old_fn;
     return literal;
 }
 
@@ -336,8 +338,8 @@ bool cc_ceval_deduce_type(
 {
     switch (node->type) {
     case AST_NODE_VARIABLE: {
-        cc_ast_variable* var = cc_ast_find_variable(ctx->ast_current_func->name,
-            node->data.var.name, node);
+        cc_ast_variable* var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), node->data.var.name, node);
         cc_ceval_promote_type(type, &var->type);
     }
         return true;
@@ -436,7 +438,7 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
         return true;
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
-            = cc_ast_find_variable(ctx->ast_current_func->name,
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx),
                 node->data.var.name, node);
         if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
             return true;

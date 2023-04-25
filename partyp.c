@@ -649,6 +649,11 @@ error_handle:
     return false;
 }
 
+bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    return cc_parse_declaration_specifier(ctx, node, type);
+}
+
 static bool cc_parse_declarator_braced_initializer_element(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
