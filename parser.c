@@ -345,9 +345,11 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             cc_ast_add_block_node(node, ret_node);
         } break;
         case LEXER_TOKEN_IDENT: {
-            const cc_ast_variable* var = cc_ast_find_variable(ctok->data, node);
+            const cc_ast_variable* var = cc_ast_find_variable(
+                ctx->ast_current_func->name, ctok->data, node);
             if (var == NULL)
-                cc_ast_find_variable(ctok->data, node->parent);
+                cc_ast_find_variable(ctx->ast_current_func->name,
+                    ctok->data, node->parent);
 
             if (var != NULL) { /* Variable reference OR call/assignment */
                 cc_parse_expression(ctx, node);

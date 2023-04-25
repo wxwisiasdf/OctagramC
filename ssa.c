@@ -478,14 +478,15 @@ static void cc_ssa_process_block(
         const cc_ast_variable* var = &node->data.block.vars[i];
         if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
             cc_ssa_func func = { 0 };
-            func.ast_var = var;
-
+            cc_ssa_func* old_current_ssa_func;
             cc_ssa_param none_param = { 0 };
+            bool old_func_has_return;
 
+            func.ast_var = var;
             /* Enter into a new function contextee */
-            cc_ssa_func* old_current_ssa_func = ctx->ssa_current_func;
+            old_current_ssa_func = ctx->ssa_current_func;
             ctx->ssa_current_func = &func;
-            bool old_func_has_return = ctx->func_has_return;
+            old_func_has_return = ctx->func_has_return;
             ctx->func_has_return = false;
             cc_ssa_from_ast(ctx, var->body, none_param);
             if (!ctx->func_has_return) {
@@ -730,9 +731,12 @@ static void cc_ssa_process_variable(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
-    const cc_ast_variable* var
-        = cc_ast_find_variable(node->data.var.name, node);
-    cc_ssa_param var_param = cc_ssa_variable_to_param(ctx, var);
+    const cc_ast_variable* var;
+    cc_ssa_param var_param;
+    
+    var = cc_ast_find_variable(ctx->ssa_current_func->ast_var->name,
+            node->data.var.name, node);
+    var_param = cc_ssa_variable_to_param(ctx, var);
 
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;

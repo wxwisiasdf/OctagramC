@@ -282,7 +282,7 @@ void cc_ast_add_call_param(
 void cc_ast_destroy_type(cc_ast_type* type, bool managed);
 void cc_ast_destroy_var(cc_ast_variable* var, bool managed);
 void cc_ast_destroy_node(cc_ast_node* node, bool managed);
-cc_ast_variable* cc_ast_find_variable(
+cc_ast_variable* cc_ast_find_variable(const char *fn_name,
     const char* name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
 cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node);

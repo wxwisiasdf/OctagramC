@@ -426,7 +426,7 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_type_specifier(
+bool cc_parse_type_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);

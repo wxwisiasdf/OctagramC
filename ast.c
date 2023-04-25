@@ -314,10 +314,14 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
         cc_free(node);
 }
 
-cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
+/* TODO: This finding algorithm is fucking cursed, we need something better! */
+static cc_ast_variable* cc_ast_find_variable_1(const char *fn_name,
+    const char* name, const cc_ast_node* node)
 {
+    cc_ast_variable* fn_var = NULL;
     if (node == NULL)
         return NULL;
+
     if (node->type == AST_NODE_BLOCK) {
         size_t i;
         for (i = 0; i < node->data.block.n_vars; i++) {
@@ -325,8 +329,11 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
             if (var->name != NULL && !strcmp(var->name, name))
                 return var;
 
-            /* Check parameters for functions */
-            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
+            /* Check parameters for functions but only the current function
+               we're checking against. */
+            if (fn_name != NULL
+            && var->type.mode == AST_TYPE_MODE_FUNCTION
+            && !strcmp(var->name, fn_name)) {
                 size_t j;
                 for (j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
@@ -340,7 +347,12 @@ cc_ast_variable* cc_ast_find_variable(const char* name, const cc_ast_node* node)
             }
         }
     }
-    return cc_ast_find_variable(name, node->parent);
+    return cc_ast_find_variable_1(fn_name, name, node->parent);
+}
+cc_ast_variable* cc_ast_find_variable(const char *fn_name,
+    const char* name, const cc_ast_node* node)
+{
+    return cc_ast_find_variable_1(fn_name, name, node);
 }
 
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
@@ -1009,7 +1021,11 @@ void cc_ast_print(const cc_ast_node* node)
         break;
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var
-            = cc_ast_find_variable(node->data.var.name, node);
+            = cc_ast_find_variable(NULL, node->data.var.name, node);
+        if (var == NULL) {
+            printf("<var-null>");
+            break;
+        }
         cc_ast_print_var(var);
     } break;
     default:
