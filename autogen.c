@@ -13,7 +13,7 @@ static const char* files[] = { "as386.c", "ast.c", "constevl.c", "diag.c",
     "lexer.c", "main.c", "mf370.c", "optzer.c", "parexpr.c", "parser.c",
     "partyp.c", "ssa.c", "util.c" };
 static const char* project_name = "occ";
-static const char* gcc_opt = "-DTARGET_AS386=1 -std=c99 -O3 -I.";
+static const char* gcc_opt = "-DTARGET_AS386=1 -ansi -O3 -I.";
 static const char* pdpclib_path = "../pdos/pdpclib";
 
 static const char* subst_extension(
@@ -83,7 +83,7 @@ static void makefile_lnx(FILE* f)
 {
     size_t i;
     fprintf(f, "CC=gcc\n");
-    fprintf(f, "CFLAGS=-std=c99 -DANSI_COLOUR=1 -DTARGET_AS386=1\n");
+    fprintf(f, "CFLAGS=-ansi -DANSI_COLOUR=1 -DTARGET_AS386=1\n");
     fprintf(f, "all: build\n");
     fprintf(f, "run: build\n");
     fprintf(f, "\t./%s\n", project_name);

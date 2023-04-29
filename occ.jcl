@@ -38,7 +38,7 @@
 //PMCMP   PROC PREFIX='HMVS01',MEMBER='',
 // GCCPREF='GCC',
 // PDPPREF='PDPCLIB',
-// COS1='-S -Wall -Wextra -peantic -std=c99',
+// COS1='-S -Wall -Wextra -peantic -ansi',
 // COS2='-o dd:out -'
 //COMPL    EXEC PGM=GCC,
 // PARAM='&COS1 &COS2'

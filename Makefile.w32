@@ -2,7 +2,7 @@
 AS=aswin
 CC=gccwin
 LD=ldwin
-CFLAGS=-S -O2 -fno-common -std=c99 -I. -I../pdos/pdpclib -D__WIN32__ \
+CFLAGS=-S -O2 -fno-common -ansi -I. -I../pdos/pdpclib -D__WIN32__ \
   -D__NOBIVA__ -DTARGET_MF370=1
 # -DTARGET_AS386=1
 OBJS=as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
