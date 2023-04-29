@@ -6,11 +6,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define CC_PARSE_EXPECT(ctx, ctok, _type, ...)                                 \
+#define CC_PARSE_EXPECT(ctx, ctok, _type, msg)                                 \
     do {                                                                       \
         if (((ctok) = cc_lex_token_peek(ctx, 0)) == NULL                       \
             || (ctok)->type != _type) {                                        \
-            cc_diag_error(ctx, __VA_ARGS__);                                   \
+            cc_diag_error(ctx, msg);                                   \
             cc_lex_token_consume(ctx);                                         \
             goto error_handle;                                                 \
         }                                                                      \

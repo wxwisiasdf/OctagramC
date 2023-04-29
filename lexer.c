@@ -233,15 +233,13 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             }
         }
 
-        tok.info = (cc_diag_info) {
-            .filename = cc_strdup(ctx->n_diag_infos
+        tok.info.filename = cc_strdup(ctx->n_diag_infos
                     ? ctx->diag_infos[ctx->n_diag_infos - 1].filename
-                    : "<unknown>"),
-            .column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf),
-            .line = ctx->n_diag_infos
+                    : "<unknown>");
+        tok.info.column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf);
+        tok.info.line = ctx->n_diag_infos
                 ? ctx->diag_infos[ctx->n_diag_infos - 1].line
-                : 1,
-        };
+                : 1;
         ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_tokens + 1);
         ctx->tokens[ctx->n_tokens++] = tok;
     }

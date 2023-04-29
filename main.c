@@ -64,6 +64,8 @@ int main(int argc, char** argv)
                    "386\n");
             printf("-o [filename]\tSet output filename\n");
         } else {
+            cc_diag_info info;
+
             input_filename = argv[i];
 
             if (ctx.fp != NULL)
@@ -73,12 +75,10 @@ int main(int argc, char** argv)
                 cc_diag_error(&ctx, "Unable to open file %s", input_filename);
                 return -1;
             }
-            cc_diag_add_info(&ctx,
-                (cc_diag_info) {
-                    .filename = cc_strdup(input_filename),
-                    .column = 0,
-                    .line = 0,
-                });
+
+            info.filename = cc_strdup(input_filename);
+            info.column = info.line = 0;
+            cc_diag_add_info(&ctx, info);
         }
     }
 

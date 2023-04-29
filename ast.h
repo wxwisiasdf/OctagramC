@@ -24,7 +24,8 @@ typedef struct cc_ast_type_cv {
     bool is_static_array : 1; /* If the given size of the array is an static */
     bool is_vla : 1; /* Set iff the array size is computed at runtime */
     union {
-        struct cc_ast_node *size_expr; /* Expression for the size of the array */
+        struct cc_ast_node*
+            size_expr; /* Expression for the size of the array */
         unsigned short size; /* Constant expression, for non-VLA */
     } array;
 } cc_ast_type_cv;
@@ -284,13 +285,13 @@ void cc_ast_add_call_param(
 void cc_ast_destroy_type(cc_ast_type* type, bool managed);
 void cc_ast_destroy_var(cc_ast_variable* var, bool managed);
 void cc_ast_destroy_node(cc_ast_node* node, bool managed);
-cc_ast_variable* cc_ast_find_variable(const char *fn_name,
-    const char* name, const cc_ast_node* node);
+cc_ast_variable* cc_ast_find_variable(
+    const char* fn_name, const char* name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
 cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node);
 cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node);
-void cc_ast_copy_node(cc_context* ctx,
-    cc_ast_node* restrict dest, const cc_ast_node* restrict src);
+void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
+    const cc_ast_node* restrict src);
 void cc_ast_copy_type(
     cc_ast_type* restrict dest, const cc_ast_type* restrict src);
 void cc_ast_add_type_member(

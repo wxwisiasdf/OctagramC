@@ -321,18 +321,19 @@ static void cc_mf370_process_call(cc_context* ctx, const cc_ssa_token* tok)
 
 static void cc_mf370_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
 {
+    const char* insn_name;
     cc_ssa_param lhs = tok->data.binop.left;
     cc_ssa_param rhs[2];
+    cc_ssa_param tmp[2];
+    
     rhs[0] = tok->data.binop.right;
     rhs[1] = tok->data.binop.extra;
 
-    cc_ssa_param tmp[2];
     tmp[0] = cc_ssa_tempvar_param_1(ctx, false, 4);
     tmp[1] = cc_ssa_tempvar_param_1(ctx, false, 4);
     cc_mf370_gen_assign(ctx, &tmp[0], &rhs[0]);
     cc_mf370_gen_assign(ctx, &tmp[1], &rhs[1]);
 
-    const char* insn_name;
     switch (tok->type) {
     case SSA_TOKEN_ADD:
         insn_name = "A";
@@ -427,6 +428,7 @@ static void cc_mf370_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     const char* name = func->ast_var->name;
+    cc_mf370_context* actx;
     size_t i;
 
     /* TODO: I forgot how you're supposed to do alloc/drop on hlasm */
@@ -488,7 +490,7 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
         }
     }
 
-    cc_mf370_context* actx = cc_mf370_get_ctx(ctx);
+    actx = cc_mf370_get_ctx(ctx);
     memset(actx->regs, 0, sizeof(actx->regs));
 }
 

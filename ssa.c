@@ -685,8 +685,7 @@ static void cc_ssa_process_jump(
 {
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_JUMP;
-    tok.data.jump_target
-        = cc_ssa_label_param(ctx, node->data.jump_label_id);
+    tok.data.jump_target = cc_ssa_label_param(ctx, node->data.jump_label_id);
     tok.info = node->info;
     tok.info.filename = cc_strdup(node->info.filename);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -1024,7 +1023,7 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
             if (tok->data.unop.left.type == SSA_PARAM_NONE)
                 erase = true;
             if (erase && !tok->data.unop.left.is_volatile
-            && !tok->data.unop.right.is_volatile) {
+                && !tok->data.unop.right.is_volatile) {
                 memmove(&func->tokens[i], &func->tokens[i + 1],
                     sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
                 func->n_tokens--;
@@ -1036,12 +1035,12 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
                 &tok->data.branch.t_branch, &tok->data.branch.f_branch);
             /* Remove read without side effect */
             if (tok->data.branch.eval.type == SSA_PARAM_NONE
-            || tok->data.branch.t_branch.type == SSA_PARAM_NONE
-            || tok->data.branch.f_branch.type == SSA_PARAM_NONE)
+                || tok->data.branch.t_branch.type == SSA_PARAM_NONE
+                || tok->data.branch.f_branch.type == SSA_PARAM_NONE)
                 erase = true;
             if (erase && !tok->data.branch.eval.is_volatile
-            && !tok->data.branch.t_branch.is_volatile
-            && !tok->data.branch.f_branch.is_volatile) {
+                && !tok->data.branch.t_branch.is_volatile
+                && !tok->data.branch.f_branch.is_volatile) {
                 memmove(&func->tokens[i], &func->tokens[i + 1],
                     sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
                 func->n_tokens--;
@@ -1085,7 +1084,8 @@ static void cc_ssa_labmerge_call(
     cc_ssa_labmerge_param(&tok->data.call.left, label_id, new_label_id);
     cc_ssa_labmerge_param(&tok->data.call.right, label_id, new_label_id);
     for (i = 0; i < tok->data.call.n_params; i++)
-        cc_ssa_labmerge_param(&tok->data.call.params[i], label_id, new_label_id);
+        cc_ssa_labmerge_param(
+            &tok->data.call.params[i], label_id, new_label_id);
 }
 /* Helper function for cc_ssa_labmerge_func_1 */
 static void cc_ssa_labmerge_alloca(
@@ -1104,8 +1104,8 @@ static void cc_ssa_labmerge_branch(
     cc_ssa_labmerge_param(&tok->data.branch.f_branch, label_id, new_label_id);
 }
 /* Helper function for cc_ssa_labmerge_func */
-static void cc_ssa_labmerge_func_1(cc_ssa_func* func, unsigned short label_id,
-    unsigned short new_label_id)
+static void cc_ssa_labmerge_func_1(
+    cc_ssa_func* func, unsigned short label_id, unsigned short new_label_id)
 {
     size_t i;
     for (i = 0; i < func->n_tokens; ++i) {
@@ -1164,8 +1164,8 @@ static void cc_ssa_labmerge_func(cc_ssa_func* func)
             if (i + 1 < func->n_tokens) {
                 cc_ssa_token* ltok = &func->tokens[i + 1];
                 if (ltok->type == SSA_TOKEN_LABEL) {
-                    cc_ssa_labmerge_func_1(func, tok->data.label_id,
-                        ltok->data.label_id);
+                    cc_ssa_labmerge_func_1(
+                        func, tok->data.label_id, ltok->data.label_id);
                     memmove(&func->tokens[i], &func->tokens[i + 1],
                         sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
                     --func->n_tokens;
@@ -1218,8 +1218,8 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
         b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid) ? true : b;
         b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid) ? true : b;
         for (i = 0; i < tok->data.call.n_params; i++)
-            b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid)
-                ? true : b;
+            b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid) ? true
+                                                                         : b;
         return b;
     }
     case SSA_TOKEN_ALLOCA:

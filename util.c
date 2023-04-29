@@ -39,12 +39,12 @@ void cc_alloc_deinit(void)
             n_strings++;
         }
     }
-    printf("Final used memory: %.2f KB (%zu bytes accross %zu objects)\n",
-        (float)total / 1000.f, total, g_alloc_ctx.n_ptrs);
-    printf("%.2f%% was used for strings: %.2f KB (%zu bytes accross %zu "
+    printf("Final used memory: %.2f KB (%u bytes accross %u objects)\n",
+        (float)total / 1000.f, (unsigned int)total, (unsigned int)g_alloc_ctx.n_ptrs);
+    printf("%.2f%% was used for strings: %.2f KB (%u bytes accross %u "
            "strings)\n",
         100.f * ((float)total_string / (float)total), total_string / 1000.f,
-        total_string, n_strings);
+        (unsigned int)total_string, (unsigned int)n_strings);
     printf("Total: %.2f KB (%.2f KB for strings)\n",
         (float)g_alloc_ctx.total_normal / 1000.f,
         g_alloc_ctx.total_strings / 1000.f);
@@ -109,11 +109,11 @@ void* cc_zalloc(size_t size)
 
 void* cc_realloc(void* p, size_t size)
 {
+    void* np;
     if (p == NULL)
         return cc_malloc(size);
-
     cc_alloc_remove(p);
-    void* np = realloc(p, size);
+    np = realloc(p, size);
     cc_alloc_add(np, size);
     if (np == NULL) {
         fprintf(stderr, "Out of memory");
@@ -132,12 +132,13 @@ void cc_free(void* p)
 
 char* cc_strndup(const char* s, size_t n)
 {
+    char* ns;
     assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
 
     g_alloc_ctx.is_string = true;
     g_alloc_ctx.total_strings += n + 1;
-    char* ns = cc_malloc(n + 1);
+    ns = cc_malloc(n + 1);
     g_alloc_ctx.is_string = false;
 
     memcpy(ns, s, n);
@@ -147,12 +148,15 @@ char* cc_strndup(const char* s, size_t n)
 
 char* cc_strdup(const char* s)
 {
+    size_t len;
+    char* ns;
+    
     assert(s != NULL);
-    size_t len = strlen(s);
+    len = strlen(s);
 
     g_alloc_ctx.is_string = true;
     g_alloc_ctx.total_strings += len + 1;
-    char* ns = cc_malloc(len + 1);
+    ns = cc_malloc(len + 1);
     g_alloc_ctx.is_string = false;
 
     memcpy(ns, s, len);

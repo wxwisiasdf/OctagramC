@@ -55,40 +55,47 @@ static cc_ast_literal cc_ceval_eval_cast_unop(
                                                             : child->value.s);
             return literal;
         }
-        return (cc_ast_literal) { .is_float = false,
-            .is_signed = child->is_signed,
-            .value.s = (unsigned char)(child->is_float ? child->value.d
-                                                       : child->value.u) };
+        literal.is_float = false;
+        literal.is_signed = child->is_signed;
+        literal.value.s = (unsigned char)(child->is_float ? child->value.d
+                                                          : child->value.u);
+        return literal;
     case AST_TYPE_MODE_SHORT:
-        if (cast->data.num.is_signed)
-            return (cc_ast_literal) { .is_float = false,
-                .is_signed = child->is_signed,
-                .value.s = (signed short)(child->is_float ? child->value.d
-                                                          : child->value.s) };
-        return (cc_ast_literal) { .is_float = false,
-            .is_signed = child->is_signed,
-            .value.s = (unsigned short)(child->is_float ? child->value.d
-                                                        : child->value.u) };
+        if (cast->data.num.is_signed) {
+            literal.is_float = false, literal.is_signed = child->is_signed;
+            literal.value.s = (signed short)(child->is_float ? child->value.d
+                                                             : child->value.s);
+            return literal;
+        }
+        literal.is_float = false, literal.is_signed = child->is_signed;
+        literal.value.s = (unsigned short)(child->is_float ? child->value.d
+                                                           : child->value.u);
+        return literal;
     case AST_TYPE_MODE_INT:
-        if (cast->data.num.is_signed)
-            return (cc_ast_literal) { .is_float = false,
-                .is_signed = child->is_signed,
-                .value.s = (signed int)(child->is_float ? child->value.d
-                                                        : child->value.s) };
-        return (cc_ast_literal) { .is_float = false,
-            .is_signed = child->is_signed,
-            .value.s = (unsigned int)(child->is_float ? child->value.d
-                                                      : child->value.u) };
+        if (cast->data.num.is_signed) {
+            literal.is_float = false;
+            literal.is_signed = child->is_signed;
+            literal.value.s = (signed int)(child->is_float ? child->value.d
+                                                           : child->value.s);
+            return literal;
+        }
+        literal.is_float = false;
+        literal.is_signed = child->is_signed;
+        literal.value.s
+            = (unsigned int)(child->is_float ? child->value.d : child->value.u);
+        return literal;
     case AST_TYPE_MODE_LONG:
-        if (cast->data.num.is_signed)
-            return (cc_ast_literal) { .is_float = false,
-                .is_signed = child->is_signed,
-                .value.s = (signed long)(child->is_float ? child->value.d
-                                                         : child->value.s) };
-        return (cc_ast_literal) { .is_float = false,
-            .is_signed = child->is_signed,
-            .value.s = (unsigned long)(child->is_float ? child->value.d
-                                                       : child->value.u) };
+        if (cast->data.num.is_signed) {
+            literal.is_float = false, literal.is_signed = child->is_signed,
+            literal.value.s = (signed long)(child->is_float ? child->value.d
+                                                            : child->value.s);
+            return literal;
+        }
+        literal.is_float = false;
+        literal.is_signed = child->is_signed;
+        literal.value.s = (unsigned long)(child->is_float ? child->value.d
+                                                          : child->value.u);
+        return literal;
     case AST_TYPE_MODE_FLOAT:
         literal.is_float = true;
         literal.is_signed = child->is_signed;
@@ -230,19 +237,22 @@ static cc_ast_literal cc_ceval_eval_1(
     case AST_NODE_LITERAL:
         return node->data.literal;
     case AST_NODE_CALL: {
+        cc_ast_variable* var;
         size_t i;
 
         assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
-        cc_ast_variable* var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
+        var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.call.call_expr->data.var.name, node);
         assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
 
         assert(var->type.data.func.n_params == node->data.call.n_params);
         for (i = 0; i < var->type.data.func.n_params; i++) {
+            cc_ceval_io ceval_io = { 0 };
+            ceval_io.name = var->type.data.func.params[i].name;
+            ceval_io.literal = cc_ceval_eval(ctx, &node->data.call.params[i]);
+            
             *list = cc_realloc_array(*list, *n_list + 1);
-            (*list)[(*n_list)++] = (cc_ceval_io) { .name
-                = var->type.data.func.params[i].name,
-                .literal = cc_ceval_eval(ctx, &node->data.call.params[i]) };
+            (*list)[(*n_list)++] = ceval_io;
         }
         return cc_ceval_eval_1(ctx, var->body, list, n_list);
     }
@@ -381,14 +391,16 @@ bool cc_ceval_deduce_type(
         if (node->data.binop.op == AST_BINOP_ASSIGN)
             return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
         else if (node->data.binop.op == AST_BINOP_DOT) {
-            cc_ast_type vtype;
+            cc_ast_variable* field_var;
+            cc_ast_type vtype = { 0 };
+
             if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &vtype)) {
                 cc_diag_error(ctx, "Can't deduce type of left struct");
                 goto error_handle;
             }
 
             assert(node->data.binop.right->type == AST_NODE_FIELD);
-            cc_ast_variable* field_var = cc_ast_get_field_of(
+            field_var = cc_ast_get_field_of(
                 &vtype, node->data.binop.right->data.field_name);
             if (field_var == NULL) {
                 cc_diag_error(ctx, "Unable to obtain field '%s'",
@@ -463,8 +475,9 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
         return cc_ceval_is_const(ctx, node->data.binop.left)
             && cc_ceval_is_const(ctx, node->data.binop.right);
     case AST_NODE_CALL: {
+        const cc_ast_variable* var;
         assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
-        cc_ast_variable* var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
+        var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.call.call_expr->data.var.name, node);
         assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
         if (var->body == NULL)

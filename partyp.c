@@ -128,12 +128,13 @@ bool cc_parse_struct_or_union_specifier(
     while (cc_parse_declarator(ctx, node, &virtual_member)) {
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COLON) {
+            cc_ast_literal literal = { 0 };
+
             cc_lex_token_consume(ctx);
             virtual_member.type.mode = AST_TYPE_MODE_BITINT;
             virtual_member.type.data.num.bitint_bits = 0;
 
             /* Constexpression follows, evaluate it nicely :) */
-            cc_ast_literal literal = { 0 };
             cc_parse_constant_expression(ctx, node, &literal);
             if (literal.is_signed && literal.value.s < 0) {
                 cc_diag_error(ctx, "Number of bits can't be negative");
@@ -166,6 +167,7 @@ error_handle:
 static bool cc_parse_enum_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
+    cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
     const cc_lexer_token* ctok;
     size_t i;
 
@@ -210,20 +212,22 @@ static bool cc_parse_enum_specifier(
     }
 
     /* Syntax is <ident> = <const-expr> , */
-    cc_ast_literal seq_literal = { 0 }; /* Enumerator values start at 0 */
     memset(&type->data, 0, sizeof(type->data));
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        cc_lex_token_consume(ctx);
         cc_ast_enum_member member = { 0 };
+        cc_ast_variable var = { 0 };
+
+        cc_lex_token_consume(ctx);
         member.name = cc_strdup(ctok->data);
         /* Assignment of enumerator value. */
         member.literal = seq_literal;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_ASSIGN) {
+            cc_ast_node* const_expr;
             cc_lex_token_consume(ctx);
 
-            cc_ast_node* const_expr = cc_ast_create_block(ctx, node);
+            const_expr = cc_ast_create_block(ctx, node);
             /* Parse like a normal expression */
             cc_parse_unary_expression(ctx, const_expr);
             if (!cc_ceval_constant_expression(
@@ -252,7 +256,6 @@ static bool cc_parse_enum_specifier(
 
         /* Enumerator members are globally visible as constexpr
             evaluatible variables on the global context. */
-        cc_ast_variable var = { 0 };
         var.type.mode = AST_TYPE_MODE_INT;
         /* Override type specification and enable constexpr evaluation */
         var.storage = AST_STORAGE_CONSTEXPR;
@@ -397,6 +400,7 @@ static bool cc_parse_typeof_specifier(
 
     if (ctok->type == LEXER_TOKEN_typeof
         || ctok->type == LEXER_TOKEN_typeof_unqual) {
+        cc_ast_node* typeof_expr;
         bool unqual = false;
         size_t i;
 
@@ -406,7 +410,7 @@ static bool cc_parse_typeof_specifier(
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
         /* typeof ( <expr> ) */
-        cc_ast_node* typeof_expr = cc_ast_create_block(ctx, node);
+        typeof_expr = cc_ast_create_block(ctx, node);
         cc_parse_expression(ctx, typeof_expr);
         if (!cc_ceval_deduce_type(ctx, typeof_expr, type)) {
             cc_diag_error(ctx, "Unable to deduce type for expression");
@@ -415,11 +419,11 @@ static bool cc_parse_typeof_specifier(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
 
         /* Unqualify if typeof_unqual is used */
-        for (i = 0; unqual && i < type->n_cv_qual; i++)
-            type->cv_qual[i] = (cc_ast_type_cv) { .is_atomic = false,
-                .is_const = false,
-                .is_restrict = false,
-                .is_volatile = false };
+        for (i = 0; unqual && i < type->n_cv_qual; i++) {
+            cc_ast_type_cv* cv_qual = &type->cv_qual[i];
+            cv_qual->is_atomic = cv_qual->is_const = cv_qual->is_restrict =
+                cv_qual->is_volatile = false;
+        }
         return true;
     }
 error_handle:
@@ -471,12 +475,13 @@ bool cc_parse_type_specifier(
         type->data.num.is_signed = ctok->type == LEXER_TOKEN_signed;
         break;
     case LEXER_TOKEN__BitInt: {
+        cc_ast_literal literal = { 0 };
+        
         type->mode = AST_TYPE_MODE_BITINT;
         ctok = cc_lex_token_consume(ctx);
         ctok = cc_lex_token_consume(ctx);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
-        cc_ast_literal literal = { 0 };
         if (!cc_parse_constant_expression(ctx, node, &literal)) {
             cc_diag_error(ctx, "Unable to parse expression");
             type->data.num.bitint_bits = 1;
@@ -516,8 +521,8 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_storage_class_specifier(cc_context* ctx,
-    cc_ast_variable* var)
+static bool cc_parse_storage_class_specifier(
+    cc_context* ctx, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)

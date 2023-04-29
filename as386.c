@@ -603,8 +603,8 @@ end:
     cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
 }
 
-static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok,
-    bool needs_frame)
+static void cc_as386_process_token(
+    cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
 {
     const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
     if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR)
@@ -715,7 +715,7 @@ static bool cc_as386_needs_frame_setup(const cc_ssa_func* func)
                 /* Stack variable */
                 if ((tok->data.alloca.left.storage & SSA_STORAGE_STACK) != 0)
                     b = true;
-            /* Non-stack variable, unnamed temporal maybe? */
+                /* Non-stack variable, unnamed temporal maybe? */
             } else
                 b = true;
         } else if (tok->type == SSA_TOKEN_CALL && tok->data.call.n_params > 0)

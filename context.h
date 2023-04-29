@@ -33,7 +33,7 @@ typedef struct cc_context {
                            if global or pertaining to the stack of a functor. */
     bool is_default_signed; /* Default signedness of integers */
     bool parsing_sizeof; /* "Are we inside a sizeof parameter?" */
-    struct cc_ast_type *sizeof_type; /* Type obtained from within sizeof */
+    struct cc_ast_type* sizeof_type; /* Type obtained from within sizeof */
 
     /* Lexer */
     struct cc_lexer_token* tokens;
@@ -83,6 +83,6 @@ typedef struct cc_context {
     unsigned short min_stack_alignment;
 } cc_context;
 
-const char *cc_get_cfunc_name(const cc_context *ctx);
+const char* cc_get_cfunc_name(const cc_context* ctx);
 
 #endif

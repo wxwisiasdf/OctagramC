@@ -173,12 +173,13 @@ static bool cc_parse_conditional_expression(cc_context* ctx, cc_ast_node* node)
         const cc_lexer_token* ctok;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_TERNARY) {
+            cc_ast_node* if_expr;
             cc_lex_token_consume(ctx);
             /* If statment converter, a ternary of the form:
                 <expr-1> ? <expr-2> : <expr-3>
                is converted into:
                 if (<expr-1>) <expr-2> else <expr-3> */
-            cc_ast_node* if_expr = cc_ast_create_if_expr(ctx, node);
+            if_expr = cc_ast_create_if_expr(ctx, node);
             block_node->parent = if_expr->data.if_expr.cond;
             cc_ast_add_block_node(if_expr->data.if_expr.cond, block_node);
             cc_parse_expression(ctx, if_expr->data.if_expr.block);
@@ -411,12 +412,13 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
         if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_vla) {
             /* VLA type uses a node that needs to be computed at runtime! */
+            cc_ast_node* expr_node;
             const cc_ast_node* array_size_expr
                 = virtual_type.cv_qual[virtual_type.n_cv_qual].array.size_expr;
             assert(array_size_expr != NULL);
             /* TODO: We should have a "create block by type" function
             so we don't crash when we do not receive a block node! */
-            cc_ast_node* expr_node = cc_ast_create_block(ctx, node);
+            expr_node = cc_ast_create_block(ctx, node);
             cc_ast_copy_node(ctx, expr_node, array_size_expr);
             expr_node->parent = node;
             cc_ast_add_block_node(node, expr_node);
@@ -530,8 +532,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     switch (ctok->type) {
     case LEXER_TOKEN_INCREMENT:
     case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
+        cc_ast_node* pi_node;
         cc_lex_token_consume(ctx); /* <unop <postinc> <expr>> */
-        cc_ast_node* pi_node = cc_ast_create_unop_expr(ctx, node,
+        pi_node = cc_ast_create_unop_expr(ctx, node,
             ctok->type == LEXER_TOKEN_INCREMENT ? AST_UNOP_POSTINC
                                                 : AST_UNOP_POSTDEC);
         expr_node->parent = pi_node->data.unop.child;
@@ -563,8 +566,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         }
 
         if (!vtype.n_cv_qual) {
+            cc_ast_node* tmp_node;
             cc_diag_error(ctx, "Accessed array type is non-pointer");
-            cc_ast_node* tmp_node = cc_ast_create_block(ctx, node);
+            tmp_node = cc_ast_create_block(ctx, node);
             cc_parse_expression(ctx, tmp_node);
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
             cc_ast_destroy_node(tmp_node, true);
