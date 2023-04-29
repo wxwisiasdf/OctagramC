@@ -560,6 +560,7 @@ static bool cc_parse_preprocessor(cc_context* ctx)
                 }
             }
         }
+        return true;
     }
     return false;
 }
