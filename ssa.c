@@ -988,36 +988,164 @@ bool cc_ssa_is_param_same(
     return p1->size == p2->size;
 }
 
+/* Removes redundant assignments - or assignments which would otherwise
+   have no effect, it also merges adjacent labels */
 static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 {
     size_t i;
+    /* Remove assignments */
     for (i = 0; i < func->n_tokens; i++) {
         cc_ssa_token* tok = &func->tokens[i];
-        bool erase = false;
-
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_STORE_FROM:
-        case SSA_TOKEN_LOAD_FROM:
-            erase = cc_ssa_is_param_same(
+        case SSA_TOKEN_LOAD_FROM: {
+            bool erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);
             /* Remove read without side effect */
             if (tok->data.unop.left.type == SSA_PARAM_NONE)
                 erase = true;
-
-            if (tok->data.unop.left.is_volatile
-                || tok->data.unop.right.is_volatile)
-                erase = false;
-            break;
+            if (erase && !tok->data.unop.left.is_volatile
+            && !tok->data.unop.right.is_volatile) {
+                memmove(&func->tokens[i], &func->tokens[i + 1],
+                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                func->n_tokens--;
+                i--;
+            }
+        } break;
+        case SSA_TOKEN_BRANCH: {
+            bool erase = cc_ssa_is_param_same(
+                &tok->data.binop.right, &tok->data.binop.extra);
+            /* Remove read without side effect */
+            if (tok->data.binop.right.type == SSA_PARAM_NONE
+            || tok->data.binop.extra.type == SSA_PARAM_NONE)
+                erase = true;
+            if (erase && !tok->data.binop.left.is_volatile
+            && !tok->data.binop.right.is_volatile
+            && !tok->data.binop.extra.is_volatile) {
+                memmove(&func->tokens[i], &func->tokens[i + 1],
+                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                func->n_tokens--;
+                i--;
+            }
+        } break;
         default:
             break;
         }
+    }
+}
 
-        if (erase) {
-            memmove(&func->tokens[i], &func->tokens[i + 1],
-                sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
-            func->n_tokens--;
-            i--;
+static void cc_ssa_labmerge_param(
+    cc_ssa_param* param, unsigned short label_id, unsigned short new_label_id)
+{
+    assert(label_id != new_label_id);
+    if (param->type == SSA_PARAM_LABEL && param->data.label_id == label_id)
+        param->data.label_id = new_label_id;
+}
+
+/* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_binop(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    cc_ssa_labmerge_param(&tok->data.binop.left, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.binop.right, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.binop.extra, label_id, new_label_id);
+}
+/* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_unop(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    cc_ssa_labmerge_param(&tok->data.unop.left, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.unop.right, label_id, new_label_id);
+}
+/* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_call(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    size_t i;
+    cc_ssa_labmerge_param(&tok->data.call.left, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.call.right, label_id, new_label_id);
+    for (i = 0; i < tok->data.call.n_params; i++)
+        cc_ssa_labmerge_param(&tok->data.call.params[i], label_id, new_label_id);
+}
+/* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_alloca(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    cc_ssa_labmerge_param(&tok->data.alloca.left, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.alloca.size, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.alloca.align, label_id, new_label_id);
+}
+/* Helper function for cc_ssa_labmerge_func */
+static void cc_ssa_labmerge_func_1(cc_ssa_func* func, unsigned short label_id,
+    unsigned short new_label_id)
+{
+    size_t i;
+    for (i = 0; i < func->n_tokens; ++i) {
+        cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_ZERO_EXT:
+        case SSA_TOKEN_SIGN_EXT:
+        case SSA_TOKEN_LOAD_FROM:
+        case SSA_TOKEN_STORE_FROM:
+            cc_ssa_labmerge_unop(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_ADD:
+        case SSA_TOKEN_SUB:
+        case SSA_TOKEN_AND:
+        case SSA_TOKEN_BRANCH:
+        case SSA_TOKEN_COMPARE:
+        case SSA_TOKEN_DIV:
+        case SSA_TOKEN_MUL:
+        case SSA_TOKEN_OR:
+        case SSA_TOKEN_XOR:
+        case SSA_TOKEN_GT:
+        case SSA_TOKEN_GTE:
+        case SSA_TOKEN_LT:
+        case SSA_TOKEN_LTE:
+        case SSA_TOKEN_EQ:
+        case SSA_TOKEN_NEQ:
+            cc_ssa_labmerge_binop(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_CALL:
+            cc_ssa_labmerge_call(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_ALLOCA:
+            cc_ssa_labmerge_alloca(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_RET:
+        case SSA_TOKEN_LABEL:
+            /* No operation */
+            break;
+        default:
+            abort();
+        }
+    }
+}
+/* Merges adjacent labels so we can remove redundant branching */
+static void cc_ssa_labmerge_func(cc_ssa_func* func)
+{
+    size_t i;
+    for (i = 0; i < func->n_tokens; i++) {
+        cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_LABEL:
+            /* Merge adjacent labels */
+            if (i + 1 < func->n_tokens) {
+                cc_ssa_token* ltok = &func->tokens[i + 1];
+                if (ltok->type == SSA_TOKEN_LABEL) {
+                    cc_ssa_labmerge_func_1(func, tok->data.label_id,
+                        ltok->data.label_id);
+                    memmove(&func->tokens[i], &func->tokens[i + 1],
+                        sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                    --func->n_tokens;
+                    --i;
+                }
+            }
+            break;
+        default:
+            break;
         }
     }
 }
@@ -1180,6 +1308,7 @@ static void cc_ssa_colour_func(cc_ssa_func* func)
 {
     cc_ssa_tmpassign_func(func);
     cc_ssa_remove_assign_func(func);
+    cc_ssa_labmerge_func(func);
     cc_ssa_livetmp_func(func);
 }
 
