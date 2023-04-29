@@ -208,27 +208,30 @@ static enum cc_ssa_storage cc_ssa_ast_storage_to_ssa(enum cc_ast_storage v)
 
 static cc_ssa_param cc_ssa_literal_to_param(const cc_ast_literal* literal)
 {
+    cc_ssa_param tmp_param = { 0 };
+    cc_ssa_constant tmp_const = { 0 };
+    tmp_param.type = SSA_PARAM_CONSTANT;
+    tmp_param.size = 4;
     if (literal->is_float) {
-        return (cc_ssa_param) { .type = SSA_PARAM_CONSTANT,
-            .size = 4,
-            .data.constant = (cc_ssa_constant) {
-                .is_float = true, .value.d = literal->value.d } };
+        tmp_const.is_float = true;
+        tmp_const.value.d = literal->value.d;
+        tmp_param.data.constant = tmp_const;
+        return tmp_param;
     }
     if (literal->is_signed) {
-        return (cc_ssa_param) { .type = SSA_PARAM_CONSTANT,
-            .size = 4,
-            .data.constant = (cc_ssa_constant) { .is_float = false,
-                .is_negative = literal->value.s < 0,
+        tmp_const.is_float = false;
+        tmp_const.is_negative = literal->value.s < 0;
 #define ABS(x) (x > 0) ? (x) : -(x)
-                .value.u = (unsigned long)ABS(literal->value.s)
+        tmp_const.value.u = (unsigned long)ABS(literal->value.s);
 #undef ABS
-            } };
+        tmp_param.data.constant = tmp_const;
+        return tmp_param;
     }
-    return (cc_ssa_param) { .type = SSA_PARAM_CONSTANT,
-        .size = 4,
-        .data.constant = (cc_ssa_constant) { .is_float = false,
-            .is_negative = false,
-            .value.u = literal->value.u } };
+    tmp_const.is_float = false;
+    tmp_const.is_negative = false;
+    tmp_const.value.u = literal->value.u;
+    tmp_param.data.constant = tmp_const;
+    return tmp_param;
 }
 
 /* Obtain the SSA parameter for the given variable - we always use a pointer
@@ -238,42 +241,40 @@ static cc_ssa_param cc_ssa_literal_to_param(const cc_ast_literal* literal)
 static cc_ssa_param cc_ssa_variable_to_param(
     cc_context* ctx, const cc_ast_variable* var)
 {
-    return (cc_ssa_param) {
-        .type = SSA_PARAM_VARIABLE,
-        .storage = cc_ssa_ast_storage_to_ssa(var->type.storage),
-        .data = {
-            .var_name = cc_strdup(var->name),
-        },
-        .is_signed = false,
-        .size = ctx->get_sizeof(ctx, &var->type),
-        .version = 0,
-    };
+    cc_ssa_param tmp = { 0 };
+    tmp.type = SSA_PARAM_VARIABLE;
+    tmp.storage = cc_ssa_ast_storage_to_ssa(var->type.storage);
+    tmp.data.var_name = cc_strdup(var->name);
+    tmp.is_signed = false;
+    tmp.size = ctx->get_sizeof(ctx, &var->type);
+    tmp.version = 0;
+    return tmp;
 }
 
 /* Obtain the SSA parameter for the return value */
 static cc_ssa_param cc_ssa_retval_param(
     cc_context* ctx, const cc_ast_type* ret_type)
 {
-    return (cc_ssa_param) {
-        .type = SSA_PARAM_RETVAL,
-        .storage = SSA_STORAGE_AUTO,
-        .data.var_name = NULL,
-        .is_signed = ret_type->data.num.is_signed,
-        .size = ctx->get_sizeof(ctx, ret_type),
-        .version = 0,
-    };
+    cc_ssa_param tmp = { 0 };
+    tmp.type = SSA_PARAM_RETVAL;
+    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.data.var_name = NULL;
+    tmp.is_signed = ret_type->data.num.is_signed;
+    tmp.size = ctx->get_sizeof(ctx, ret_type);
+    tmp.version = 0;
+    return tmp;
 }
 
 static cc_ssa_param cc_ssa_label_param(cc_context* ctx, unsigned short label_id)
 {
-    return (cc_ssa_param) {
-        .type = SSA_PARAM_LABEL,
-        .storage = SSA_STORAGE_AUTO,
-        .data.label_id = label_id,
-        .is_signed = false,
-        .size = 4,
-        .version = 0,
-    };
+    cc_ssa_param tmp = { 0 };
+    tmp.type = SSA_PARAM_LABEL;
+    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.data.label_id = label_id;
+    tmp.is_signed = false;
+    tmp.size = 4;
+    tmp.version = 0;
+    return tmp;
 }
 
 static unsigned short cc_ssa_get_unique_tmpid(cc_context* ctx)
@@ -286,16 +287,14 @@ static unsigned short cc_ssa_get_unique_tmpid(cc_context* ctx)
 cc_ssa_param cc_ssa_tempvar_param_1(
     cc_context* ctx, bool is_signed, unsigned short size)
 {
-    return (cc_ssa_param) {
-        .type = SSA_PARAM_TMPVAR,
-        .storage = SSA_STORAGE_AUTO,
-        .data = {
-            .tmpid = ctx->tmpid++,
-        },
-        .is_signed = is_signed,
-        .size = size,
-        .version = 0,
-    };
+    cc_ssa_param tmp = { 0 };
+    tmp.type = SSA_PARAM_TMPVAR;
+    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.data.tmpid = ctx->tmpid++;
+    tmp.is_signed = is_signed;
+    tmp.size = size;
+    tmp.version = 0;
+    return tmp;
 }
 
 cc_ssa_param cc_ssa_tempvar_param(
@@ -506,20 +505,18 @@ static void cc_ssa_process_block(
                 = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
             ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
         } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
-            if (ctx->ssa_current_func != NULL) {
-                tok.type = SSA_TOKEN_ALLOCA;
-                tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
-                cc_ast_literal literal = (cc_ast_literal) { .is_float = false,
-                    .is_signed = false,
-                    .value.u = ctx->get_sizeof(ctx, &var->type) };
-                tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
-                tok.info = node->info;
-                tok.info.filename = cc_strdup(node->info.filename);
-                cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-            } else {
-                enum cc_ast_storage storage
-                    = var->type.storage & ~(AST_STORAGE_THREAD_LOCAL);
-            }
+            /* Global variables are handled by a ctor function! */
+            assert (ctx->ssa_current_func != NULL);
+            /* Local variables within a function */
+            tok.type = SSA_TOKEN_ALLOCA;
+            tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
+            cc_ast_literal literal = (cc_ast_literal) { .is_float = false,
+                .is_signed = false,
+                .value.u = ctx->get_sizeof(ctx, &var->type) };
+            tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+            tok.info = node->info;
+            tok.info.filename = cc_strdup(node->info.filename);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         }
     }
     for (i = 0; i < node->data.block.n_children; i++)
@@ -531,13 +528,13 @@ static void cc_ssa_process_call(
 {
     cc_ssa_token tok = { 0 };
     cc_ast_type call_retval_type = { 0 };
+    cc_ssa_param call_retval_param;
     size_t i;
 
     if (!cc_ceval_deduce_type(
             ctx, node->data.call.call_expr, &call_retval_type))
         abort();
-    cc_ssa_param call_retval_param
-        = cc_ssa_tempvar_param(ctx, &call_retval_type);
+    call_retval_param = cc_ssa_tempvar_param(ctx, &call_retval_type);
     cc_ssa_from_ast(ctx, node->data.call.call_expr, call_retval_param);
 
     tok.type = SSA_TOKEN_CALL;
@@ -564,10 +561,11 @@ static void cc_ssa_process_switch(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ast_type control_type = { 0 };
+    cc_ssa_param control_param;
     if (!cc_ceval_deduce_type(
             ctx, node->data.switch_expr.control, &control_type))
         abort();
-    cc_ssa_param control_param = cc_ssa_tempvar_param(ctx, &control_type);
+    control_param = cc_ssa_tempvar_param(ctx, &control_type);
     cc_ssa_from_ast(ctx, node->data.switch_expr.control, control_param);
     cc_ssa_from_ast(ctx, node->data.switch_expr.block, param);
 }
@@ -576,22 +574,23 @@ static void cc_ssa_process_if(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ast_type cond_type = { 0 };
+    cc_ssa_param cond_param;
+    cc_ssa_token tok = { 0 };
+    cc_ssa_token if_label_tok = { 0 };
+    cc_ssa_token else_label_tok = { 0 };
+
     if (!cc_ceval_deduce_type(ctx, node->data.if_expr.cond, &cond_type))
         abort();
-    cc_ssa_param cond_param = cc_ssa_tempvar_param(ctx, &cond_type);
+    cond_param = cc_ssa_tempvar_param(ctx, &cond_type);
     cc_ssa_from_ast(ctx, node->data.if_expr.cond, cond_param);
 
     /* Skip effect-less if statment blocks (condition needs to be evaluated anyways) */
     if (node->data.if_expr.block == NULL
         && node->data.if_expr.tail_else == NULL)
         return;
-
-    cc_ssa_token tok = { 0 };
+    
     tok.type = SSA_TOKEN_BRANCH;
     tok.data.branch.eval = cond_param;
-
-    cc_ssa_token if_label_tok = { 0 };
-    cc_ssa_token else_label_tok = { 0 };
 
     if_label_tok.type = SSA_TOKEN_LABEL;
     if_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
@@ -623,12 +622,12 @@ static void cc_ssa_process_jump(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
+    cc_ast_literal literal = { 0 };
+    literal.is_float = literal.is_signed = false;
+    literal.value.u = 0;
+
     tok.type = SSA_TOKEN_BRANCH;
-    cc_ast_literal literal = (cc_ast_literal) {
-        .is_float = false,
-        .is_signed = false,
-        .value.u = 0,
-    };
+
     tok.data.branch.eval = cc_ssa_literal_to_param(&literal);
     tok.data.branch.t_branch
         = cc_ssa_label_param(ctx, node->data.jump_label_id);
@@ -656,11 +655,12 @@ static void cc_ssa_process_return(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     const cc_ast_variable* var = ctx->ssa_current_func->ast_var;
+    cc_ssa_token tok = { 0 };
+
     assert(var->type.mode == AST_TYPE_MODE_FUNCTION);
     cc_ssa_from_ast(ctx, node->data.return_expr,
         cc_ssa_retval_param(ctx, var->type.data.func.return_type));
 
-    cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_RET;
     tok.info = node->info;
     tok.info.filename = cc_strdup(node->info.filename);
@@ -670,20 +670,21 @@ static void cc_ssa_process_return(
 static void cc_ssa_process_string_literal(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
-    assert(node->type == AST_NODE_STRING_LITERAL);
     cc_ssa_token tok = { 0 };
+    cc_ast_type string_type;
+    cc_ssa_param literal_param;
+    assert(node->type == AST_NODE_STRING_LITERAL);
 
     /* const char* */
-    cc_ast_type string_type = cc_ceval_get_string_type(ctx);
-    cc_ssa_param literal_param = (cc_ssa_param) {
-        .type = SSA_PARAM_STRING_LITERAL,
-        .size = ctx->get_sizeof(ctx, &string_type),
-        .is_signed = false,
-        .storage = SSA_STORAGE_AUTO,
-        .version = 0,
-        .data.string.tmpid = cc_ssa_get_unique_tmpid(ctx),
-        .data.string.literal = node->data.string_literal,
-    };
+    string_type = cc_ceval_get_string_type(ctx);
+    literal_param.type = SSA_PARAM_STRING_LITERAL;
+    literal_param.size = ctx->get_sizeof(ctx, &string_type);
+    literal_param.is_signed = false;
+    literal_param.storage = SSA_STORAGE_AUTO;
+    literal_param.version = 0;
+    literal_param.data.string.tmpid = cc_ssa_get_unique_tmpid(ctx);
+    literal_param.data.string.literal = node->data.string_literal;
+
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;
     tok.data.unop.right = literal_param;
@@ -697,9 +698,9 @@ static void cc_ssa_process_unop(
 {
     cc_ssa_token tok = { 0 };
     cc_ast_type child_type = { 0 };
+    cc_ssa_param child_param = { 0 };
     if (!cc_ceval_deduce_type(ctx, node->data.unop.child, &child_type))
         abort();
-    cc_ssa_param child_param = { 0 };
 
     switch (node->data.unop.op) {
     case AST_UNOP_CAST: {
@@ -967,20 +968,26 @@ static void cc_ssa_colour(cc_context* ctx)
 static cc_ast_variable cc_ssa_create_func_var(const char* name)
 {
     cc_ast_variable var = { 0 };
-    var.type.mode = AST_TYPE_MODE_FUNCTION;
     var.name = cc_strdup(name);
+    var.body = NULL;
+    var.type.mode = AST_TYPE_MODE_FUNCTION;
+    var.type.storage = AST_STORAGE_STATIC;
     return var;
 }
 
 void cc_ssa_top(cc_context* ctx)
 {
     cc_ssa_func static_ctor_func = { 0 };
-    cc_ast_variable static_ctor_var = cc_ssa_create_func_var("__gdtor");
+    cc_ast_variable static_ctor_var = cc_ssa_create_func_var("__occ_ctor");
+    cc_ssa_param none_param = { 0 };
     static_ctor_func.ast_var = &static_ctor_var;
     ctx->ssa_current_func = &static_ctor_func;
-    cc_ssa_param none_param = { 0 };
     cc_ssa_from_ast(ctx, ctx->root, none_param);
-    cc_ast_destroy_var(&static_ctor_var, false);
+    /* Add the ctor function to the list of functions */
+    ctx->ssa_funcs
+        = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
+    ctx->ssa_funcs[ctx->n_ssa_funcs++] = static_ctor_func;
+    ctx->ssa_current_func = NULL;
 
     cc_ssa_print(ctx);
 

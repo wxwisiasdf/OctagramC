@@ -13,7 +13,7 @@
 #include <string.h>
 
 enum cc_as386_reg_group {
-    AS386_REG_GROUP_ALL,
+    AS386_REG_GROUP_ALL
 };
 
 enum cc_as386_reg {
@@ -26,7 +26,7 @@ enum cc_as386_reg {
     AS386_EDI,
     AS386_EBP,
     AS386_ESP,
-    AS386_NUM_REGS,
+    AS386_NUM_REGS
 };
 
 static const char* reg_names[AS386_NUM_REGS]
@@ -37,6 +37,8 @@ typedef struct cc_as386_context {
     bool temp[AS386_NUM_REGS];
     unsigned int reg_mapping[AS386_NUM_REGS]; /* Reg mapping for tmpids */
     unsigned int stack_offset;
+    bool s_text;
+    bool s_data;
 } cc_as386_context;
 
 static cc_as386_context* cc_as386_get_ctx(cc_context* ctx)
@@ -483,12 +485,14 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
 
 static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
 {
+    const char* insn_name;
     cc_ssa_param lhs = tok->data.binop.left;
     cc_ssa_param rhs[2];
+    cc_ssa_param tmp[2];
+    
     rhs[0] = tok->data.binop.right;
     rhs[1] = tok->data.binop.extra;
 
-    cc_ssa_param tmp[2];
     tmp[0] = cc_ssa_tempvar_param_1(ctx, false, 4);
     tmp[1] = cc_ssa_tempvar_param_1(ctx, false, 4);
 
@@ -498,7 +502,6 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     cc_as386_gen_assign(ctx, &tmp[0], &rhs[0]);
     cc_as386_gen_assign(ctx, &tmp[1], &rhs[1]);
 
-    const char* insn_name;
     switch (tok->type) {
     case SSA_TOKEN_ADD:
         insn_name = "add";
@@ -536,7 +539,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         fprintf(ctx->out, "1:\n");
         fprintf(ctx->out, "\tmov\t$1,%s\n",
             reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)]);
-        fprintf(ctx->out, "\tjmp\t1f\n", insn_name);
+        fprintf(ctx->out, "\tjmp\t1f\n");
         fprintf(ctx->out, "1:\n");
         fprintf(ctx->out, "\tmov\t$0,%s\n",
             reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)]);
@@ -545,6 +548,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         abort();
     }
     fprintf(ctx->out, "\t%sl\t%s,%s\n",
+        insn_name,
         reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)],
         reg_names[cc_as386_get_tmpreg(ctx, tmp[1].data.tmpid)]);
 
@@ -632,11 +636,31 @@ static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
         cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
 }
 
+static void cc_as386_process_var(cc_context* ctx, const cc_ast_variable* var) {
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    if (!actx->s_data) {
+        fprintf(ctx->out, ".data\n");
+        actx->s_data = true;
+    }
+
+    if ((var->type.storage & AST_STORAGE_GLOBAL) != 0)
+        fprintf(ctx->out, ".globl\t%s\n", var->name);
+    fprintf(ctx->out, "%s:\n", var->name);
+    fprintf(ctx->out, "\t.space\t%u\n",
+        (unsigned int)ctx->get_sizeof(ctx, &var->type));
+    fprintf(ctx->out, ".align\t4\n");
+}
+
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     const char* name = func->ast_var->name;
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     size_t i;
+
+    if (!actx->s_text) {
+        fprintf(ctx->out, ".text\n");
+        actx->s_text = true;
+    }
 
     switch (func->ast_var->type.storage) {
     case AST_STORAGE_GLOBAL:

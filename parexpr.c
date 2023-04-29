@@ -422,9 +422,13 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     } else {
         unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
                     : ctx->get_sizeof(ctx, &virtual_type);
-        cc_ast_node* literal_node = cc_ast_create_literal(ctx, node,
-            (cc_ast_literal) {
-                .is_float = false, .is_signed = false, .value.u = r });
+        cc_ast_literal tmp_literal = { 0 };
+        cc_ast_node* literal_node;
+        /* Fill out the actual literal with information... */
+        tmp_literal.is_float = tmp_literal.is_signed = false;
+        tmp_literal.value.u = r;
+        /* ... & then materialize a literal node into the AST! */
+        literal_node = cc_ast_create_literal(ctx, node, tmp_literal);
         cc_ast_add_block_node(node, literal_node);
     }
     return true;

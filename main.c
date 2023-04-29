@@ -121,7 +121,8 @@ int main(int argc, char** argv)
                 if (!ctx.error_cnt) {
                     size_t i;
                     ctx.stage = STAGE_CODEGEN;
-                    for (i = 0; i < ctx.n_ssa_funcs; i++)
+                    /* First, process functions */
+                    for (i = 0; i < ctx.n_ssa_funcs; ++i)
                         ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
                 }
             }
