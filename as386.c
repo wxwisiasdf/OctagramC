@@ -636,19 +636,24 @@ static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
         cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
 }
 
-static void cc_as386_process_var(cc_context* ctx, const cc_ast_variable* var) {
+static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok) {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    if (!actx->s_data) {
-        fprintf(ctx->out, ".data\n");
-        actx->s_data = true;
-    }
+    const cc_ssa_param* lhs = &tok->data.alloca.left;
+    /* Alloca for variables MAY include static initializations and
+       storage declarations! */
+    if (lhs->type == SSA_PARAM_VARIABLE) {
+        if (!actx->s_data) {
+            fprintf(ctx->out, ".data\n");
+            actx->s_data = true;
+            actx->s_text = false;
+        }
 
-    if ((var->type.storage & AST_STORAGE_GLOBAL) != 0)
-        fprintf(ctx->out, ".globl\t%s\n", var->name);
-    fprintf(ctx->out, "%s:\n", var->name);
-    fprintf(ctx->out, "\t.space\t%u\n",
-        (unsigned int)ctx->get_sizeof(ctx, &var->type));
-    fprintf(ctx->out, ".align\t4\n");
+        if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0)
+            fprintf(ctx->out, ".globl\t%s\n", lhs->data.var_name);
+        fprintf(ctx->out, "%s:\n", lhs->data.var_name);
+        fprintf(ctx->out, "\t.space\t%u\n", lhs->size);
+        fprintf(ctx->out, "\t.align\t4\n");
+    }
 }
 
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
@@ -659,6 +664,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 
     if (!actx->s_text) {
         fprintf(ctx->out, ".text\n");
+        actx->s_data = false;
         actx->s_text = true;
     }
 
@@ -723,10 +729,12 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_CALL:
             cc_as386_colstring_call(ctx, tok);
             break;
+        case SSA_TOKEN_ALLOCA:
+            cc_as386_colstring_alloca(ctx, tok);
+            break;
         case SSA_TOKEN_RET:
         case SSA_TOKEN_LABEL:
-        case SSA_TOKEN_ALLOCA:
-            /* No operation */
+            /* No operation. */
             break;
         default:
             abort();

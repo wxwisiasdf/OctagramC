@@ -977,9 +977,13 @@ static cc_ast_variable cc_ssa_create_func_var(const char* name)
 
 void cc_ssa_top(cc_context* ctx)
 {
-    cc_ssa_func static_ctor_func = { 0 };
-    cc_ast_variable static_ctor_var = cc_ssa_create_func_var("__occ_ctor");
+    /* TODO: Do not use statics, use something else or shove it into the
+       context! */
+    static cc_ssa_func static_ctor_func = { 0 };
+    static cc_ast_variable static_ctor_var = { 0 };
     cc_ssa_param none_param = { 0 };
+
+    static_ctor_var = cc_ssa_create_func_var("__occ_ctor");
     static_ctor_func.ast_var = &static_ctor_var;
     ctx->ssa_current_func = &static_ctor_func;
     cc_ssa_from_ast(ctx, ctx->root, none_param);
