@@ -259,7 +259,7 @@ static cc_ssa_param cc_ssa_variable_to_param(
 {
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_VARIABLE;
-    tmp.storage = cc_ssa_ast_storage_to_ssa(var->type.storage);
+    tmp.storage = cc_ssa_ast_storage_to_ssa(var->storage);
     tmp.data.var_name = cc_strdup(var->name);
     tmp.is_signed = false;
     tmp.size = ctx->get_sizeof(ctx, &var->type);
@@ -1339,7 +1339,7 @@ static cc_ast_variable cc_ssa_create_func_var(const char* name)
     var.name = cc_strdup(name);
     var.body = NULL;
     var.type.mode = AST_TYPE_MODE_FUNCTION;
-    var.type.storage = AST_STORAGE_STATIC;
+    var.storage = AST_STORAGE_STATIC;
     return var;
 }
 

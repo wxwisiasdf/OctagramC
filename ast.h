@@ -79,7 +79,6 @@ typedef struct cc_ast_enum_member {
 
 typedef struct cc_ast_type {
     enum cc_ast_type_mode mode;
-    enum cc_ast_storage storage;
     cc_ast_type_cv cv_qual[MAX_CV_QUALIFIERS];
     unsigned short n_cv_qual; /* Number of cv qualifiers
                                0 = <cv> <type> <ident>;
@@ -124,6 +123,7 @@ typedef struct cc_ast_variable {
     struct cc_ast_node* body; /* For functions. */
     struct cc_ast_node* initializer; /* Initializer for constexpr and such. */
     cc_ast_type type;
+    enum cc_ast_storage storage;
 } cc_ast_variable;
 
 enum cc_ast_node_type {

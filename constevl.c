@@ -129,7 +129,7 @@ static cc_ast_literal cc_ceval_eval_1(
                 return (*list)[i].literal;
         var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
-        if ((var->type.storage & AST_STORAGE_CONSTEXPR) == 0) {
+        if ((var->storage & AST_STORAGE_CONSTEXPR) == 0) {
             cc_diag_warning(ctx, "Non-constexpr variable used in constexpr");
             goto error_handle;
         }
@@ -455,7 +455,7 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
-        if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
+        if ((var->storage & AST_STORAGE_CONSTEXPR) != 0)
             return true;
     }
         return false;

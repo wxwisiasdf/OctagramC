@@ -384,7 +384,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                     nvar.name = cc_strdup(ctok->data);
                     cc_swap_func_decl(&nvar.type);
-                    nvar.type.storage = AST_STORAGE_EXTERN;
+                    nvar.storage = AST_STORAGE_EXTERN;
                     /* Variadic, basically meaning we have no fucking idea */
                     nvar.type.data.func.variadic = true;
                     nvar.type.data.func.return_type
@@ -436,10 +436,10 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     cc_parse_declarator_list(ctx, node, &var, &is_parsing_typedef);
     if (var.name != NULL) {
         if (var.name[0] == '_' && isupper(var.name[1])
-            && !(var.type.storage & AST_STORAGE_EXTERN)) {
+            && !(var.storage & AST_STORAGE_EXTERN)) {
             cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
         } else if (var.name[0] == '_' && var.name[1] == '_'
-            && !(var.type.storage & AST_STORAGE_EXTERN)) {
+            && !(var.storage & AST_STORAGE_EXTERN)) {
             cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
         }
     }
@@ -452,7 +452,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_LBRACE: { /* Function body */
             cc_ast_variable prot_var = { 0 };
             bool old_is_func_body;
-            
+
             cc_lex_token_consume(ctx);
             if (is_parsing_typedef) {
                 cc_diag_error(ctx, "Function definition after typedef");
@@ -465,11 +465,11 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             /* All functions that are not prototypes are treated as a variable. */
-            if ((var.type.storage & AST_STORAGE_EXTERN) != 0) {
+            if ((var.storage & AST_STORAGE_EXTERN) != 0) {
                 cc_diag_warning(ctx,
                     "Function '%s' declared extern but defined here", var.name);
-                var.type.storage &= ~AST_STORAGE_EXTERN;
-                var.type.storage |= AST_STORAGE_GLOBAL;
+                var.storage &= ~AST_STORAGE_EXTERN;
+                var.storage |= AST_STORAGE_GLOBAL;
             }
 
             /* Variable for the function prototype (then replaced) */
@@ -513,8 +513,8 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     if (!is_parsing_typedef) {
         /* Automatically give variables globality-scope if they don't
            have any other linkage specifiers. */
-        if (var.type.storage == AST_STORAGE_NONE)
-            var.type.storage = AST_STORAGE_GLOBAL;
+        if (var.storage == AST_STORAGE_NONE)
+            var.storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, &var);
     }
     return true;

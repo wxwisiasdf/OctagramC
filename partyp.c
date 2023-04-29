@@ -255,7 +255,7 @@ static bool cc_parse_enum_specifier(
         cc_ast_variable var = { 0 };
         var.type.mode = AST_TYPE_MODE_INT;
         /* Override type specification and enable constexpr evaluation */
-        var.type.storage = AST_STORAGE_CONSTEXPR;
+        var.storage = AST_STORAGE_CONSTEXPR;
         var.name = cc_strdup(member.name);
         var.initializer = cc_ast_create_literal(ctx, node, member.literal);
         cc_ast_add_block_variable(node, &var);
@@ -302,17 +302,18 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_function_specifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_function_specifier(cc_context* ctx, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
     switch (ctok->type) {
     case LEXER_TOKEN_inline:
-        type->storage |= AST_STORAGE_INLINE;
+        var->storage |= AST_STORAGE_INLINE;
         break;
     case LEXER_TOKEN__Noreturn:
-        type->data.func.no_return = true;
+        var->type.mode = AST_TYPE_MODE_FUNCTION;
+        var->type.data.func.no_return = true;
         break;
     default:
         return false;
@@ -366,10 +367,7 @@ void cc_swap_func_decl(cc_ast_type* type)
     /* Reset type of variable */
     memset(type, 0, sizeof(cc_ast_type));
     type->mode = AST_TYPE_MODE_FUNCTION;
-    type->storage = return_type->storage;
     type->data.func.return_type = return_type;
-    /* Some properties; return type do not posses any storage (it's ellided) */
-    return_type->storage = AST_STORAGE_NONE;
 }
 
 static bool cc_parse_typedef_name(
@@ -518,7 +516,8 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
+static bool cc_parse_storage_class_specifier(cc_context* ctx,
+    cc_ast_variable* var)
 {
     const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
@@ -526,22 +525,22 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
 
     switch (ctok->type) {
     case LEXER_TOKEN_auto:
-        type->storage |= AST_STORAGE_AUTO;
+        var->storage |= AST_STORAGE_AUTO;
         break;
     case LEXER_TOKEN_extern:
-        type->storage |= AST_STORAGE_EXTERN;
+        var->storage |= AST_STORAGE_EXTERN;
         break;
     case LEXER_TOKEN_static:
-        type->storage |= AST_STORAGE_STATIC;
+        var->storage |= AST_STORAGE_STATIC;
         break;
     case LEXER_TOKEN_register:
-        type->storage |= AST_STORAGE_REGISTER;
+        var->storage |= AST_STORAGE_REGISTER;
         break;
     case LEXER_TOKEN_thread_local:
-        type->storage |= AST_STORAGE_THREAD_LOCAL;
+        var->storage |= AST_STORAGE_THREAD_LOCAL;
         break;
     case LEXER_TOKEN_constexpr:
-        type->storage |= AST_STORAGE_CONSTEXPR;
+        var->storage |= AST_STORAGE_CONSTEXPR;
         break;
     case LEXER_TOKEN_typedef:
         ctx->is_parsing_typedef = true;
@@ -550,8 +549,8 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
         return false;
     }
     /* Enforces type constraints */
-    if ((type->storage & AST_STORAGE_THREAD_LOCAL) != 0) {
-        enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_THREAD_LOCAL;
+    if ((var->storage & AST_STORAGE_THREAD_LOCAL) != 0) {
+        enum cc_ast_storage tmp = var->storage & ~AST_STORAGE_THREAD_LOCAL;
         if (tmp == AST_STORAGE_NONE || (tmp & AST_STORAGE_STATIC) != 0
             || (tmp & AST_STORAGE_EXTERN) != 0)
             ;
@@ -559,8 +558,8 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
             cc_diag_error(ctx,
                 "thread_local may only be used with static or"
                 "extern");
-    } else if ((type->storage & AST_STORAGE_CONSTEXPR) != 0) {
-        enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_CONSTEXPR;
+    } else if ((var->storage & AST_STORAGE_CONSTEXPR) != 0) {
+        enum cc_ast_storage tmp = var->storage & ~AST_STORAGE_CONSTEXPR;
         if (tmp == AST_STORAGE_NONE || (tmp & AST_STORAGE_AUTO) != 0
             || (tmp & AST_STORAGE_REGISTER) != 0
             || (tmp & AST_STORAGE_STATIC) != 0)
@@ -569,7 +568,7 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
             cc_diag_error(ctx,
                 "constexpr may only be used with auto, register"
                 " or static");
-    } else if ((type->storage & AST_STORAGE_AUTO) != 0) {
+    } else if ((var->storage & AST_STORAGE_AUTO) != 0) {
         if (ctx->is_parsing_typedef == true)
             cc_diag_error(ctx, "auto can't appear alongside typedef");
     }
@@ -617,19 +616,46 @@ error_handle:
     return false;
 }
 
-bool cc_parse_declaration_specifier(
-    cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+static bool cc_parse_declaration_specifier(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
     bool qualified_once = false;
-    type->storage = AST_STORAGE_NONE;
-    type->data.num.is_signed = ctx->is_default_signed;
+    while (cc_parse_declaration_specifier_attributes(ctx, node, &var->type))
+        ;
+    /* Consume cv-qualifiers */
+    while (cc_parse_storage_class_specifier(ctx, var)
+        || cc_parse_type_specifier(ctx, node, &var->type)
+        || cc_parse_function_specifier(ctx, var)
+        || cc_parse_type_qualifier(ctx, &var->type))
+        qualified_once = true;
+    /* Parse pointers that can be of any depths */
+    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_ASTERISK) {
+        qualified_once = true;
+        cc_lex_token_consume(ctx);
+        var->type.n_cv_qual++;
+        if (var->type.n_cv_qual >= MAX_CV_QUALIFIERS) {
+            cc_diag_error(ctx, "Exceeded maximum pointer depth");
+            goto error_handle;
+        }
+        /* TODO: attribute sequence */
+        while (cc_parse_type_qualifier(ctx, &var->type))
+            ; /* Consume qualifiers */
+    }
+    return qualified_once;
+error_handle:
+    return false;
+}
+
+bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
+{
+    const cc_lexer_token* ctok;
+    bool qualified_once = false;
     while (cc_parse_declaration_specifier_attributes(ctx, node, type))
         ;
     /* Consume cv-qualifiers */
-    while (cc_parse_storage_class_specifier(ctx, type)
-        || cc_parse_type_specifier(ctx, node, type)
-        || cc_parse_function_specifier(ctx, type)
+    while (cc_parse_type_specifier(ctx, node, type)
         || cc_parse_type_qualifier(ctx, type))
         qualified_once = true;
     /* Parse pointers that can be of any depths */
@@ -649,11 +675,6 @@ bool cc_parse_declaration_specifier(
     return qualified_once;
 error_handle:
     return false;
-}
-
-bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
-{
-    return cc_parse_declaration_specifier(ctx, node, type);
 }
 
 static bool cc_parse_declarator_braced_initializer_element(
@@ -750,7 +771,7 @@ bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
-    cc_parse_declaration_specifier(ctx, node, &var->type);
+    cc_parse_declaration_specifier(ctx, node, var);
 
     /* On cases such as struct b { <...> }; */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -791,9 +812,9 @@ bool cc_parse_declarator(
             var->name = cc_strdup(ctok->data);
         } else {
             /* A typedef name, so copy over the type from the typedef */
-            enum cc_ast_storage old_storage = var->type.storage;
+            enum cc_ast_storage old_storage = var->storage;
             cc_ast_copy_type(&var->type, tpdef);
-            var->type.storage = old_storage;
+            var->storage = old_storage;
         }
     } break;
     default:
@@ -818,8 +839,8 @@ ignore_missing_ident:
         cc_swap_func_decl(&var->type);
 
         /* No storage specified? set extern then */
-        /*if (var->type.storage == AST_STORAGE_AUTO) {
-            var->type.storage = AST_STORAGE_EXTERN;
+        /*if (var->storage == AST_STORAGE_AUTO) {
+            var->storage = AST_STORAGE_EXTERN;
         }*/
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -1008,8 +1029,8 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         cc_ast_copy_type(&stype, &var->type);
         /* Assign global storage to the variable if it is not inside a
            function body. */
-        if (!ctx->is_func_body && var->type.storage == AST_STORAGE_NONE)
-            var->type.storage = AST_STORAGE_GLOBAL;
+        if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
+            var->storage = AST_STORAGE_GLOBAL;
         cc_ast_add_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);

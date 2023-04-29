@@ -740,7 +740,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         actx->s_text = true;
     }
 
-    if ((func->ast_var->type.storage & AST_STORAGE_GLOBAL) != 0)
+    if ((func->ast_var->storage & AST_STORAGE_GLOBAL) != 0)
         fprintf(ctx->out, ".globl\t_%s\n", func->ast_var->name);
 
     fprintf(ctx->out, "_%s:\n", func->ast_var->name);

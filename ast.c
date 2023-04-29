@@ -525,7 +525,6 @@ void cc_ast_copy_type(
 {
     memset(dest, 0, sizeof(*dest));
     dest->mode = src->mode;
-    dest->storage = src->storage;
     dest->is_typedef = src->is_typedef;
 
     dest->max_alignment = src->max_alignment;
@@ -873,21 +872,21 @@ static void cc_ast_print_var(const cc_ast_variable* var)
             printf("]");
         }
 
-    if ((var->type.storage & AST_STORAGE_AUTO) != 0)
+    if ((var->storage & AST_STORAGE_AUTO) != 0)
         printf("auto,");
-    if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
+    if ((var->storage & AST_STORAGE_CONSTEXPR) != 0)
         printf("constexpr,");
-    if ((var->type.storage & AST_STORAGE_EXTERN) != 0)
+    if ((var->storage & AST_STORAGE_EXTERN) != 0)
         printf("extern,");
-    if ((var->type.storage & AST_STORAGE_GLOBAL) != 0)
+    if ((var->storage & AST_STORAGE_GLOBAL) != 0)
         printf("global,");
-    if ((var->type.storage & AST_STORAGE_INLINE) != 0)
+    if ((var->storage & AST_STORAGE_INLINE) != 0)
         printf("inline,");
-    if ((var->type.storage & AST_STORAGE_REGISTER) != 0)
+    if ((var->storage & AST_STORAGE_REGISTER) != 0)
         printf("register,");
-    if ((var->type.storage & AST_STORAGE_STATIC) != 0)
+    if ((var->storage & AST_STORAGE_STATIC) != 0)
         printf("static,");
-    if ((var->type.storage & AST_STORAGE_THREAD_LOCAL) != 0)
+    if ((var->storage & AST_STORAGE_THREAD_LOCAL) != 0)
         printf("thread_local,");
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {

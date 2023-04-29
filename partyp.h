@@ -10,8 +10,6 @@ bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
 bool cc_parse_type_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
-bool cc_parse_declaration_specifier(
-    cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
 bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type);
 void cc_swap_func_decl(cc_ast_type* type);
 bool cc_parse_declarator_braced_initializer(
