@@ -639,6 +639,7 @@ static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok) {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     const cc_ssa_param* lhs = &tok->data.alloca.left;
+    const cc_ssa_param* size = &tok->data.alloca.size;
     /* Alloca for variables MAY include static initializations and
        storage declarations! */
     if (lhs->type == SSA_PARAM_VARIABLE) {
@@ -653,7 +654,8 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok) 
         if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0
         || (lhs->storage & SSA_STORAGE_STATIC) != 0) {
             fprintf(ctx->out, "%s:\n", lhs->data.var_name);
-            fprintf(ctx->out, "\t.space\t%u\n", lhs->size);
+            assert(size->data.constant.is_float == false);
+            fprintf(ctx->out, "\t.space\t%lu\n", size->data.constant.value.u);
             fprintf(ctx->out, "\t.align\t4\n");
         }
     }

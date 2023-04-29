@@ -203,7 +203,16 @@ static void cc_ssa_print(cc_context* ctx)
 
 static enum cc_ssa_storage cc_ssa_ast_storage_to_ssa(enum cc_ast_storage v)
 {
-    return (enum cc_ssa_storage)v;
+    enum cc_ssa_storage o = 0;
+    o |= (v & AST_STORAGE_AUTO) != 0 ? SSA_STORAGE_AUTO : 0;
+    /*o |= (v & AST_STORAGE_CONSTEXPR) != 0 ? SSA_STORAGE_AUTO : 0;*/
+    o |= (v & AST_STORAGE_EXTERN) != 0 ? SSA_STORAGE_EXTERN : 0;
+    o |= (v & AST_STORAGE_GLOBAL) != 0 ? SSA_STORAGE_GLOBAL : 0;
+    o |= (v & AST_STORAGE_INLINE) != 0 ? SSA_STORAGE_INLINE : 0;
+    /*o |= (v & AST_STORAGE_REGISTER) != 0 ? SSA_STORAGE_AUTO : 0;*/
+    o |= (v & AST_STORAGE_STATIC) != 0 ? SSA_STORAGE_STATIC : 0;
+    o |= (v & AST_STORAGE_THREAD_LOCAL) != 0 ? SSA_STORAGE_THREAD_LOCAL : 0;
+    return o;
 }
 
 static cc_ssa_param cc_ssa_literal_to_param(const cc_ast_literal* literal)
