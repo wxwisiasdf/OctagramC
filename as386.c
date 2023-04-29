@@ -459,6 +459,9 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         fprintf(ctx->out, "\tmovl\t%%eax,%s\n",
             reg_names[cc_as386_get_tmpreg(ctx, call_retval->data.tmpid)]);
         break;
+    case SSA_PARAM_RETVAL:
+        /* Tail call, simply goes straight to eax :-) */
+        break;
     default:
         abort();
     }
