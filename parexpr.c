@@ -547,6 +547,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     case LEXER_TOKEN_LBRACKET: {
         /* Obtain the sizeof first and foremost! */
         cc_ast_type vtype = { 0 };
+        cc_ast_node* arr_deref_node;
+        cc_ast_node* arr_index_node;
+
         cc_lex_token_consume(ctx);
 
         /* Temporarily chage parenting to master node so variable and type
@@ -578,9 +581,9 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
 
         /* Create an expression of the form:
             <unop deref <binop <array> + index>>*/
-        cc_ast_node* arr_deref_node
+        arr_deref_node
             = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
-        cc_ast_node* arr_index_node = cc_ast_create_binop_expr(
+        arr_index_node = cc_ast_create_binop_expr(
             ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
         expr_node->parent = arr_index_node->data.binop.left;
         *parent_rerouted = true;

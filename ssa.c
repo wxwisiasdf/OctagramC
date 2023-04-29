@@ -16,7 +16,7 @@ static void cc_ssa_print_param(const cc_ssa_param* param)
         if (param->data.constant.is_negative)
             printf("-");
         if (param->data.constant.is_float)
-            printf("%lf", param->data.constant.value.d);
+            printf("%Lf", (long double)param->data.constant.value.d);
         else
             printf("%lu", param->data.constant.value.u);
         break;
