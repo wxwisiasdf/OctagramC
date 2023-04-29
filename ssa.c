@@ -415,7 +415,7 @@ static void cc_ssa_process_binop(
         /* Assignment is an unop here */                                       \
         tok.type = SSA_TOKEN_MUL;                                              \
         tok.data.binop.left = parith_param;                                    \
-        tok.data.binop.right = lhs_psize ? lhs_param : rhs_param;              \
+        tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
         tok.data.binop.extra = tmp_param;                                      \
         tok.info = node->info;                                                 \
         tok.info.filename = cc_strdup(node->info.filename);                    \
@@ -472,8 +472,8 @@ static void cc_ssa_process_binop(
     }
 
     tok.data.binop.left = param;
-    tok.data.binop.right = lhs_psize ? parith_param : lhs_param;
-    tok.data.binop.extra = rhs_psize ? parith_param : rhs_param;
+    tok.data.binop.right = lhs_psize ? lhs_param : parith_param;
+    tok.data.binop.extra = rhs_psize ? rhs_param : parith_param;
     tok.info = node->info;
     tok.info.filename = cc_strdup(node->info.filename);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
