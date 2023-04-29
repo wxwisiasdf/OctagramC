@@ -812,9 +812,7 @@ bool cc_parse_declarator(
             var->name = cc_strdup(ctok->data);
         } else {
             /* A typedef name, so copy over the type from the typedef */
-            enum cc_ast_storage old_storage = var->storage;
             cc_ast_copy_type(&var->type, tpdef);
-            var->storage = old_storage;
         }
     } break;
     default:
