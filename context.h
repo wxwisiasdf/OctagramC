@@ -50,6 +50,9 @@ typedef struct cc_context {
                                    parameters. */
     bool is_parsing_typedef; /* Handling for typedefs */
     const struct cc_ast_variable* ast_current_func;
+    unsigned short if_depth; /* Number of If's encountered */
+    unsigned short if_w_braces_depth; /* Number of If's with braces
+                                         encountered */
 
     /* Diagnostics */
     struct cc_diag_info* diag_infos;

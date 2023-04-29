@@ -170,6 +170,7 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
     /* if ( <expr> ) <secondary-block> else <secondary-block> */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_if) {
+        bool has_braces = false;
         cc_ast_node* if_node = cc_ast_create_if_expr(ctx, node);
         cc_lex_token_consume(ctx);
 
@@ -177,6 +178,17 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LPAREN, "Expected '('");
         cc_parse_expression(ctx, if_node->data.if_expr.cond);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+
+        /* Used for linting to check for a dangling else
+           we can detect a dangling else if we have a nested if
+           aka. 2 ifs, and then we find an else, we're able to
+           alert the user about the encounter. */
+        ++ctx->if_depth;
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_LBRACE) {
+            has_braces = true;
+            ++ctx->if_w_braces_depth;
+        }
 
         /* Body of the if - <secondary-block> */
         cc_parse_statment(ctx, if_node->data.if_expr.block);
@@ -186,9 +198,17 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
                the equivalent to a no-op, we can confidently allocate it
                and not use it. */
             cc_lex_token_consume(ctx);
+            if (ctx->if_depth - ctx->if_w_braces_depth >= 2)
+                cc_diag_warning(ctx, "Dangling else");
             /* Secondary block */
             cc_parse_statment(ctx, if_node->data.if_expr.tail_else);
         }
+
+        if (has_braces) {
+            --ctx->if_depth;
+            --ctx->if_w_braces_depth;
+        }
+
         cc_ast_add_block_node(node, if_node);
     }
 
