@@ -423,15 +423,24 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     const cc_ssa_param* call_param = &tok->data.call.right;
     const cc_ssa_param* call_retval = &tok->data.call.left;
     unsigned short offset = 0;
+    unsigned short stack_size = 0;
     size_t i;
 
     assert(tok->type == SSA_TOKEN_CALL);
+
+    for (i = 0; i < tok->data.call.n_params; i++) {
+        const cc_ssa_param* param = &tok->data.call.params[i];
+        stack_size += param->size;
+    }
+    /* Make space for the stack */
+    if (stack_size)
+        fprintf(ctx->out, "\tsubl\t$%u,%%esp\n", offsstack_sizeet);
+    /* Emplace parameters onto the stack */
     for (i = 0; i < tok->data.call.n_params; i++) {
         const cc_ssa_param* param = &tok->data.call.params[i];
         cc_as386_gen_call_param(ctx, param, offset);
         offset += param->size;
     }
-
     switch (call_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tcall\t_%s\n", call_param->data.var_name);
@@ -446,6 +455,8 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     default:
         abort();
     }
+    if (stack_size)
+        fprintf(ctx->out, "\taddl\t$%u,%%esp\n", stack_size);
 
     switch (call_retval->type) {
     case SSA_PARAM_VARIABLE: {
