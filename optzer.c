@@ -113,7 +113,15 @@ void cc_optimizer_expr_condense(
         size_t i;
         for (i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-            cc_optimizer_expr_condense(ctx, &var->body, true);
+            size_t j;
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION)
+                cc_optimizer_expr_condense(ctx, &var->body, true);
+            /* Condense expressions for possible VLAs */
+            for (j = 0; j < var->type.n_cv_qual; ++j)
+                if (var->type.cv_qual[j].is_array
+                && var->type.cv_qual[j].is_vla)
+                    cc_optimizer_expr_condense(ctx,
+                        &var->type.cv_qual[j].array.size_expr, true);
         }
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_node* tnode = &node->data.block.children[i];

@@ -844,6 +844,7 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
 
 static void cc_ast_print_var(const cc_ast_variable* var)
 {
+    size_t i;
     if(var == NULL) {
         printf("<var (null)>");
         return;
@@ -863,6 +864,16 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         printf("(*)");
         break;
     }
+    
+    for (i = 0; i <= var->type.n_cv_qual; ++i)
+        if (var->type.cv_qual[i].is_array) {
+            printf("[");
+            if (var->type.cv_qual[i].is_vla)
+                cc_ast_print(var->type.cv_qual[i].array.size_expr);
+            else
+                printf("%u", (unsigned int)var->type.cv_qual[i].array.size);
+            printf("]");
+        }
 
     if ((var->type.storage & AST_STORAGE_AUTO) != 0)
         printf("auto,");
@@ -882,13 +893,12 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         printf("thread_local,");
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
-        size_t j;
         /*printf("(return ");
         cc_ast_print_var(var->type.data.func.return_type);
         printf(")");*/
         printf("(");
-        for (j = 0; j < var->type.data.func.n_params; j++)
-            cc_ast_print_var(&var->type.data.func.params[j]);
+        for (i = 0; i < var->type.data.func.n_params; ++i)
+            cc_ast_print_var(&var->type.data.func.params[i]);
         if(var->type.data.func.variadic)
             printf("<...>");
         printf(")");

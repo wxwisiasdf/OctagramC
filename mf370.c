@@ -30,7 +30,7 @@ enum cc_mf370_reg {
     MF370_R13,
     MF370_R14,
     MF370_R15,
-    MF370_NUM_REGS,
+    MF370_NUM_REGS
 };
 
 static const char* reg_names[MF370_NUM_REGS] = { "R0", "R1", "R2", "R3", "R4",
@@ -208,7 +208,10 @@ static void cc_mf370_gen_assign(
 
     switch (lhs->type) {
     case SSA_PARAM_VARIABLE: {
-        enum cc_mf370_reg val_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 1);
+        enum cc_mf370_reg val_regno;
+        enum cc_mf370_reg ptr_regno;
+        
+        val_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 1);
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
             fprintf(ctx->out, "\tL\t%s,=F'%lu'\n", reg_names[val_regno],
@@ -228,7 +231,7 @@ static void cc_mf370_gen_assign(
             abort();
         }
 
-        enum cc_mf370_reg ptr_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 2);
+        ptr_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 2);
         fprintf(ctx->out, "\tLA\t%s,=A(%s)\n", reg_names[ptr_regno],
             cc_mf370_logical_label(lhs->data.var_name));
         fprintf(ctx->out, "\tST\t%s,(%s)\n", reg_names[val_regno],

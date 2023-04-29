@@ -114,10 +114,11 @@ error_handle:
 static cc_ast_literal cc_ceval_eval_1(
     cc_context* ctx, cc_ast_node* node, cc_ceval_io** list, size_t* n_list)
 {
+    cc_ast_literal lhs, rhs, child;
+    cc_ast_literal literal_zero = { 0 };
     if (node == NULL)
         goto error_handle;
-
-    cc_ast_literal lhs, rhs, child;
+    
     switch (node->type) {
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var;
@@ -128,8 +129,8 @@ static cc_ast_literal cc_ceval_eval_1(
         var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.var.name, node);
         if ((var->type.storage & AST_STORAGE_CONSTEXPR) == 0) {
-            cc_diag_warning(ctx, "Non-constexpr variable used in contexpr");
-            break;
+            cc_diag_warning(ctx, "Non-constexpr variable used in constexpr");
+            goto error_handle;
         }
         if (var != NULL && var->initializer != NULL)
             return cc_ceval_eval_1(ctx, var->initializer, list, n_list);
@@ -246,6 +247,10 @@ static cc_ast_literal cc_ceval_eval_1(
         /* Evaluate the last relevant operation, so:
             return 1, 2;
         Is evaluated as: (return 2;) */
+        if (node->data.block.n_children == 0) {
+            cc_diag_error(ctx, "Empty block for consteval");
+            goto error_handle;
+        }
         return cc_ceval_eval_1(ctx,
             &node->data.block.children[node->data.block.n_children - 1], list,
             n_list);
@@ -261,13 +266,8 @@ static cc_ast_literal cc_ceval_eval_1(
         cc_diag_error(ctx, "Unknown node %i for consteval", node->type);
         break;
     }
-
 error_handle:
-    return (cc_ast_literal) {
-        .is_signed = false,
-        .is_float = false,
-        .value.u = 0,
-    };
+    return literal_zero;
 }
 
 cc_ast_literal cc_ceval_eval(cc_context* ctx, cc_ast_node* node)
@@ -444,8 +444,32 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
             return true;
     }
         return false;
+    case AST_NODE_BINOP:
+        return cc_ceval_is_const(ctx, node->data.binop.left)
+            && cc_ceval_is_const(ctx, node->data.binop.right);
+    case AST_NODE_CALL: {
+        assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
+        cc_ast_variable* var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
+            node->data.call.call_expr->data.var.name, node);
+        assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
+        if (var->body == NULL)
+            return false;
+        return cc_ceval_is_const(ctx, var->body);
+    }
+    case AST_NODE_RETURN:
+        return cc_ceval_is_const(ctx, node->data.return_expr);
+    case AST_NODE_UNOP:
+        return cc_ceval_is_const(ctx, node->data.unop.child);
+    case AST_NODE_BLOCK:
+        if (node->data.block.n_children == 0)
+            return true;
+        return cc_ceval_is_const(ctx,
+            &node->data.block.children[node->data.block.n_children - 1]);
+    case AST_NODE_IF:
+        return cc_ceval_is_const(ctx, node->data.if_expr.tail_else)
+            && cc_ceval_is_const(ctx, node->data.if_expr.block);
     default:
-        return false;
+        abort();
     }
     return false;
 }

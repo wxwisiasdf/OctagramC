@@ -879,7 +879,6 @@ ignore_missing_ident:
         cc_ast_literal size_literal;
         cc_lex_token_consume(ctx);
 
-        var->type.n_cv_qual++; /* Increment for array (laundered) */
         if (var->type.n_cv_qual >= MAX_CV_QUALIFIERS) {
             cc_diag_error(ctx, "Array exceeds pointer depth size");
             goto error_handle;
@@ -909,16 +908,29 @@ ignore_missing_ident:
         cc_parse_assignment_expression(ctx, array_cv->array.size_expr, NULL);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
 
+        /* Condense the VLA's size definition for easier evaluation */
+        cc_optimizer_expr_condense(ctx, &array_cv->array.size_expr, true);
         /* VLA are Variable Length Arrays whose size is computed at runtime
            and are NOT constant in size */
-        array_cv->is_vla = cc_ceval_constant_expression(ctx,
-            &array_cv->array.size_expr, &size_literal) == false;
-        if (!array_cv->is_vla) {
+        array_cv->is_vla = !cc_ceval_is_const(ctx, array_cv->array.size_expr);
+        if (array_cv->is_vla) {
+
+        } else {
+            cc_ceval_constant_expression(ctx, &array_cv->array.size_expr,
+                &size_literal);
+            cc_ast_destroy_node(array_cv->array.size_expr, true);
+            /* Assign a literal value, constant one too! */
             if (size_literal.value.u >= USHRT_MAX)
                 cc_diag_error(ctx, "Array exceeds %u elements",
                     (unsigned int)USHRT_MAX);
-            array_cv->array.size = (unsigned int)size_literal.value.u;
+            else if (size_literal.value.u == 0)
+                cc_diag_warning(ctx, "0 length array will not be materialized");
+            array_cv->array.size = (unsigned short)size_literal.value.u;
         }
+
+        /* We allow arrays to exist at cv_qual index 0, because of cases like:
+           static array[const static restrict 64]; */
+        var->type.n_cv_qual++;
     }
 
     /* If we're assigning on declaration we will have to expand a separate

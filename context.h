@@ -51,7 +51,7 @@ typedef struct cc_context {
     bool is_parsing_prototype; /* Allow ignoring missing identifiers on
                                    parameters. */
     bool is_parsing_typedef; /* Handling for typedefs */
-    struct cc_ast_variable* ast_current_func;
+    const struct cc_ast_variable* ast_current_func;
 
     /* Diagnostics */
     struct cc_diag_info* diag_infos;

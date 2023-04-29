@@ -468,58 +468,101 @@ static void cc_ssa_add_dummy_ret(cc_context* ctx, cc_ssa_func* func)
     cc_ssa_push_token(ctx, func, tok);
 }
 
+static void cc_ssa_process_block_1(
+    cc_context* ctx, const cc_ast_node* node, cc_ssa_param param,
+    const cc_ast_variable* var)
+{
+    cc_ssa_token tok = { 0 };
+    if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
+        cc_ssa_func func = { 0 };
+        cc_ssa_func* old_current_ssa_func;
+        cc_ssa_param none_param = { 0 };
+        bool old_func_has_return;
+
+        func.ast_var = var;
+        /* Enter into a new function contextee */
+        old_current_ssa_func = ctx->ssa_current_func;
+        ctx->ssa_current_func = &func;
+        old_func_has_return = ctx->func_has_return;
+        ctx->func_has_return = false;
+        cc_ssa_from_ast(ctx, var->body, none_param);
+        if (!ctx->func_has_return) {
+            if (var->type.data.func.return_type->mode
+                != AST_TYPE_MODE_VOID) {
+                cc_diag_error(
+                    ctx, "Function that returns non-void doesn't return");
+            } else {
+                cc_ssa_add_dummy_ret(ctx, ctx->ssa_current_func);
+            }
+        }
+
+        ctx->func_has_return = old_func_has_return;
+        ctx->ssa_current_func = old_current_ssa_func;
+
+        ctx->ssa_funcs
+            = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
+        ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
+    } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
+        /* Global variables are handled by a ctor function! */
+        assert(ctx->ssa_current_func != NULL);
+        tok.type = SSA_TOKEN_ALLOCA;
+        tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
+        tok.info = node->info;
+        tok.info.filename = cc_strdup(node->info.filename);
+
+        /* Non-VLA, non-array, so it's simple af */
+        if (var->type.n_cv_qual == 0) {
+            cc_ast_literal literal = { 0 };
+            literal.is_float = literal.is_signed = false;
+            literal.value.u = ctx->get_sizeof(ctx, &var->type);
+            tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        } else {
+            bool is_comp = false; /* Is composite? (i.e multidimensional VLA) */
+            size_t i;
+            for (i = 0; i <= var->type.n_cv_qual; ++i)
+                if (var->type.cv_qual[i].is_vla)
+                    is_comp = true;
+            
+            /* Composite multidimensionals require more effort to produce
+               and more tokens are emitted */
+            if (is_comp) {
+                for (i = 0; i <= var->type.n_cv_qual; ++i) {
+                    /* TODO: Composite multidimensional VLA arrays support */
+                }
+            } else {
+                cc_ast_literal literal = { 0 };
+                unsigned short old_n_cv_qual = var->type.n_cv_qual;
+                cc_ast_type tmp_type = var->type;
+
+                literal.is_float = literal.is_signed = false;
+
+                /* Obtain the size of the primitive conforming the array. */
+                tmp_type.n_cv_qual = 0;
+                literal.value.u = ctx->get_sizeof(ctx, &tmp_type);
+                tmp_type.n_cv_qual = old_n_cv_qual;
+                for (i = 0; i <= var->type.n_cv_qual; ++i) {
+                    if (!var->type.cv_qual[i].is_array)
+                        break;
+                    assert(var->type.cv_qual[i].is_vla == false);
+                    assert(var->type.cv_qual[i].array.size > 0);
+                    literal.value.u *=
+                        (unsigned int)var->type.cv_qual[i].array.size;
+                }
+                tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+                cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+            }
+        }
+    }
+}
+
 static void cc_ssa_process_block(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
-    cc_ssa_token tok = { 0 };
     size_t i;
     for (i = 0; i < node->data.block.n_vars; i++) {
         const cc_ast_variable* var = &node->data.block.vars[i];
-        if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
-            cc_ssa_func func = { 0 };
-            cc_ssa_func* old_current_ssa_func;
-            cc_ssa_param none_param = { 0 };
-            bool old_func_has_return;
-
-            func.ast_var = var;
-            /* Enter into a new function contextee */
-            old_current_ssa_func = ctx->ssa_current_func;
-            ctx->ssa_current_func = &func;
-            old_func_has_return = ctx->func_has_return;
-            ctx->func_has_return = false;
-            cc_ssa_from_ast(ctx, var->body, none_param);
-            if (!ctx->func_has_return) {
-                if (var->type.data.func.return_type->mode
-                    != AST_TYPE_MODE_VOID) {
-                    cc_diag_error(
-                        ctx, "Function that returns non-void doesn't return");
-                } else {
-                    cc_ssa_add_dummy_ret(ctx, ctx->ssa_current_func);
-                }
-            }
-
-            ctx->func_has_return = old_func_has_return;
-            ctx->ssa_current_func = old_current_ssa_func;
-
-            ctx->ssa_funcs
-                = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
-            ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
-        } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
-            cc_ast_literal literal = { 0 };
-            /* Global variables are handled by a ctor function! */
-            assert(ctx->ssa_current_func != NULL);
-
-            literal.is_float = literal.is_signed = false;
-            literal.value.u = ctx->get_sizeof(ctx, &var->type);
-
-            /* Local variables within a function */
-            tok.type = SSA_TOKEN_ALLOCA;
-            tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
-            tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
-            tok.info = node->info;
-            tok.info.filename = cc_strdup(node->info.filename);
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        }
+        cc_ssa_process_block_1(ctx, node, param, var);
     }
     for (i = 0; i < node->data.block.n_children; i++)
         cc_ssa_from_ast(ctx, &node->data.block.children[i], param);
