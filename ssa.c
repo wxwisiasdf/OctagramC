@@ -505,14 +505,16 @@ static void cc_ssa_process_block(
                 = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
             ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
         } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
+            cc_ast_literal literal = { 0 };
             /* Global variables are handled by a ctor function! */
-            assert (ctx->ssa_current_func != NULL);
+            assert(ctx->ssa_current_func != NULL);
+
+            literal.is_float = literal.is_signed = false;
+            literal.value.u = ctx->get_sizeof(ctx, &var->type);
+
             /* Local variables within a function */
             tok.type = SSA_TOKEN_ALLOCA;
             tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
-            cc_ast_literal literal = (cc_ast_literal) { .is_float = false,
-                .is_signed = false,
-                .value.u = ctx->get_sizeof(ctx, &var->type) };
             tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
             tok.info = node->info;
             tok.info.filename = cc_strdup(node->info.filename);

@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 static unsigned short cc_parse_attribute_literal_param(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
@@ -875,6 +876,7 @@ ignore_missing_ident:
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LBRACKET) {
         cc_ast_type_cv* array_cv;
+        cc_ast_literal size_literal;
         cc_lex_token_consume(ctx);
 
         var->type.n_cv_qual++; /* Increment for array (laundered) */
@@ -901,11 +903,22 @@ ignore_missing_ident:
         /* The size is an expression because we also need to support VLA
            arrays. Yes I'm aware this is quite terrifying for a lot of
            people who code C, but VLAs are pretty cool! */
-        array_cv->array_size_expr = cc_ast_create_block(ctx, node);
+        array_cv->array.size_expr = cc_ast_create_block(ctx, node);
         /* Array can have no size "char a[]" for example, so it isn't
            an error to have such arrays. */
-        cc_parse_assignment_expression(ctx, array_cv->array_size_expr, NULL);
+        cc_parse_assignment_expression(ctx, array_cv->array.size_expr, NULL);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
+
+        /* VLA are Variable Length Arrays whose size is computed at runtime
+           and are NOT constant in size */
+        array_cv->is_vla = cc_ceval_constant_expression(ctx,
+            &array_cv->array.size_expr, &size_literal) == false;
+        if (!array_cv->is_vla) {
+            if (size_literal.value.u >= USHRT_MAX)
+                cc_diag_error(ctx, "Array exceeds %u elements",
+                    (unsigned int)USHRT_MAX);
+            array_cv->array.size = (unsigned int)size_literal.value.u;
+        }
     }
 
     /* If we're assigning on declaration we will have to expand a separate

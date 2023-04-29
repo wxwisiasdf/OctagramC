@@ -410,26 +410,37 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     cc_ast_destroy_node(virtual_node, true);
 
     if(virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
-        const cc_ast_node* array_size_expr
-            = virtual_type.cv_qual[virtual_type.n_cv_qual].array_size_expr;
-        assert(array_size_expr != NULL);
-        /* TODO: We should have a "create block by type" function
-           so we don't crash when we do not receive a block node! */
-        cc_ast_node* expr_node = cc_ast_create_block(ctx, node);
-        cc_ast_copy_node(ctx, expr_node, array_size_expr);
-        expr_node->parent = node;
-        cc_ast_add_block_node(node, expr_node);
+        if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_vla) {
+            /* VLA type uses a node that needs to be computed at runtime! */
+            const cc_ast_node* array_size_expr
+                = virtual_type.cv_qual[virtual_type.n_cv_qual].array.size_expr;
+            assert(array_size_expr != NULL);
+            /* TODO: We should have a "create block by type" function
+            so we don't crash when we do not receive a block node! */
+            cc_ast_node* expr_node = cc_ast_create_block(ctx, node);
+            cc_ast_copy_node(ctx, expr_node, array_size_expr);
+            expr_node->parent = node;
+            cc_ast_add_block_node(node, expr_node);
+        } else {
+            /* Non-VLA array uses constant size literal node */
+            unsigned int r = do_alignof
+                ? ctx->get_alignof(ctx, &virtual_type)
+                : virtual_type.cv_qual[virtual_type.n_cv_qual].array.size;
+            cc_ast_literal tmp_literal = { 0 };
+            tmp_literal.is_float = tmp_literal.is_signed = false;
+            tmp_literal.value.u = r;
+            cc_ast_add_block_node(node,
+                cc_ast_create_literal(ctx, node, tmp_literal));
+        }
     } else {
         unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
                     : ctx->get_sizeof(ctx, &virtual_type);
         cc_ast_literal tmp_literal = { 0 };
         cc_ast_node* literal_node;
-        /* Fill out the actual literal with information... */
         tmp_literal.is_float = tmp_literal.is_signed = false;
         tmp_literal.value.u = r;
-        /* ... & then materialize a literal node into the AST! */
-        literal_node = cc_ast_create_literal(ctx, node, tmp_literal);
-        cc_ast_add_block_node(node, literal_node);
+        cc_ast_add_block_node(node,
+            cc_ast_create_literal(ctx, node, tmp_literal));
     }
     return true;
 error_handle:

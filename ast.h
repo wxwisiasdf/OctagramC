@@ -24,7 +24,11 @@ typedef struct cc_ast_type_cv {
     bool is_atomic : 1;
     bool is_array : 1; /* Treating this pointer as array? */
     bool is_static_array : 1; /* If the given size of the array is an static */
-    cc_ast_node *array_size_expr; /* Expression for the size of the array */
+    bool is_vla : 1; /* Set iff the array size is computed at runtime */
+    union {
+        cc_ast_node *size_expr; /* Expression for the size of the array */
+        unsigned short size; /* Constant expression, for non-VLA */
+    } array;
 } cc_ast_type_cv;
 
 enum cc_ast_storage {
