@@ -61,15 +61,7 @@ typedef struct {
 } cc_ssa_param;
 
 enum cc_ssa_token_type {
-    /* Unary/special node */
     SSA_TOKEN_NONE,
-    SSA_TOKEN_LABEL,
-    SSA_TOKEN_CALL,
-    SSA_TOKEN_PHI,
-    SSA_TOKEN_RET,
-    SSA_TOKEN_BRANCH,
-    SSA_TOKEN_ALLOCA,
-    SSA_TOKEN_COPY,
     /* Binary op */
     SSA_TOKEN_GT,
     SSA_TOKEN_GTE,
@@ -97,6 +89,15 @@ enum cc_ssa_token_type {
     SSA_TOKEN_ASSIGN,
     SSA_TOKEN_ZERO_EXT,
     SSA_TOKEN_SIGN_EXT,
+    /* Special nodes */
+    SSA_TOKEN_LABEL,
+    SSA_TOKEN_CALL,
+    SSA_TOKEN_PHI,
+    SSA_TOKEN_RET,
+    SSA_TOKEN_BRANCH,
+    SSA_TOKEN_ALLOCA,
+    SSA_TOKEN_COPY,
+    SSA_TOKEN_JUMP,
     /* Codegen aid */
     SSA_TOKEN_DROP
 };
@@ -136,6 +137,7 @@ typedef struct cc_ssa_token {
             cc_ssa_param f_branch;
         } branch;
         cc_ssa_param dropped;
+        cc_ssa_param jump_target;
         unsigned short label_id;
     } data;
 } cc_ssa_token;

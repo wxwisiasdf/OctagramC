@@ -183,6 +183,10 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         printf("drop ");
         cc_ssa_print_param(&tok->data.dropped);
         break;
+    case SSA_TOKEN_JUMP:
+        printf("jump ");
+        cc_ssa_print_param(&tok->data.jump_target);
+        break;
     default:
         abort();
     }
@@ -679,16 +683,8 @@ static void cc_ssa_process_jump(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
-    cc_ast_literal literal = { 0 };
-    literal.is_float = literal.is_signed = false;
-    literal.value.u = 0;
-
-    tok.type = SSA_TOKEN_BRANCH;
-
-    tok.data.branch.eval = cc_ssa_literal_to_param(&literal);
-    tok.data.branch.t_branch
-        = cc_ssa_label_param(ctx, node->data.jump_label_id);
-    tok.data.branch.f_branch
+    tok.type = SSA_TOKEN_JUMP;
+    tok.data.jump_target
         = cc_ssa_label_param(ctx, node->data.jump_label_id);
     tok.info = node->info;
     tok.info.filename = cc_strdup(node->info.filename);
@@ -908,6 +904,20 @@ static void cc_ssa_tmpassign_alloca(
     cc_ssa_tmpassign_param(&tok->data.alloca.size, tmpid, new_colour);
     cc_ssa_tmpassign_param(&tok->data.alloca.align, tmpid, new_colour);
 }
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpassign_jump(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    cc_ssa_tmpassign_param(&tok->data.jump_target, tmpid, new_colour);
+}
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpassign_branch(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    cc_ssa_tmpassign_param(&tok->data.branch.eval, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.branch.t_branch, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.branch.f_branch, tmpid, new_colour);
+}
 
 /* Temporal assignment elimination */
 /* "Paint" an existing temporal variable into another parameter, for example
@@ -947,7 +957,6 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_ADD:
             case SSA_TOKEN_SUB:
             case SSA_TOKEN_AND:
-            case SSA_TOKEN_BRANCH:
             case SSA_TOKEN_COMPARE:
             case SSA_TOKEN_DIV:
             case SSA_TOKEN_MUL:
@@ -967,6 +976,12 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_ALLOCA:
                 cc_ssa_tmpassign_alloca(tmpid, vtok->data.unop.right, tok);
                 break;
+            case SSA_TOKEN_JUMP:
+                cc_ssa_tmpassign_jump(tmpid, vtok->data.unop.right, tok);
+                break;
+            case SSA_TOKEN_BRANCH:
+                cc_ssa_tmpassign_branch(tmpid, vtok->data.unop.right, tok);
+                break;
             case SSA_TOKEN_RET:
             case SSA_TOKEN_LABEL:
                 /* No operation */
@@ -985,6 +1000,8 @@ bool cc_ssa_is_param_same(
         return false;
     if (p1->type == SSA_PARAM_VARIABLE && p2->type == SSA_PARAM_VARIABLE)
         return strcmp(p1->data.var_name, p2->data.var_name) == 0;
+    if (p1->type == SSA_PARAM_LABEL && p2->type == SSA_PARAM_LABEL)
+        return p1->data.label_id == p2->data.label_id;
     return p1->size == p2->size;
 }
 
@@ -1015,14 +1032,15 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
         } break;
         case SSA_TOKEN_BRANCH: {
             bool erase = cc_ssa_is_param_same(
-                &tok->data.binop.right, &tok->data.binop.extra);
+                &tok->data.branch.t_branch, &tok->data.branch.f_branch);
             /* Remove read without side effect */
-            if (tok->data.binop.right.type == SSA_PARAM_NONE
-            || tok->data.binop.extra.type == SSA_PARAM_NONE)
+            if (tok->data.branch.eval.type == SSA_PARAM_NONE
+            || tok->data.branch.t_branch.type == SSA_PARAM_NONE
+            || tok->data.branch.f_branch.type == SSA_PARAM_NONE)
                 erase = true;
-            if (erase && !tok->data.binop.left.is_volatile
-            && !tok->data.binop.right.is_volatile
-            && !tok->data.binop.extra.is_volatile) {
+            if (erase && !tok->data.branch.eval.is_volatile
+            && !tok->data.branch.t_branch.is_volatile
+            && !tok->data.branch.f_branch.is_volatile) {
                 memmove(&func->tokens[i], &func->tokens[i + 1],
                     sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
                 func->n_tokens--;
@@ -1076,6 +1094,14 @@ static void cc_ssa_labmerge_alloca(
     cc_ssa_labmerge_param(&tok->data.alloca.size, label_id, new_label_id);
     cc_ssa_labmerge_param(&tok->data.alloca.align, label_id, new_label_id);
 }
+/* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_branch(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    cc_ssa_labmerge_param(&tok->data.branch.eval, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.branch.t_branch, label_id, new_label_id);
+    cc_ssa_labmerge_param(&tok->data.branch.f_branch, label_id, new_label_id);
+}
 /* Helper function for cc_ssa_labmerge_func */
 static void cc_ssa_labmerge_func_1(cc_ssa_func* func, unsigned short label_id,
     unsigned short new_label_id)
@@ -1094,7 +1120,6 @@ static void cc_ssa_labmerge_func_1(cc_ssa_func* func, unsigned short label_id,
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
         case SSA_TOKEN_AND:
-        case SSA_TOKEN_BRANCH:
         case SSA_TOKEN_COMPARE:
         case SSA_TOKEN_DIV:
         case SSA_TOKEN_MUL:
@@ -1113,6 +1138,9 @@ static void cc_ssa_labmerge_func_1(cc_ssa_func* func, unsigned short label_id,
             break;
         case SSA_TOKEN_ALLOCA:
             cc_ssa_labmerge_alloca(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_BRANCH:
+            cc_ssa_labmerge_branch(label_id, new_label_id, tok);
             break;
         case SSA_TOKEN_RET:
         case SSA_TOKEN_LABEL:
@@ -1155,37 +1183,6 @@ static bool cc_ssa_is_livetmp_param(cc_ssa_param param, unsigned int tmpid)
 {
     return param.type == SSA_PARAM_TMPVAR && param.data.tmpid == tmpid;
 }
-/* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_binop(const cc_ssa_token* tok, unsigned int tmpid)
-{
-    return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
-        || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
-        || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
-}
-/* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_unop(const cc_ssa_token* tok, unsigned int tmpid)
-{
-    return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
-        || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
-}
-/* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_call(const cc_ssa_token* tok, unsigned int tmpid)
-{
-    size_t i;
-    bool b = false;
-    b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid) ? true : b;
-    b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid) ? true : b;
-    for (i = 0; i < tok->data.call.n_params; i++)
-        b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid) ? true : b;
-    return b;
-}
-static bool cc_ssa_is_livetmp_alloca(
-    const cc_ssa_token* tok, unsigned int tmpid)
-{
-    return cc_ssa_is_livetmp_param(tok->data.alloca.left, tmpid)
-        || cc_ssa_is_livetmp_param(tok->data.alloca.size, tmpid)
-        || cc_ssa_is_livetmp_param(tok->data.alloca.align, tmpid);
-}
 /* Checks if a temporal with id tmpid is live within a given token */
 static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
 {
@@ -1195,11 +1192,11 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
     case SSA_TOKEN_SIGN_EXT:
     case SSA_TOKEN_LOAD_FROM:
     case SSA_TOKEN_STORE_FROM:
-        return cc_ssa_is_livetmp_unop(tok, tmpid);
+        return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:
-    case SSA_TOKEN_BRANCH:
     case SSA_TOKEN_COMPARE:
     case SSA_TOKEN_DIV:
     case SSA_TOKEN_MUL:
@@ -1211,14 +1208,31 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
     case SSA_TOKEN_LTE:
     case SSA_TOKEN_EQ:
     case SSA_TOKEN_NEQ:
-        return cc_ssa_is_livetmp_binop(tok, tmpid);
-    case SSA_TOKEN_CALL:
-        return cc_ssa_is_livetmp_call(tok, tmpid);
+        return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
+    case SSA_TOKEN_CALL: {
+        size_t i;
+        bool b = false;
+        b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid) ? true : b;
+        b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid) ? true : b;
+        for (i = 0; i < tok->data.call.n_params; i++)
+            b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid)
+                ? true : b;
+        return b;
+    }
     case SSA_TOKEN_ALLOCA:
-        return cc_ssa_is_livetmp_alloca(tok, tmpid);
+        return cc_ssa_is_livetmp_param(tok->data.alloca.left, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.alloca.size, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.alloca.align, tmpid);
+    case SSA_TOKEN_JUMP:
+        return cc_ssa_is_livetmp_param(tok->data.jump_target, tmpid);
+    case SSA_TOKEN_BRANCH:
+        return cc_ssa_is_livetmp_param(tok->data.branch.eval, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.branch.t_branch, tmpid)
+            || cc_ssa_is_livetmp_param(tok->data.branch.f_branch, tmpid);
     case SSA_TOKEN_RET:
     case SSA_TOKEN_LABEL:
-        return false;
     case SSA_TOKEN_DROP:
         /* Codegen aids - ignored */
         return false;
@@ -1237,7 +1251,7 @@ static size_t cc_ssa_get_livetmp_location(cc_ssa_func* func, unsigned int tmpid)
             last = i;
     return last;
 }
-/* Adds livetmp markets to a function - those are just like normal
+/* Adds livetmp markers to a function - those are just like normal
    tokens, except they serve as codegen aid rather than codegen instructions. */
 static void cc_ssa_livetmp_func(cc_ssa_func* func)
 {
@@ -1274,7 +1288,6 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:
-    case SSA_TOKEN_BRANCH:
     case SSA_TOKEN_COMPARE:
     case SSA_TOKEN_DIV:
     case SSA_TOKEN_MUL:
@@ -1291,6 +1304,8 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
         return &tok->data.call.left;
     case SSA_TOKEN_ALLOCA:
         return &tok->data.alloca.left;
+    case SSA_TOKEN_BRANCH:
+    case SSA_TOKEN_JUMP:
     case SSA_TOKEN_RET:
     case SSA_TOKEN_LABEL:
         /* No operation */

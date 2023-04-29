@@ -655,22 +655,6 @@ static void cc_as386_colstring_param(cc_context* ctx, const cc_ssa_param* param)
         fprintf(ctx->out, "__ms_%u:\n\t.ascii \"%s\\0\"\n",
             param->data.string.tmpid, param->data.string.literal);
 }
-
-/* Helper function for cc_as386_colstring_func */
-static void cc_as386_colstring_binop(cc_context* ctx, const cc_ssa_token* tok)
-{
-    cc_as386_colstring_param(ctx, &tok->data.binop.left);
-    cc_as386_colstring_param(ctx, &tok->data.binop.right);
-    cc_as386_colstring_param(ctx, &tok->data.binop.extra);
-}
-
-/* Helper function for cc_as386_colstring_func */
-static void cc_as386_colstring_unop(cc_context* ctx, const cc_ssa_token* tok)
-{
-    cc_as386_colstring_param(ctx, &tok->data.unop.left);
-    cc_as386_colstring_param(ctx, &tok->data.unop.right);
-}
-
 /* Helper function for cc_as386_colstring_func */
 static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 {
@@ -678,7 +662,7 @@ static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
     for (i = 0; i < tok->data.call.n_params; i++)
         cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
 }
-
+/* Helper function for cc_as386_colstring_func */
 static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
@@ -760,12 +744,12 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_SIGN_EXT:
         case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
-            cc_as386_colstring_unop(ctx, tok);
+            cc_as386_colstring_param(ctx, &tok->data.unop.left);
+            cc_as386_colstring_param(ctx, &tok->data.unop.right);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
         case SSA_TOKEN_AND:
-        case SSA_TOKEN_BRANCH:
         case SSA_TOKEN_COMPARE:
         case SSA_TOKEN_DIV:
         case SSA_TOKEN_MUL:
@@ -777,13 +761,20 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_LTE:
         case SSA_TOKEN_EQ:
         case SSA_TOKEN_NEQ:
-            cc_as386_colstring_binop(ctx, tok);
+            cc_as386_colstring_param(ctx, &tok->data.binop.left);
+            cc_as386_colstring_param(ctx, &tok->data.binop.right);
+            cc_as386_colstring_param(ctx, &tok->data.binop.extra);
             break;
         case SSA_TOKEN_CALL:
             cc_as386_colstring_call(ctx, tok);
             break;
         case SSA_TOKEN_ALLOCA:
             cc_as386_colstring_alloca(ctx, tok);
+            break;
+        case SSA_TOKEN_BRANCH:
+            cc_as386_colstring_param(ctx, &tok->data.branch.eval);
+            cc_as386_colstring_param(ctx, &tok->data.branch.t_branch);
+            cc_as386_colstring_param(ctx, &tok->data.branch.f_branch);
             break;
         case SSA_TOKEN_RET:
         case SSA_TOKEN_LABEL:
