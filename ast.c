@@ -318,7 +318,6 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 static cc_ast_variable* cc_ast_find_variable_1(const char *fn_name,
     const char* name, const cc_ast_node* node)
 {
-    cc_ast_variable* fn_var = NULL;
     if (node == NULL)
         return NULL;
 
@@ -671,12 +670,12 @@ void cc_ast_iterate(const cc_ast_node *node,
 cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned short id)
 {
+    cc_ast_node* fnode;
     if (node == NULL)
         return NULL;
     if (node->label_id == id)
         return node;
-
-    cc_ast_node* fnode;
+    
     switch (node->type) {
     case AST_NODE_BINOP:
         if ((fnode = cc_ast_find_label_id(ctx, node->data.binop.left, id))

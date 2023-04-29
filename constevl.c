@@ -38,18 +38,23 @@ static cc_ast_literal cc_ceval_eval_cast_unop(
     cc_context* ctx, cc_ast_node* node, const cc_ast_literal* child)
 {
     const cc_ast_type* cast = &node->data.unop.cast;
+    cc_ast_literal literal = { 0 };
+    cc_ast_literal literal_zero = { 0 };
     switch (cast->mode) {
     case AST_TYPE_MODE_BOOL:
-        return (cc_ast_literal) { .is_float = false,
-            .is_signed = false,
-            .value.u
-            = (child->is_float ? child->value.d != 0.f : child->value.s != 0) };
+        literal.is_float = false;
+        literal.is_signed = false;
+        literal.value.u
+            = (child->is_float ? child->value.d != 0.f : child->value.s != 0);
+        return literal;
     case AST_TYPE_MODE_CHAR:
-        if (cast->data.num.is_signed)
-            return (cc_ast_literal) { .is_float = false,
-                .is_signed = child->is_signed,
-                .value.s = (signed char)(child->is_float ? child->value.d
-                                                         : child->value.s) };
+        if (cast->data.num.is_signed) {
+            literal.is_float = false;
+            literal.is_signed = child->is_signed;
+            literal.value.s = (signed char)(child->is_float ? child->value.d
+                                                            : child->value.s);
+            return literal;
+        }
         return (cc_ast_literal) { .is_float = false,
             .is_signed = child->is_signed,
             .value.s = (unsigned char)(child->is_float ? child->value.d
@@ -85,30 +90,28 @@ static cc_ast_literal cc_ceval_eval_cast_unop(
             .value.s = (unsigned long)(child->is_float ? child->value.d
                                                        : child->value.u) };
     case AST_TYPE_MODE_FLOAT:
-        return (cc_ast_literal) { .is_float = true,
-            .is_signed = child->is_signed,
-            .value.d = (float)(child->is_float
-                    ? child->value.d
-                    : (child->is_signed ? child->value.s
-                                        : (float)child->value.u)) };
+        literal.is_float = true;
+        literal.is_signed = child->is_signed;
+        literal.value.d = (float)(child->is_float
+                        ? child->value.d
+                        : (child->is_signed ? child->value.s
+                                            : (float)child->value.u));
+        return literal;
     case AST_TYPE_MODE_DOUBLE:
-        return (cc_ast_literal) { .is_float = true,
-            .is_signed = child->is_signed,
-            .value.d = (double)(child->is_float
-                    ? child->value.d
-                    : (child->is_signed ? child->value.s
-                                        : (double)child->value.u)) };
+        literal.is_float = true;
+        literal.is_signed = child->is_signed;
+        literal.value.d = (double)(child->is_float
+                        ? child->value.d
+                        : (child->is_signed ? child->value.s
+                                            : (double)child->value.u));
+        return literal;
     default:
         cc_ast_print(node);
         cc_diag_error(ctx, "Unknown unop %i for consteval", node->data.unop.op);
         break;
     }
 error_handle:
-    return (cc_ast_literal) {
-        .is_signed = false,
-        .is_float = false,
-        .value.u = 0,
-    };
+    return literal_zero;
 }
 
 static cc_ast_literal cc_ceval_eval_1(
@@ -142,42 +145,55 @@ static cc_ast_literal cc_ceval_eval_1(
         switch (node->data.binop.op) {
 #define CEVAL_OPERATOR(type, op)                                               \
     case type: {                                                               \
+        cc_ast_literal literal = { 0 };                                        \
         if (lhs.is_float && rhs.is_float) {                                    \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = true,                                              \
-                .value.d = lhs.value.d op rhs.value.d };                       \
+            literal.is_signed = false;                      \
+            literal.is_float = true;                                              \
+            literal.value.d = lhs.value.d op rhs.value.d;                       \
+            return literal; \
         } else if (!lhs.is_float && rhs.is_float) {                            \
-            if (lhs.is_signed)                                                 \
-                return (cc_ast_literal) { .is_signed = true,                   \
-                    .is_float = false,                                         \
-                    .value.s = lhs.value.s op rhs.value.d };                   \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.u op rhs.value.d };                       \
+            if (lhs.is_signed) {                                                \
+                literal.is_signed = true;                   \
+                literal.is_float = false;                                         \
+                literal.value.s = lhs.value.s op rhs.value.d;                   \
+                return literal; \
+            } \
+            literal.is_signed = false;                      \
+            literal.is_float = false;                                             \
+            literal.value.u = lhs.value.u op rhs.value.d;                       \
+            return literal; \
         } else if (lhs.is_float && !rhs.is_float) {                            \
-            if (rhs.is_signed)                                                 \
-                return (cc_ast_literal) { .is_signed = true,                   \
-                    .is_float = true,                                          \
-                    .value.d = lhs.value.d op rhs.value.s };                   \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = true,                                              \
-                .value.d = lhs.value.d op rhs.value.u };                       \
+            if (rhs.is_signed) {                                                \
+                literal.is_signed = true;                   \
+                literal.is_float = true;                                          \
+                literal.value.d = lhs.value.d op rhs.value.s;                   \
+                return literal; \
+            } \
+            literal.is_signed = false;                      \
+            literal.is_float = true;                                              \
+            literal.value.d = lhs.value.d op rhs.value.u;                       \
+            return literal; \
         } else if (!lhs.is_float && !rhs.is_float) {                           \
-            if (lhs.is_signed && rhs.is_signed)                                \
-                return (cc_ast_literal) { .is_signed = true,                   \
-                    .is_float = false,                                         \
-                    .value.s = lhs.value.s op rhs.value.s };                   \
-            else if (lhs.is_signed && !rhs.is_signed)                          \
-                return (cc_ast_literal) { .is_signed = true,                   \
-                    .is_float = false,                                         \
-                    .value.s = lhs.value.s op(long signed int) rhs.value.u };  \
-            else if (!lhs.is_signed && rhs.is_signed)                          \
-                return (cc_ast_literal) { .is_signed = true,                   \
-                    .is_float = false,                                         \
-                    .value.s = (long signed int)lhs.value.u op rhs.value.s };  \
-            return (cc_ast_literal) { .is_signed = false,                      \
-                .is_float = false,                                             \
-                .value.u = lhs.value.u op rhs.value.u };                       \
+            if (lhs.is_signed && rhs.is_signed) {                               \
+                literal.is_signed = true;                   \
+                literal.is_float = false;                                         \
+                literal.value.s = lhs.value.s op rhs.value.s;                   \
+                return literal; \
+            } else if (lhs.is_signed && !rhs.is_signed) {                         \
+                literal.is_signed = true;                   \
+                literal.is_float = false;                                         \
+                literal.value.s = lhs.value.s op(long signed int) rhs.value.u;  \
+                return literal; \
+            } else if (!lhs.is_signed && rhs.is_signed) {                         \
+                literal.is_signed = true;                   \
+                literal.is_float = false;                                         \
+                literal.value.s = (long signed int)lhs.value.u op rhs.value.s;  \
+                return literal; \
+            } \
+            literal.is_signed = false;                      \
+            literal.is_float = false;                                             \
+            literal.value.u = lhs.value.u op rhs.value.u;                       \
+            return literal; \
         }                                                                      \
     } break
             CEVAL_OPERATOR(AST_BINOP_ADD, +);
@@ -195,12 +211,14 @@ static cc_ast_literal cc_ceval_eval_1(
 #undef CEVAL_OPERATOR
 #define CEVAL_OPERATOR(type, op)                                               \
     case type: {                                                               \
+        cc_ast_literal literal = { 0 }; \
         if ((lhs.is_float && rhs.is_float) || (!lhs.is_float && rhs.is_float)  \
             || (lhs.is_float && !rhs.is_float))                                \
             cc_diag_error(ctx, "Modulous on float literal");                   \
-        return (cc_ast_literal) { .is_signed = lhs.is_signed,                  \
-            .is_float = false,                                                 \
-            .value.u = lhs.value.u op rhs.value.u };                           \
+        literal.is_signed = lhs.is_signed;                  \
+        literal.is_float = false,                                                 \
+        literal.value.u = lhs.value.u op rhs.value.u;                           \
+        return literal; \
     } break
             CEVAL_OPERATOR(AST_BINOP_MOD, %);
             CEVAL_OPERATOR(AST_BINOP_LSHIFT, <<);

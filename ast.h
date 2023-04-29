@@ -15,8 +15,6 @@
 /* AST Parsing */
 #define MAX_CV_QUALIFIERS 3
 
-typedef struct cc_ast_node cc_ast_node;
-
 typedef struct cc_ast_type_cv {
     bool is_const : 1;
     bool is_volatile : 1;
@@ -26,7 +24,7 @@ typedef struct cc_ast_type_cv {
     bool is_static_array : 1; /* If the given size of the array is an static */
     bool is_vla : 1; /* Set iff the array size is computed at runtime */
     union {
-        cc_ast_node *size_expr; /* Expression for the size of the array */
+        struct cc_ast_node *size_expr; /* Expression for the size of the array */
         unsigned short size; /* Constant expression, for non-VLA */
     } array;
 } cc_ast_type_cv;

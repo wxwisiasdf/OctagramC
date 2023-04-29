@@ -13,8 +13,6 @@ enum cc_stage {
     STAGE_CODEGEN
 };
 
-struct cc_ast_type;
-
 /* State machine variables for parser, lexer, etc */
 typedef struct cc_context {
     /* Common */
