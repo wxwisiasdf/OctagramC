@@ -114,8 +114,12 @@ void cc_optimizer_expr_condense(
         for (i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
             size_t j;
-            if (var->type.mode == AST_TYPE_MODE_FUNCTION)
+            if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
+                const cc_ast_variable* old_func = ctx->ast_current_func;
+                ctx->ast_current_func = var;
                 cc_optimizer_expr_condense(ctx, &var->body, true);
+                ctx->ast_current_func = old_func;
+            }
             /* Condense expressions for possible VLAs */
             for (j = 0; j < var->type.n_cv_qual; ++j)
                 if (var->type.cv_qual[j].is_array
