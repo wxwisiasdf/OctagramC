@@ -22,12 +22,12 @@ enum cc_ssa_param_type {
 
 /* Same as ast.h storage linkage specifiers */
 enum cc_ssa_storage {
-    SSA_STORAGE_AUTO = 0x00,
+    SSA_STORAGE_INTERNAL = 0x00,
     SSA_STORAGE_EXTERN = 0x01,
-    SSA_STORAGE_STATIC = 0x02,
     SSA_STORAGE_GLOBAL = 0x04,
     SSA_STORAGE_THREAD_LOCAL = 0x08,
-    SSA_STORAGE_INLINE = 0x10
+    SSA_STORAGE_INLINE = 0x10,
+    SSA_STORAGE_STACK = 0x80
 };
 
 typedef struct {

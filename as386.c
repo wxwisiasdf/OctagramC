@@ -691,8 +691,9 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
             actx->s_text = false;
         }
 
-        if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0
-            || (lhs->storage & SSA_STORAGE_STATIC) != 0) {
+        /* Externs are NOT defined here... */
+        if ((lhs->storage & SSA_STORAGE_EXTERN) == 0
+            && (lhs->storage & SSA_STORAGE_STACK) == 0) {
             if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0)
                 fprintf(ctx->out, ".globl\t_%s\n", lhs->data.var_name);
             fprintf(ctx->out, "\t.align\t4\n");
@@ -712,8 +713,7 @@ static bool cc_as386_needs_frame_setup(const cc_ssa_func* func)
         if (tok->type == SSA_TOKEN_ALLOCA) {
             if (tok->data.alloca.left.type == SSA_PARAM_VARIABLE) {
                 /* Stack variable */
-                if ((tok->data.alloca.left.storage & SSA_STORAGE_GLOBAL) == 0
-                && (tok->data.alloca.left.storage & SSA_STORAGE_STATIC) == 0)
+                if ((tok->data.alloca.left.storage & SSA_STORAGE_STACK) != 0)
                     b = true;
             /* Non-stack variable, unnamed temporal maybe? */
             } else
@@ -761,8 +761,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
 
     /* Perform alignment required by ABI */
-    if (ctx->min_stack_alignment != 0)
-        fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
+    if (needs_frame && ctx->min_stack_alignment != 0)
+        fprintf(ctx->out, "\tandl\t$-%u,%%esp\n", ctx->min_stack_alignment);
 
     /* Process all tokens of this function */
     for (i = 0; i < func->n_tokens; i++)

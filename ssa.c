@@ -212,14 +212,13 @@ static void cc_ssa_print(cc_context* ctx)
 static enum cc_ssa_storage cc_ssa_ast_storage_to_ssa(enum cc_ast_storage v)
 {
     enum cc_ssa_storage o = 0;
-    o |= (v & AST_STORAGE_AUTO) != 0 ? SSA_STORAGE_AUTO : 0;
-    /*o |= (v & AST_STORAGE_CONSTEXPR) != 0 ? SSA_STORAGE_AUTO : 0;*/
-    o |= (v & AST_STORAGE_EXTERN) != 0 ? SSA_STORAGE_EXTERN : 0;
-    o |= (v & AST_STORAGE_GLOBAL) != 0 ? SSA_STORAGE_GLOBAL : 0;
-    o |= (v & AST_STORAGE_INLINE) != 0 ? SSA_STORAGE_INLINE : 0;
-    /*o |= (v & AST_STORAGE_REGISTER) != 0 ? SSA_STORAGE_AUTO : 0;*/
-    o |= (v & AST_STORAGE_STATIC) != 0 ? SSA_STORAGE_STATIC : 0;
-    o |= (v & AST_STORAGE_THREAD_LOCAL) != 0 ? SSA_STORAGE_THREAD_LOCAL : 0;
+    o = (v & AST_STORAGE_AUTO) != 0 ? SSA_STORAGE_STACK : 0;
+    o = (v & AST_STORAGE_EXTERN) != 0 ? SSA_STORAGE_EXTERN : 0;
+    o = (v & AST_STORAGE_GLOBAL) != 0 ? SSA_STORAGE_GLOBAL : 0;
+    o = (v & AST_STORAGE_INLINE) != 0 ? SSA_STORAGE_INLINE : 0;
+    o = (v & AST_STORAGE_THREAD_LOCAL) != 0 ? SSA_STORAGE_THREAD_LOCAL : 0;
+    if ((v & AST_STORAGE_STATIC) != 0)
+        o = SSA_STORAGE_INTERNAL;
     return o;
 }
 
@@ -274,7 +273,7 @@ static cc_ssa_param cc_ssa_retval_param(
 {
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_RETVAL;
-    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.storage = SSA_STORAGE_STACK;
     tmp.data.var_name = NULL;
     tmp.is_signed = ret_type->data.num.is_signed;
     tmp.size = ctx->get_sizeof(ctx, ret_type);
@@ -286,7 +285,7 @@ static cc_ssa_param cc_ssa_label_param(cc_context* ctx, unsigned short label_id)
 {
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_LABEL;
-    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.storage = SSA_STORAGE_STACK;
     tmp.data.label_id = label_id;
     tmp.is_signed = false;
     tmp.size = 4;
@@ -306,7 +305,7 @@ cc_ssa_param cc_ssa_tempvar_param_1(
 {
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_TMPVAR;
-    tmp.storage = SSA_STORAGE_AUTO;
+    tmp.storage = SSA_STORAGE_STACK;
     tmp.data.tmpid = ctx->tmpid++;
     tmp.is_signed = is_signed;
     tmp.size = size;
@@ -734,7 +733,7 @@ static void cc_ssa_process_string_literal(
     literal_param.type = SSA_PARAM_STRING_LITERAL;
     literal_param.size = ctx->get_sizeof(ctx, &string_type);
     literal_param.is_signed = false;
-    literal_param.storage = SSA_STORAGE_AUTO;
+    literal_param.storage = SSA_STORAGE_STACK;
     literal_param.version = 0;
     literal_param.data.string.tmpid = cc_ssa_get_unique_tmpid(ctx);
     literal_param.data.string.literal = node->data.string_literal;

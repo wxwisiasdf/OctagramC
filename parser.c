@@ -449,7 +449,10 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         case LEXER_TOKEN_SEMICOLON: /* Prototype/declaration */
             cc_lex_token_consume(ctx);
             break;
-        case LEXER_TOKEN_LBRACE: /* Function body */
+        case LEXER_TOKEN_LBRACE: { /* Function body */
+            cc_ast_variable prot_var = { 0 };
+            bool old_is_func_body;
+            
             cc_lex_token_consume(ctx);
             if (is_parsing_typedef) {
                 cc_diag_error(ctx, "Function definition after typedef");
@@ -470,14 +473,13 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             /* Variable for the function prototype (then replaced) */
-            cc_ast_variable prot_var = { 0 };
             cc_ast_copy_type(&prot_var.type, &var.type); /* Copy safely */
             prot_var.name = cc_strdup(var.name);
             cc_ast_add_block_variable(node, &prot_var);
 
             /* And variable for the function itself */
             var.body = cc_ast_create_block(ctx, node);
-            bool old_is_func_body = ctx->is_func_body;
+            old_is_func_body = ctx->is_func_body;
             ctx->is_func_body = true;
             cc_ast_variable* old_ast_current_func = ctx->ast_current_func;
             ctx->ast_current_func = &var;
@@ -487,7 +489,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             ctx->ast_current_func = old_ast_current_func;
             ctx->is_func_body = old_is_func_body;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
-            break;
+        } break;
         default:
             cc_diag_error(ctx, "Unexpected token in declarator");
             goto error_handle;

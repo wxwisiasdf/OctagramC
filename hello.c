@@ -1,5 +1,4 @@
-int printf(const char *, ...);
-int main(int argc, char **argv) {
-    printf("Hello world!\n");
-    return 0;
-}
+typedef struct {
+    char filler[32];
+} __DUMMYFILE;
+extern __DUMMYFILE *_imp___iob;

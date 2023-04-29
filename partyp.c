@@ -790,7 +790,10 @@ bool cc_parse_declarator(
             }
             var->name = cc_strdup(ctok->data);
         } else {
+            /* A typedef name, so copy over the type from the typedef */
+            enum cc_ast_storage old_storage = var->type.storage;
             cc_ast_copy_type(&var->type, tpdef);
+            var->type.storage = old_storage;
         }
     } break;
     default:
@@ -981,12 +984,11 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
        specifiers. */
     *is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
     if (ctx->is_parsing_typedef) {
+        cc_ast_type ntpdef = { 0 };
         if (var->name == NULL) {
             cc_diag_error(ctx, "Anonymous typedef");
             goto error_handle;
         }
-
-        cc_ast_type ntpdef = { 0 };
         cc_ast_copy_type(&ntpdef, &var->type); /* Copy type over */
         ntpdef.name = cc_strdup(var->name);
         ntpdef.is_typedef = true;
@@ -999,10 +1001,10 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_COMMA) {
+        cc_ast_type stype = { 0 };
         cc_lex_token_consume(ctx);
         /* Save the type somewhere safe, destroy the var,
             recreate the var with our type and destroy the type. */
-        cc_ast_type stype = { 0 };
         cc_ast_copy_type(&stype, &var->type);
         /* Assign global storage to the variable if it is not inside a
            function body. */
