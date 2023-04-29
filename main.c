@@ -116,8 +116,6 @@ int main(int argc, char** argv)
             if (!ctx.error_cnt) {
                 ctx.stage = STAGE_SSA;
                 cc_ssa_top(&ctx);
-                cc_ast_destroy_node(ctx.root, true);
-
                 if (!ctx.error_cnt) {
                     size_t i;
                     ctx.stage = STAGE_CODEGEN;
@@ -125,6 +123,7 @@ int main(int argc, char** argv)
                     for (i = 0; i < ctx.n_ssa_funcs; ++i)
                         ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
                 }
+                cc_ast_destroy_node(ctx.root, true);
             }
         }
         /*cc_backend_deinit(&ctx);*/

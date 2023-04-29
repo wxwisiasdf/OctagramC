@@ -691,7 +691,6 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
 
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
-    const char* name = func->ast_var->name;
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     size_t i;
 
@@ -707,13 +706,13 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 
     switch (func->ast_var->type.storage) {
     case AST_STORAGE_GLOBAL:
-        fprintf(ctx->out, ".globl\t%s\n", name);
+        fprintf(ctx->out, ".globl\t%s\n", func->ast_var->name);
         break;
     default:
         break;
     }
 
-    fprintf(ctx->out, "%s:\n", name);
+    fprintf(ctx->out, "__%s:\n", func->ast_var->name);
     fprintf(ctx->out, "\tpushl\t%%ebp\n");
     fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
 
