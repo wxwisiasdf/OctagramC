@@ -96,7 +96,9 @@ enum cc_ssa_token_type {
     SSA_TOKEN_NOT,
     SSA_TOKEN_ASSIGN,
     SSA_TOKEN_ZERO_EXT,
-    SSA_TOKEN_SIGN_EXT
+    SSA_TOKEN_SIGN_EXT,
+    /* Codegen aid */
+    SSA_TOKEN_DROP
 };
 
 typedef struct cc_ssa_token {
@@ -133,6 +135,7 @@ typedef struct cc_ssa_token {
             cc_ssa_param t_branch;
             cc_ssa_param f_branch;
         } branch;
+        cc_ssa_param dropped;
         unsigned short label_id;
     } data;
 } cc_ssa_token;
@@ -152,6 +155,7 @@ cc_ssa_param cc_ssa_tempvar_param(
     cc_context* ctx, const struct cc_ast_type* base_type);
 bool cc_ssa_is_param_same(
     const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2);
+const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok);
 void cc_ssa_top(cc_context* ctx);
 
 #endif

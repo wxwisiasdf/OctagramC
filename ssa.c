@@ -179,6 +179,10 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
     case SSA_TOKEN_NEQ:
         cc_ssa_print_token_binop(tok, "neq");
         break;
+    case SSA_TOKEN_DROP:
+        printf("drop ");
+        cc_ssa_print_param(&tok->data.dropped);
+        break;
     default:
         abort();
     }
@@ -596,10 +600,11 @@ static void cc_ssa_process_call(
     tok.data.call.right = call_retval_param;
     for (i = 0; i < node->data.call.n_params; i++) {
         cc_ast_type call_arg_type = { 0 };
+        cc_ssa_param call_arg_param;
         if (!cc_ceval_deduce_type(
                 ctx, node->data.call.call_expr, &call_arg_type))
             abort();
-        cc_ssa_param call_arg_param = cc_ssa_tempvar_param(ctx, &call_arg_type);
+        call_arg_param = cc_ssa_tempvar_param(ctx, &call_arg_type);
         cc_ssa_from_ast(ctx, &node->data.call.params[i], call_arg_param);
 
         tok.data.call.params = cc_realloc_array(
@@ -885,6 +890,7 @@ static void cc_ssa_tmpassign_unop(
     cc_ssa_tmpassign_param(&tok->data.unop.right, tmpid, new_colour);
 }
 
+/* Helper function for cc_ssa_tmpassign_func */
 static void cc_ssa_tmpassign_call(
     unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
 {
@@ -893,6 +899,15 @@ static void cc_ssa_tmpassign_call(
     cc_ssa_tmpassign_param(&tok->data.call.right, tmpid, new_colour);
     for (i = 0; i < tok->data.call.n_params; i++)
         cc_ssa_tmpassign_param(&tok->data.call.params[i], tmpid, new_colour);
+}
+
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpassign_alloca(
+    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+{
+    cc_ssa_tmpassign_param(&tok->data.alloca.left, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.alloca.size, tmpid, new_colour);
+    cc_ssa_tmpassign_param(&tok->data.alloca.align, tmpid, new_colour);
 }
 
 /* Temporal assignment elimination */
@@ -950,9 +965,11 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_CALL:
                 cc_ssa_tmpassign_call(tmpid, vtok->data.unop.right, tok);
                 break;
+            case SSA_TOKEN_ALLOCA:
+                cc_ssa_tmpassign_alloca(tmpid, vtok->data.unop.right, tok);
+                break;
             case SSA_TOKEN_RET:
             case SSA_TOKEN_LABEL:
-            case SSA_TOKEN_ALLOCA:
                 /* No operation */
                 break;
             default:
@@ -1006,10 +1023,174 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
     }
 }
 
+/* Helper function for cc_ssa_is_livetmp_func */
+static bool cc_ssa_is_livetmp_param(cc_ssa_param param,
+    unsigned int tmpid)
+{
+    return param.type == SSA_PARAM_TMPVAR && param.data.tmpid == tmpid;
+}
+/* Helper function for cc_ssa_is_livetmp_func */
+static bool cc_ssa_is_livetmp_binop(const cc_ssa_token* tok,
+    unsigned int tmpid)
+{
+    return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
+        || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
+        || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
+}
+/* Helper function for cc_ssa_is_livetmp_func */
+static bool cc_ssa_is_livetmp_unop(const cc_ssa_token* tok,
+    unsigned int tmpid)
+{
+    return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
+        || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
+}
+/* Helper function for cc_ssa_is_livetmp_func */
+static bool cc_ssa_is_livetmp_call(const cc_ssa_token* tok,
+    unsigned int tmpid)
+{
+    size_t i;
+    bool b = false;
+    b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid)
+        ? true : b;
+    b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid)
+        ? true : b;
+    for (i = 0; i < tok->data.call.n_params; i++)
+        b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid)
+            ? true : b;
+    return b;
+}
+static bool cc_ssa_is_livetmp_alloca(const cc_ssa_token* tok,
+    unsigned int tmpid)
+{
+    return cc_ssa_is_livetmp_param(tok->data.alloca.left, tmpid)
+        || cc_ssa_is_livetmp_param(tok->data.alloca.size, tmpid)
+        || cc_ssa_is_livetmp_param(tok->data.alloca.align, tmpid);
+}
+/* Checks if a temporal with id tmpid is live within a given token */
+static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok,
+    unsigned int tmpid)
+{
+    switch (tok->type) {
+    case SSA_TOKEN_ASSIGN:
+    case SSA_TOKEN_ZERO_EXT:
+    case SSA_TOKEN_SIGN_EXT:
+    case SSA_TOKEN_LOAD_FROM:
+    case SSA_TOKEN_STORE_FROM:
+        return cc_ssa_is_livetmp_unop(tok, tmpid);
+    case SSA_TOKEN_ADD:
+    case SSA_TOKEN_SUB:
+    case SSA_TOKEN_AND:
+    case SSA_TOKEN_BRANCH:
+    case SSA_TOKEN_COMPARE:
+    case SSA_TOKEN_DIV:
+    case SSA_TOKEN_MUL:
+    case SSA_TOKEN_OR:
+    case SSA_TOKEN_XOR:
+    case SSA_TOKEN_GT:
+    case SSA_TOKEN_GTE:
+    case SSA_TOKEN_LT:
+    case SSA_TOKEN_LTE:
+    case SSA_TOKEN_EQ:
+    case SSA_TOKEN_NEQ:
+        return cc_ssa_is_livetmp_binop(tok, tmpid);
+    case SSA_TOKEN_CALL:
+        return cc_ssa_is_livetmp_call(tok, tmpid);
+    case SSA_TOKEN_ALLOCA:
+        return cc_ssa_is_livetmp_alloca(tok, tmpid);
+    case SSA_TOKEN_RET:
+    case SSA_TOKEN_LABEL:
+        return false;
+    case SSA_TOKEN_DROP:
+        /* Codegen aids - ignored */
+        return false;
+    default:
+        abort();
+    }
+    return false;
+}
+/* Obtains the location where the temporal was last live. */
+static size_t cc_ssa_get_livetmp_location(cc_ssa_func* func,
+    unsigned int tmpid)
+{
+    size_t last = 0;
+    size_t i;
+    for (i = 0; i < func->n_tokens; ++i)
+        if (cc_ssa_is_livetmp_token(&func->tokens[i], tmpid))
+            last = i;
+    return last;
+}
+/* Adds livetmp markets to a function - those are just like normal
+   tokens, except they serve as codegen aid rather than codegen instructions. */
+static void cc_ssa_livetmp_func(cc_ssa_func* func)
+{
+    size_t i;
+    for (i = 0; i < func->n_tokens; ++i) {
+        const cc_ssa_token* tok = &func->tokens[i];
+        const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
+        if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR) {
+            cc_ssa_token drop_tok = { 0 };
+            size_t loc = cc_ssa_get_livetmp_location(func, lhs->data.tmpid) + 1;
+            /* Insert "DROP" token to aid codegen that the temporal is
+                now dead and should be dropped. */
+            memmove(&func->tokens[loc + 1], &func->tokens[loc],
+                sizeof(cc_ssa_token) * (func->n_tokens - loc + 1));
+            func->n_tokens++;
+
+            drop_tok.type = SSA_TOKEN_DROP;
+            drop_tok.data.dropped = tok->data.unop.left;
+            func->tokens[loc] = drop_tok;
+        }
+    }
+}
+
+/* Obtain the LHS parameters of a token. */
+const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
+{
+    switch (tok->type) {
+    case SSA_TOKEN_ASSIGN:
+    case SSA_TOKEN_ZERO_EXT:
+    case SSA_TOKEN_SIGN_EXT:
+    case SSA_TOKEN_LOAD_FROM:
+    case SSA_TOKEN_STORE_FROM:
+        return &tok->data.unop.left;
+    case SSA_TOKEN_ADD:
+    case SSA_TOKEN_SUB:
+    case SSA_TOKEN_AND:
+    case SSA_TOKEN_BRANCH:
+    case SSA_TOKEN_COMPARE:
+    case SSA_TOKEN_DIV:
+    case SSA_TOKEN_MUL:
+    case SSA_TOKEN_OR:
+    case SSA_TOKEN_XOR:
+    case SSA_TOKEN_GT:
+    case SSA_TOKEN_GTE:
+    case SSA_TOKEN_LT:
+    case SSA_TOKEN_LTE:
+    case SSA_TOKEN_EQ:
+    case SSA_TOKEN_NEQ:
+        return &tok->data.binop.left;
+    case SSA_TOKEN_CALL:
+        return &tok->data.call.left;
+    case SSA_TOKEN_ALLOCA:
+        return &tok->data.alloca.left;
+    case SSA_TOKEN_RET:
+    case SSA_TOKEN_LABEL:
+        /* No operation */
+        return NULL;
+    case SSA_TOKEN_DROP:
+        /* Codegen aids - ignored */
+        return NULL;
+    default:
+        abort();
+    }
+    return NULL;
+}
+
 static void cc_ssa_colour_func(cc_ssa_func* func)
 {
     cc_ssa_tmpassign_func(func);
     cc_ssa_remove_assign_func(func);
+    cc_ssa_livetmp_func(func);
 }
 
 static void cc_ssa_colour(cc_context* ctx)

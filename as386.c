@@ -262,6 +262,10 @@ static void cc_as386_gen_assign(
                 reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
                 reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
+        case SSA_PARAM_RETVAL:
+            fprintf(ctx->out, "\tmovl\t%%eax,%s\n",
+                reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+            break;
         default:
             abort();
         }
@@ -410,7 +414,8 @@ static void cc_as386_gen_call_param(
 
 static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
 {
-    const cc_ssa_param* call_param;
+    const cc_ssa_param* call_param = &tok->data.call.right;
+    const cc_ssa_param* call_retval = &tok->data.call.left;
     unsigned short offset = 0;
     size_t i;
 
@@ -421,7 +426,6 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         offset += param->size;
     }
 
-    call_param = &tok->data.call.right;
     switch (call_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tcall\t$%s\n", call_param->data.var_name);
@@ -432,6 +436,27 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_PARAM_RETVAL:
         fprintf(ctx->out, "\tcall\t%%eax\n");
+        break;
+    default:
+        abort();
+    }
+
+    switch (call_retval->type) {
+    case SSA_PARAM_VARIABLE: {
+        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx);
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
+        fprintf(ctx->out, "\tmovl\t%%eax,%s\n",
+            reg_names[val_regno]);
+        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg_names[val_regno],
+            call_retval->data.var_name);
+        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg_names[val_regno],
+            reg_names[ptr_regno]);
+        cc_as386_regfree(ctx, ptr_regno);
+        cc_as386_regfree(ctx, val_regno);
+    } break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tmovl\t%%eax,%s\n",
+            reg_names[cc_as386_get_tmpreg(ctx, call_retval->data.tmpid)]);
         break;
     default:
         abort();
@@ -560,6 +585,10 @@ end:
 
 static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
 {
+    const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
+    if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR)
+        cc_as386_regalloc_tmp(ctx, lhs->data.tmpid);
+
     switch (tok->type) {
     case SSA_TOKEN_RET:
         fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
@@ -598,6 +627,9 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_TOKEN_BRANCH:
         cc_as386_process_branch(ctx, tok);
+        break;
+    case SSA_TOKEN_DROP:
+        cc_as386_regfree_tmpid(ctx, tok->data.dropped.data.tmpid);
         break;
     case SSA_TOKEN_ALLOCA:
         break;
@@ -666,6 +698,10 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     const char* name = func->ast_var->name;
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     size_t i;
+
+    /* Reset context for register allocation! */
+    for (i = 0; i < AS386_NUM_REGS; i++)
+        actx->regs[i] = false;
 
     if (!actx->s_text) {
         fprintf(ctx->out, ".text\n");
@@ -740,6 +776,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_RET:
         case SSA_TOKEN_LABEL:
             /* No operation. */
+            break;
+        case SSA_TOKEN_DROP:
             break;
         default:
             abort();
