@@ -704,13 +704,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         actx->s_text = true;
     }
 
-    switch (func->ast_var->type.storage) {
-    case AST_STORAGE_GLOBAL:
-        fprintf(ctx->out, ".globl\t%s\n", func->ast_var->name);
-        break;
-    default:
-        break;
-    }
+    if ((func->ast_var->type.storage & AST_STORAGE_GLOBAL) != 0)
+        fprintf(ctx->out, ".globl\t_%s\n", func->ast_var->name);
 
     fprintf(ctx->out, "_%s:\n", func->ast_var->name);
     fprintf(ctx->out, "\tpushl\t%%ebp\n");
