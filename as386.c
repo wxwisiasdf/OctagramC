@@ -434,7 +434,7 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     }
     /* Make space for the stack */
     if (stack_size)
-        fprintf(ctx->out, "\tsubl\t$%u,%%esp\n", offsstack_sizeet);
+        fprintf(ctx->out, "\tsubl\t$%u,%%esp\n", stack_size);
     /* Emplace parameters onto the stack */
     for (i = 0; i < tok->data.call.n_params; i++) {
         const cc_ssa_param* param = &tok->data.call.params[i];
@@ -603,7 +603,8 @@ end:
     cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
 }
 
-static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
+static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok,
+    bool needs_frame)
 {
     const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
     if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR)
@@ -611,8 +612,10 @@ static void cc_as386_process_token(cc_context* ctx, const cc_ssa_token* tok)
 
     switch (tok->type) {
     case SSA_TOKEN_RET:
-        fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
-        fprintf(ctx->out, "\tpopl\t%%ebp\n");
+        if (needs_frame) {
+            fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
+            fprintf(ctx->out, "\tpopl\t%%ebp\n");
+        }
         fprintf(ctx->out, "\tret\n");
         break;
     case SSA_TOKEN_LABEL:
@@ -700,10 +703,32 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
     }
 }
 
+static bool cc_as386_needs_frame_setup(const cc_ssa_func* func)
+{
+    size_t i;
+    bool b = false;
+    for (i = 0; i < func->n_tokens; ++i) {
+        const cc_ssa_token* tok = &func->tokens[i];
+        if (tok->type == SSA_TOKEN_ALLOCA) {
+            if (tok->data.alloca.left.type == SSA_PARAM_VARIABLE) {
+                /* Stack variable */
+                if ((tok->data.alloca.left.storage & SSA_STORAGE_GLOBAL) == 0
+                && (tok->data.alloca.left.storage & SSA_STORAGE_STATIC) == 0)
+                    b = true;
+            /* Non-stack variable, unnamed temporal maybe? */
+            } else
+                b = true;
+        } else if (tok->type == SSA_TOKEN_CALL && tok->data.call.n_params > 0)
+            b = true;
+    }
+    return b;
+}
+
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     size_t i;
+    bool needs_frame = cc_as386_needs_frame_setup(func);
 
     /* Reset context for register allocation! */
     for (i = 0; i < AS386_NUM_REGS; i++)
@@ -719,8 +744,10 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         fprintf(ctx->out, ".globl\t_%s\n", func->ast_var->name);
 
     fprintf(ctx->out, "_%s:\n", func->ast_var->name);
-    fprintf(ctx->out, "\tpushl\t%%ebp\n");
-    fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
+    if (needs_frame) {
+        fprintf(ctx->out, "\tpushl\t%%ebp\n");
+        fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
+    }
 
     memset(actx->regs, 0, sizeof(actx->regs));
 
@@ -739,7 +766,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 
     /* Process all tokens of this function */
     for (i = 0; i < func->n_tokens; i++)
-        cc_as386_process_token(ctx, &func->tokens[i]);
+        cc_as386_process_token(ctx, &func->tokens[i], needs_frame);
 
     for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
