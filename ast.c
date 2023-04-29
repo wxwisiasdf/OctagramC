@@ -12,7 +12,7 @@
 #include <string.h>
 
 /* Prevent infinite recursion for printing functions */
-static bool body_print_lock = false;
+static int body_print_lock = 0;
 
 unsigned short cc_ast_alloc_label_id(cc_context* ctx)
 {
@@ -848,7 +848,7 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         return;
     }
 
-    body_print_lock = true;
+    ++body_print_lock;
     printf("<var %s ", var->name);
 
     switch (var->type.mode) {
@@ -900,11 +900,11 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         if (var->type.data.func.variadic)
             printf("<...>");
         printf(")");
-        if (!body_print_lock && var->body != NULL)
+        if (body_print_lock <= 1 && var->body != NULL)
             cc_ast_print(var->body);
     }
     printf(">");
-    body_print_lock = false;
+    --body_print_lock;
 }
 
 void cc_ast_print(const cc_ast_node* node)
@@ -1027,15 +1027,9 @@ void cc_ast_print(const cc_ast_node* node)
         cc_ast_print(node->data.unop.child);
         printf(">");
         break;
-    case AST_NODE_VARIABLE: {
-        const cc_ast_variable* var
-            = cc_ast_find_variable(NULL, node->data.var.name, node);
-        if (var == NULL) {
-            printf("<var-null>");
-            break;
-        }
-        cc_ast_print_var(var);
-    } break;
+    case AST_NODE_VARIABLE:
+        cc_ast_print_var(cc_ast_find_variable(NULL, node->data.var.name, node));
+        break;
     default:
         printf("<?{%i}>", node->type);
         break;
