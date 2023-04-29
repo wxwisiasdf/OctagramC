@@ -658,7 +658,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
         actx->stack_offset += ctx->get_sizeof(ctx, &param->type);
     }
-    fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
+    if (actx->stack_offset > 0)
+        fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
 
     /* Process all tokens of this function */
     for (i = 0; i < func->n_tokens; i++)
