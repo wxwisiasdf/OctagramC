@@ -521,38 +521,30 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
-{
-    bool has_match = false;
-    while (cc_parse_external_declaration(ctx, node))
-        has_match = true;
-    return has_match;
-}
-
-int cc_parse_top(cc_context* ctx)
+static bool cc_parse_preprocessor(cc_context* ctx)
 {
     const cc_lexer_token* ctok;
-    ctx->root = cc_ast_create_block(ctx, NULL); /* Block holding everything */
-    ctx->stage = STAGE_PARSER;
-    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        /* Line diagnostic information */
-        if (ctok->type == LEXER_TOKEN_HASHTAG) {
-            const cc_lexer_token* dtok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_HASHTAG) {
+        cc_lex_token_consume(ctx);
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_IDENT
+        && !strcmp(ctok->data, "line")) {
             cc_lex_token_consume(ctx);
-            if ((dtok = cc_lex_token_peek(ctx, 0)) != NULL
-                && dtok->type == LEXER_TOKEN_NUMBER) {
-                unsigned long int n_lines = strtoul(dtok->data, NULL, 10);
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type == LEXER_TOKEN_NUMBER) {
+                unsigned long int n_lines = strtoul(ctok->data, NULL, 10);
                 cc_lex_token_consume(ctx);
 
-                if ((dtok = cc_lex_token_peek(ctx, 0)) != NULL
-                    && dtok->type == LEXER_TOKEN_STRING_LITERAL) {
-                    const char* filename = dtok->data;
+                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                    && ctok->type == LEXER_TOKEN_STRING_LITERAL) {
+                    const char* filename = ctok->data;
                     char flags = 0;
                     cc_lex_token_consume(ctx);
 
-                    while ((dtok = cc_lex_token_peek(ctx, 0)) != NULL
-                        && dtok->type == LEXER_TOKEN_NUMBER) {
-                        flags |= 1 << (char)atoi(dtok->data);
+                    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                        && ctok->type == LEXER_TOKEN_NUMBER) {
+                        flags |= 1 << (char)atoi(ctok->data);
                         cc_lex_token_consume(ctx);
                     }
 
@@ -567,9 +559,25 @@ int cc_parse_top(cc_context* ctx)
                     }
                 }
             }
-        } else {
-            cc_parse_translation_unit(ctx, ctx->root);
         }
     }
+    return false;
+}
+
+static bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
+{
+    bool has_match = false;
+    while (cc_parse_preprocessor(ctx)
+    || cc_parse_external_declaration(ctx, node))
+        has_match = true;
+    return has_match;
+}
+
+int cc_parse_top(cc_context* ctx)
+{
+    const cc_lexer_token* ctok;
+    ctx->root = cc_ast_create_block(ctx, NULL); /* Block holding everything */
+    ctx->stage = STAGE_PARSER;
+    cc_parse_translation_unit(ctx, ctx->root);
     return 0;
 }
