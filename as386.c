@@ -635,6 +635,7 @@ static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
     const char* name = func->ast_var->name;
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
     size_t i;
 
     switch (func->ast_var->type.storage) {
@@ -648,11 +649,10 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     fprintf(ctx->out, "%s:\n", name);
     fprintf(ctx->out, "\tpushl\t%%ebp\n");
     fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
-    if (ctx->min_stack_alignment != 0)
-        fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
 
-    cc_as386_context* actx = cc_as386_get_ctx(ctx);
     memset(actx->regs, 0, sizeof(actx->regs));
+
+    /* Stack offset for local non-VLA variables */
     actx->stack_offset = 0;
     for (i = 0; i < func->ast_var->type.data.func.n_params; i++) {
         const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
@@ -660,6 +660,10 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     }
     if (actx->stack_offset > 0)
         fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
+
+    /* Perform alignment required by ABI */
+    if (ctx->min_stack_alignment != 0)
+        fprintf(ctx->out, "\tandl\t$%u,%%esp\n", ctx->min_stack_alignment);
 
     /* Process all tokens of this function */
     for (i = 0; i < func->n_tokens; i++)
