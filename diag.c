@@ -86,7 +86,7 @@ void cc_diag_error(cc_context* ctx, const char* fmt, ...)
     va_end(args);
     ctx->error_cnt++;
 
-    if(ctx->error_cnt > 3)
+    if (ctx->error_cnt > 3)
         abort();
 }
 

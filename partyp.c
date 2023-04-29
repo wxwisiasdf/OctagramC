@@ -10,11 +10,11 @@
 #include "parser.h"
 #include "util.h"
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 
 static unsigned short cc_parse_attribute_literal_param(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
@@ -338,9 +338,10 @@ static bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
         break;
     case LEXER_TOKEN__Atomic:
         type->cv_qual[type->n_cv_qual].is_atomic = true;
-        if(type->mode == AST_TYPE_MODE_FUNCTION
-        || type->cv_qual[type->n_cv_qual].is_array)
-            cc_diag_error(ctx, "_Atomic can't modify function pointers or "
+        if (type->mode == AST_TYPE_MODE_FUNCTION
+            || type->cv_qual[type->n_cv_qual].is_array)
+            cc_diag_error(ctx,
+                "_Atomic can't modify function pointers or "
                 "arrays");
         break;
     default:
@@ -549,27 +550,27 @@ static bool cc_parse_storage_class_specifier(cc_context* ctx, cc_ast_type* type)
         return false;
     }
     /* Enforces type constraints */
-    if((type->storage & AST_STORAGE_THREAD_LOCAL) != 0) {
+    if ((type->storage & AST_STORAGE_THREAD_LOCAL) != 0) {
         enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_THREAD_LOCAL;
-        if(tmp == AST_STORAGE_NONE
-        || (tmp & AST_STORAGE_STATIC) != 0
-        || (tmp & AST_STORAGE_EXTERN) != 0)
+        if (tmp == AST_STORAGE_NONE || (tmp & AST_STORAGE_STATIC) != 0
+            || (tmp & AST_STORAGE_EXTERN) != 0)
             ;
         else
-            cc_diag_error(ctx, "thread_local may only be used with static or"
+            cc_diag_error(ctx,
+                "thread_local may only be used with static or"
                 "extern");
-    } else if((type->storage & AST_STORAGE_CONSTEXPR) != 0) {
+    } else if ((type->storage & AST_STORAGE_CONSTEXPR) != 0) {
         enum cc_ast_storage tmp = type->storage & ~AST_STORAGE_CONSTEXPR;
-        if(tmp == AST_STORAGE_NONE
-        || (tmp & AST_STORAGE_AUTO) != 0
-        || (tmp & AST_STORAGE_REGISTER) != 0
-        || (tmp & AST_STORAGE_STATIC) != 0)
+        if (tmp == AST_STORAGE_NONE || (tmp & AST_STORAGE_AUTO) != 0
+            || (tmp & AST_STORAGE_REGISTER) != 0
+            || (tmp & AST_STORAGE_STATIC) != 0)
             ;
         else
-            cc_diag_error(ctx, "constexpr may only be used with auto, register"
+            cc_diag_error(ctx,
+                "constexpr may only be used with auto, register"
                 " or static");
-    } else if((type->storage & AST_STORAGE_AUTO) != 0) {
-        if(ctx->is_parsing_typedef == true)
+    } else if ((type->storage & AST_STORAGE_AUTO) != 0) {
+        if (ctx->is_parsing_typedef == true)
             cc_diag_error(ctx, "auto can't appear alongside typedef");
     }
 error_handle: /* Normal finish */
@@ -756,12 +757,12 @@ bool cc_parse_declarator(
         && ctok->type == LEXER_TOKEN_SEMICOLON) {
         /* Empty structures, unions or enums do not require a diagnostic(?)
            but we'll provide one anyways. */
-        if((var->type.mode == AST_TYPE_MODE_ENUM
-        && var->type.data.enumer.n_elems == 0))
+        if ((var->type.mode == AST_TYPE_MODE_ENUM
+                && var->type.data.enumer.n_elems == 0))
             cc_diag_warning(ctx, "Empty enum");
-        else if((var->type.mode == AST_TYPE_MODE_STRUCT
-        || var->type.mode == AST_TYPE_MODE_UNION)
-        && var->type.data.s_or_u.n_members == 0)
+        else if ((var->type.mode == AST_TYPE_MODE_STRUCT
+                     || var->type.mode == AST_TYPE_MODE_UNION)
+            && var->type.data.s_or_u.n_members == 0)
             cc_diag_warning(ctx, "Empty structure/union");
         return true;
     }
@@ -781,8 +782,10 @@ bool cc_parse_declarator(
         cc_lex_token_consume(ctx);
         if (tpdef == NULL) {
             if (var->name != NULL) {
-                cc_diag_error(ctx, "More than one identifier on declaration ("
-                    "%s and %s)", var->name, ctok->data);
+                cc_diag_error(ctx,
+                    "More than one identifier on declaration ("
+                    "%s and %s)",
+                    var->name, ctok->data);
                 goto error_handle;
             }
             var->name = cc_strdup(ctok->data);
@@ -844,7 +847,7 @@ ignore_missing_ident:
                     = cc_realloc_array(var->type.data.func.params,
                         var->type.data.func.n_params + 1);
                 param = &var->type.data.func
-                           .params[var->type.data.func.n_params++];
+                             .params[var->type.data.func.n_params++];
                 cc_ast_copy_type(&param->type, &virtual_param_var.type);
                 param->name = NULL;
                 if (virtual_param_var.name != NULL)
@@ -916,13 +919,13 @@ ignore_missing_ident:
         if (array_cv->is_vla) {
 
         } else {
-            cc_ceval_constant_expression(ctx, &array_cv->array.size_expr,
-                &size_literal);
+            cc_ceval_constant_expression(
+                ctx, &array_cv->array.size_expr, &size_literal);
             cc_ast_destroy_node(array_cv->array.size_expr, true);
             /* Assign a literal value, constant one too! */
             if (size_literal.value.u >= USHRT_MAX)
-                cc_diag_error(ctx, "Array exceeds %u elements",
-                    (unsigned int)USHRT_MAX);
+                cc_diag_error(
+                    ctx, "Array exceeds %u elements", (unsigned int)USHRT_MAX);
             else if (size_literal.value.u == 0)
                 cc_diag_warning(ctx, "0 length array will not be materialized");
             array_cv->array.size = (unsigned short)size_literal.value.u;

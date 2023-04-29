@@ -119,14 +119,14 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
     case 10:
         for (; isdigit(*p); ++p)
             ;
-after_frac:
+    after_frac:
         if (*p == '.')
             ++p;
         for (; isdigit(*p); ++p)
             ;
         break;
     case 8:
-octal_num:
+    octal_num:
         while (ISODIGIT(*p))
             p++;
         break;

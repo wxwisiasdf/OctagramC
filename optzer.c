@@ -21,7 +21,7 @@ void cc_optimizer_merge_block(
     cc_ast_node* node = *pnode;
     size_t i;
 
-    if(node == NULL || node->type != AST_NODE_BLOCK)
+    if (node == NULL || node->type != AST_NODE_BLOCK)
         return;
 
     for (i = 0; i < node->data.block.n_children; ++i) {
@@ -119,9 +119,9 @@ void cc_optimizer_expr_condense(
             /* Condense expressions for possible VLAs */
             for (j = 0; j < var->type.n_cv_qual; ++j)
                 if (var->type.cv_qual[j].is_array
-                && var->type.cv_qual[j].is_vla)
-                    cc_optimizer_expr_condense(ctx,
-                        &var->type.cv_qual[j].array.size_expr, true);
+                    && var->type.cv_qual[j].is_vla)
+                    cc_optimizer_expr_condense(
+                        ctx, &var->type.cv_qual[j].array.size_expr, true);
         }
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_node* tnode = &node->data.block.children[i];
@@ -144,8 +144,7 @@ void cc_optimizer_expr_condense(
         /* Consteval the calls to functions */
         if (node->data.call.call_expr != NULL
             && node->data.call.call_expr->type == AST_NODE_VARIABLE) {
-            cc_ast_variable* var = cc_ast_find_variable(
-                cc_get_cfunc_name(ctx),
+            cc_ast_variable* var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
                 node->data.call.call_expr->data.var.name, node);
             if (var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION
                 && (var->type.storage & AST_STORAGE_CONSTEXPR) != 0) {

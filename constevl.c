@@ -93,17 +93,15 @@ static cc_ast_literal cc_ceval_eval_cast_unop(
         literal.is_float = true;
         literal.is_signed = child->is_signed;
         literal.value.d = (float)(child->is_float
-                        ? child->value.d
-                        : (child->is_signed ? child->value.s
-                                            : (float)child->value.u));
+                ? child->value.d
+                : (child->is_signed ? child->value.s : (float)child->value.u));
         return literal;
     case AST_TYPE_MODE_DOUBLE:
         literal.is_float = true;
         literal.is_signed = child->is_signed;
         literal.value.d = (double)(child->is_float
-                        ? child->value.d
-                        : (child->is_signed ? child->value.s
-                                            : (double)child->value.u));
+                ? child->value.d
+                : (child->is_signed ? child->value.s : (double)child->value.u));
         return literal;
     default:
         cc_ast_print(node);
@@ -121,7 +119,7 @@ static cc_ast_literal cc_ceval_eval_1(
     cc_ast_literal literal_zero = { 0 };
     if (node == NULL)
         goto error_handle;
-    
+
     switch (node->type) {
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var;
@@ -129,8 +127,8 @@ static cc_ast_literal cc_ceval_eval_1(
         for (i = 0; i < *n_list; i++)
             if (!strcmp((*list)[i].name, node->data.var.name))
                 return (*list)[i].literal;
-        var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
-            node->data.var.name, node);
+        var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), node->data.var.name, node);
         if ((var->type.storage & AST_STORAGE_CONSTEXPR) == 0) {
             cc_diag_warning(ctx, "Non-constexpr variable used in constexpr");
             goto error_handle;
@@ -147,53 +145,53 @@ static cc_ast_literal cc_ceval_eval_1(
     case type: {                                                               \
         cc_ast_literal literal = { 0 };                                        \
         if (lhs.is_float && rhs.is_float) {                                    \
-            literal.is_signed = false;                      \
-            literal.is_float = true;                                              \
-            literal.value.d = lhs.value.d op rhs.value.d;                       \
-            return literal; \
+            literal.is_signed = false;                                         \
+            literal.is_float = true;                                           \
+            literal.value.d = lhs.value.d op rhs.value.d;                      \
+            return literal;                                                    \
         } else if (!lhs.is_float && rhs.is_float) {                            \
-            if (lhs.is_signed) {                                                \
-                literal.is_signed = true;                   \
-                literal.is_float = false;                                         \
-                literal.value.s = lhs.value.s op rhs.value.d;                   \
-                return literal; \
-            } \
-            literal.is_signed = false;                      \
-            literal.is_float = false;                                             \
-            literal.value.u = lhs.value.u op rhs.value.d;                       \
-            return literal; \
+            if (lhs.is_signed) {                                               \
+                literal.is_signed = true;                                      \
+                literal.is_float = false;                                      \
+                literal.value.s = lhs.value.s op rhs.value.d;                  \
+                return literal;                                                \
+            }                                                                  \
+            literal.is_signed = false;                                         \
+            literal.is_float = false;                                          \
+            literal.value.u = lhs.value.u op rhs.value.d;                      \
+            return literal;                                                    \
         } else if (lhs.is_float && !rhs.is_float) {                            \
-            if (rhs.is_signed) {                                                \
-                literal.is_signed = true;                   \
-                literal.is_float = true;                                          \
-                literal.value.d = lhs.value.d op rhs.value.s;                   \
-                return literal; \
-            } \
-            literal.is_signed = false;                      \
-            literal.is_float = true;                                              \
-            literal.value.d = lhs.value.d op rhs.value.u;                       \
-            return literal; \
+            if (rhs.is_signed) {                                               \
+                literal.is_signed = true;                                      \
+                literal.is_float = true;                                       \
+                literal.value.d = lhs.value.d op rhs.value.s;                  \
+                return literal;                                                \
+            }                                                                  \
+            literal.is_signed = false;                                         \
+            literal.is_float = true;                                           \
+            literal.value.d = lhs.value.d op rhs.value.u;                      \
+            return literal;                                                    \
         } else if (!lhs.is_float && !rhs.is_float) {                           \
-            if (lhs.is_signed && rhs.is_signed) {                               \
-                literal.is_signed = true;                   \
-                literal.is_float = false;                                         \
-                literal.value.s = lhs.value.s op rhs.value.s;                   \
-                return literal; \
-            } else if (lhs.is_signed && !rhs.is_signed) {                         \
-                literal.is_signed = true;                   \
-                literal.is_float = false;                                         \
-                literal.value.s = lhs.value.s op(long signed int) rhs.value.u;  \
-                return literal; \
-            } else if (!lhs.is_signed && rhs.is_signed) {                         \
-                literal.is_signed = true;                   \
-                literal.is_float = false;                                         \
-                literal.value.s = (long signed int)lhs.value.u op rhs.value.s;  \
-                return literal; \
-            } \
-            literal.is_signed = false;                      \
-            literal.is_float = false;                                             \
-            literal.value.u = lhs.value.u op rhs.value.u;                       \
-            return literal; \
+            if (lhs.is_signed && rhs.is_signed) {                              \
+                literal.is_signed = true;                                      \
+                literal.is_float = false;                                      \
+                literal.value.s = lhs.value.s op rhs.value.s;                  \
+                return literal;                                                \
+            } else if (lhs.is_signed && !rhs.is_signed) {                      \
+                literal.is_signed = true;                                      \
+                literal.is_float = false;                                      \
+                literal.value.s = lhs.value.s op(long signed int) rhs.value.u; \
+                return literal;                                                \
+            } else if (!lhs.is_signed && rhs.is_signed) {                      \
+                literal.is_signed = true;                                      \
+                literal.is_float = false;                                      \
+                literal.value.s = (long signed int)lhs.value.u op rhs.value.s; \
+                return literal;                                                \
+            }                                                                  \
+            literal.is_signed = false;                                         \
+            literal.is_float = false;                                          \
+            literal.value.u = lhs.value.u op rhs.value.u;                      \
+            return literal;                                                    \
         }                                                                      \
     } break
             CEVAL_OPERATOR(AST_BINOP_ADD, +);
@@ -211,14 +209,14 @@ static cc_ast_literal cc_ceval_eval_1(
 #undef CEVAL_OPERATOR
 #define CEVAL_OPERATOR(type, op)                                               \
     case type: {                                                               \
-        cc_ast_literal literal = { 0 }; \
+        cc_ast_literal literal = { 0 };                                        \
         if ((lhs.is_float && rhs.is_float) || (!lhs.is_float && rhs.is_float)  \
             || (lhs.is_float && !rhs.is_float))                                \
             cc_diag_error(ctx, "Modulous on float literal");                   \
-        literal.is_signed = lhs.is_signed;                  \
-        literal.is_float = false,                                                 \
-        literal.value.u = lhs.value.u op rhs.value.u;                           \
-        return literal; \
+        literal.is_signed = lhs.is_signed;                                     \
+        literal.is_float = false,                                              \
+        literal.value.u = lhs.value.u op rhs.value.u;                          \
+        return literal;                                                        \
     } break
             CEVAL_OPERATOR(AST_BINOP_MOD, %);
             CEVAL_OPERATOR(AST_BINOP_LSHIFT, <<);
@@ -455,9 +453,8 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_LITERAL:
         return true;
     case AST_NODE_VARIABLE: {
-        const cc_ast_variable* var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx),
-                node->data.var.name, node);
+        const cc_ast_variable* var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), node->data.var.name, node);
         if ((var->type.storage & AST_STORAGE_CONSTEXPR) != 0)
             return true;
     }
@@ -481,8 +478,8 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_BLOCK:
         if (node->data.block.n_children == 0)
             return true;
-        return cc_ceval_is_const(ctx,
-            &node->data.block.children[node->data.block.n_children - 1]);
+        return cc_ceval_is_const(
+            ctx, &node->data.block.children[node->data.block.n_children - 1]);
     case AST_NODE_IF:
         return cc_ceval_is_const(ctx, node->data.if_expr.tail_else)
             && cc_ceval_is_const(ctx, node->data.if_expr.block);

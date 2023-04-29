@@ -315,8 +315,8 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 }
 
 /* TODO: This finding algorithm is fucking cursed, we need something better! */
-static cc_ast_variable* cc_ast_find_variable_1(const char *fn_name,
-    const char* name, const cc_ast_node* node)
+static cc_ast_variable* cc_ast_find_variable_1(
+    const char* fn_name, const char* name, const cc_ast_node* node)
 {
     if (node == NULL)
         return NULL;
@@ -330,9 +330,8 @@ static cc_ast_variable* cc_ast_find_variable_1(const char *fn_name,
 
             /* Check parameters for functions but only the current function
                we're checking against. */
-            if (fn_name != NULL
-            && var->type.mode == AST_TYPE_MODE_FUNCTION
-            && !strcmp(var->name, fn_name)) {
+            if (fn_name != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION
+                && !strcmp(var->name, fn_name)) {
                 size_t j;
                 for (j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
@@ -348,8 +347,8 @@ static cc_ast_variable* cc_ast_find_variable_1(const char *fn_name,
     }
     return cc_ast_find_variable_1(fn_name, name, node->parent);
 }
-cc_ast_variable* cc_ast_find_variable(const char *fn_name,
-    const char* name, const cc_ast_node* node)
+cc_ast_variable* cc_ast_find_variable(
+    const char* fn_name, const char* name, const cc_ast_node* node)
 {
     return cc_ast_find_variable_1(fn_name, name, node);
 }
@@ -434,7 +433,7 @@ static cc_ast_node* cc_ast_create_generic(
     case AST_NODE_JUMP:
         return cc_ast_create_jump(ctx, parent, NULL);
     case AST_NODE_LITERAL: {
-        cc_ast_literal l = {0};
+        cc_ast_literal l = { 0 };
         return cc_ast_create_literal(ctx, parent, l);
     }
     case AST_NODE_RETURN:
@@ -453,8 +452,8 @@ static cc_ast_node* cc_ast_create_generic(
     return NULL;
 }
 
-void cc_ast_copy_node(cc_context* ctx,
-    cc_ast_node* restrict dest, const cc_ast_node* restrict src)
+void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
+    const cc_ast_node* restrict src)
 {
     if (dest == NULL || src == NULL)
         return;
@@ -487,12 +486,12 @@ void cc_ast_copy_node(cc_context* ctx,
         memset(dest->data.call.params, 0,
             sizeof(cc_ast_node) * src->data.call.n_params);
         for (i = 0; i < src->data.call.n_params; i++) {
-            cc_ast_node *expr_node = cc_ast_create_generic(
+            cc_ast_node* expr_node = cc_ast_create_generic(
                 ctx, dest, src->data.call.params[i].type);
             dest->data.call.params[i] = *expr_node;
             cc_free(expr_node);
-            cc_ast_copy_node(ctx,
-                &dest->data.call.params[i], &src->data.call.params[i]);
+            cc_ast_copy_node(
+                ctx, &dest->data.call.params[i], &src->data.call.params[i]);
         }
     } break;
     case AST_NODE_BLOCK: {
@@ -507,12 +506,12 @@ void cc_ast_copy_node(cc_context* ctx,
         memset(dest->data.block.children, 0,
             sizeof(cc_ast_node) * src->data.block.n_children);
         for (i = 0; i < src->data.block.n_children; i++) {
-            cc_ast_node *expr_node = cc_ast_create_generic(
+            cc_ast_node* expr_node = cc_ast_create_generic(
                 ctx, dest, src->data.block.children[i].type);
             dest->data.block.children[i] = *expr_node;
             cc_free(expr_node);
-            cc_ast_copy_node(ctx,
-                &dest->data.block.children[i], &src->data.block.children[i]);
+            cc_ast_copy_node(ctx, &dest->data.block.children[i],
+                &src->data.block.children[i]);
         }
     } break;
     default:
@@ -675,7 +674,7 @@ cc_ast_node* cc_ast_find_label_id(
         return NULL;
     if (node->label_id == id)
         return node;
-    
+
     switch (node->type) {
     case AST_NODE_BINOP:
         if ((fnode = cc_ast_find_label_id(ctx, node->data.binop.left, id))
@@ -844,12 +843,12 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
 static void cc_ast_print_var(const cc_ast_variable* var)
 {
     size_t i;
-    if(var == NULL) {
+    if (var == NULL) {
         printf("<var (null)>");
         return;
     }
 
-    body_print_lock = true;   
+    body_print_lock = true;
     printf("<var %s ", var->name);
 
     switch (var->type.mode) {
@@ -863,7 +862,7 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         printf("(*)");
         break;
     }
-    
+
     for (i = 0; i <= var->type.n_cv_qual; ++i)
         if (var->type.cv_qual[i].is_array) {
             printf("[");
@@ -898,7 +897,7 @@ static void cc_ast_print_var(const cc_ast_variable* var)
         printf("(");
         for (i = 0; i < var->type.data.func.n_params; ++i)
             cc_ast_print_var(&var->type.data.func.params[i]);
-        if(var->type.data.func.variadic)
+        if (var->type.data.func.variadic)
             printf("<...>");
         printf(")");
         if (!body_print_lock && var->body != NULL)
@@ -942,7 +941,7 @@ void cc_ast_print(const cc_ast_node* node)
 
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
-            if(i + 1 < node->data.block.n_children)
+            if (i + 1 < node->data.block.n_children)
                 printf(",");
         }
         printf("}>");

@@ -348,9 +348,9 @@ static void cc_ssa_process_binop(
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
 
     /* Pointer with pointer arithmethic is illegal */
-    if(lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
+    if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
         abort();
-    else if(lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
+    else if (lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
         /* Obtain sizes from types iff they are pointers (to properly perform
         pointer arithmethic). */
         if (lhs_type.n_cv_qual > 0) {
@@ -397,32 +397,32 @@ static void cc_ssa_process_binop(
     }
 
     switch (node->data.binop.op) {
-#define HANDLE_POINTER_ARITH() \
-    if(lhs_psize || rhs_psize) { \
-        cc_ast_literal sizeof_lit; \
-        cc_ssa_param tmp_param; \
-        sizeof_lit.is_float = false; \
-        sizeof_lit.is_signed = false; \
-        sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize; \
-        tmp_param = cc_ssa_literal_to_param(&sizeof_lit); \
-        parith_param = cc_ssa_tempvar_param( \
-            ctx, lhs_psize ? &lhs_type : &rhs_type); \
-        /* Assignment is an unop here */ \
-        tok.type = SSA_TOKEN_MUL; \
-        tok.data.binop.left = parith_param; \
-        tok.data.binop.right = lhs_psize ? lhs_param : rhs_param; \
-        tok.data.binop.extra = tmp_param; \
-        tok.info = node->info; \
-        tok.info.filename = cc_strdup(node->info.filename); \
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok); \
-        memset(&tok, 0, sizeof(tok)); \
+#define HANDLE_POINTER_ARITH()                                                 \
+    if (lhs_psize || rhs_psize) {                                              \
+        cc_ast_literal sizeof_lit;                                             \
+        cc_ssa_param tmp_param;                                                \
+        sizeof_lit.is_float = false;                                           \
+        sizeof_lit.is_signed = false;                                          \
+        sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize;                \
+        tmp_param = cc_ssa_literal_to_param(&sizeof_lit);                      \
+        parith_param                                                           \
+            = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);    \
+        /* Assignment is an unop here */                                       \
+        tok.type = SSA_TOKEN_MUL;                                              \
+        tok.data.binop.left = parith_param;                                    \
+        tok.data.binop.right = lhs_psize ? lhs_param : rhs_param;              \
+        tok.data.binop.extra = tmp_param;                                      \
+        tok.info = node->info;                                                 \
+        tok.info.filename = cc_strdup(node->info.filename);                    \
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
+        memset(&tok, 0, sizeof(tok));                                          \
     }
     case AST_BINOP_ADD:
-HANDLE_POINTER_ARITH()
+        HANDLE_POINTER_ARITH()
         tok.type = SSA_TOKEN_ADD;
         break;
     case AST_BINOP_SUB:
-HANDLE_POINTER_ARITH()
+        HANDLE_POINTER_ARITH()
         tok.type = SSA_TOKEN_SUB;
         break;
 #undef HANDLE_POINTER_ARITH
@@ -442,7 +442,8 @@ HANDLE_POINTER_ARITH()
         tok.info = node->info;
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-    } return;
+    }
+        return;
     case AST_BINOP_GT:
         tok.type = SSA_TOKEN_GT;
         break;
@@ -481,9 +482,8 @@ static void cc_ssa_add_dummy_ret(cc_context* ctx, cc_ssa_func* func)
     cc_ssa_push_token(ctx, func, tok);
 }
 
-static void cc_ssa_process_block_1(
-    cc_context* ctx, const cc_ast_node* node, cc_ssa_param param,
-    const cc_ast_variable* var)
+static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
+    cc_ssa_param param, const cc_ast_variable* var)
 {
     cc_ssa_token tok = { 0 };
     if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
@@ -500,8 +500,7 @@ static void cc_ssa_process_block_1(
         ctx->func_has_return = false;
         cc_ssa_from_ast(ctx, var->body, none_param);
         if (!ctx->func_has_return) {
-            if (var->type.data.func.return_type->mode
-                != AST_TYPE_MODE_VOID) {
+            if (var->type.data.func.return_type->mode != AST_TYPE_MODE_VOID) {
                 cc_diag_error(
                     ctx, "Function that returns non-void doesn't return");
             } else {
@@ -512,8 +511,7 @@ static void cc_ssa_process_block_1(
         ctx->func_has_return = old_func_has_return;
         ctx->ssa_current_func = old_current_ssa_func;
 
-        ctx->ssa_funcs
-            = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
+        ctx->ssa_funcs = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
         ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
     } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
         /* Global variables are handled by a ctor function! */
@@ -536,7 +534,7 @@ static void cc_ssa_process_block_1(
             for (i = 0; i <= var->type.n_cv_qual; ++i)
                 if (var->type.cv_qual[i].is_vla)
                     is_comp = true;
-            
+
             /* Composite multidimensionals require more effort to produce
                and more tokens are emitted */
             if (is_comp) {
@@ -559,8 +557,8 @@ static void cc_ssa_process_block_1(
                         break;
                     assert(var->type.cv_qual[i].is_vla == false);
                     assert(var->type.cv_qual[i].array.size > 0);
-                    literal.value.u *=
-                        (unsigned int)var->type.cv_qual[i].array.size;
+                    literal.value.u
+                        *= (unsigned int)var->type.cv_qual[i].array.size;
                 }
                 tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
                 cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -647,7 +645,7 @@ static void cc_ssa_process_if(
     if (node->data.if_expr.block == NULL
         && node->data.if_expr.tail_else == NULL)
         return;
-    
+
     tok.type = SSA_TOKEN_BRANCH;
     tok.data.branch.eval = cond_param;
 
@@ -706,7 +704,8 @@ static void cc_ssa_process_literal(
     tok.data.unop.left = param;
     tok.data.unop.right = literal_param;
     tok.info = node->info;
-    tok.info.filename = tok.info.filename == NULL ? NULL : cc_strdup(node->info.filename);
+    tok.info.filename
+        = tok.info.filename == NULL ? NULL : cc_strdup(node->info.filename);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -793,9 +792,9 @@ static void cc_ssa_process_variable(
     cc_ssa_token tok = { 0 };
     const cc_ast_variable* var;
     cc_ssa_param var_param;
-    
-    var = cc_ast_find_variable(ctx->ssa_current_func->ast_var->name,
-            node->data.var.name, node);
+
+    var = cc_ast_find_variable(
+        ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
     var_param = cc_ssa_variable_to_param(ctx, var);
 
     tok.type = SSA_TOKEN_ASSIGN;
@@ -1024,51 +1023,43 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
 }
 
 /* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_param(cc_ssa_param param,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_param(cc_ssa_param param, unsigned int tmpid)
 {
     return param.type == SSA_PARAM_TMPVAR && param.data.tmpid == tmpid;
 }
 /* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_binop(const cc_ssa_token* tok,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_binop(const cc_ssa_token* tok, unsigned int tmpid)
 {
     return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
         || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
         || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
 }
 /* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_unop(const cc_ssa_token* tok,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_unop(const cc_ssa_token* tok, unsigned int tmpid)
 {
     return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
         || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
 }
 /* Helper function for cc_ssa_is_livetmp_func */
-static bool cc_ssa_is_livetmp_call(const cc_ssa_token* tok,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_call(const cc_ssa_token* tok, unsigned int tmpid)
 {
     size_t i;
     bool b = false;
-    b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid)
-        ? true : b;
-    b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid)
-        ? true : b;
+    b = cc_ssa_is_livetmp_param(tok->data.call.left, tmpid) ? true : b;
+    b = cc_ssa_is_livetmp_param(tok->data.call.right, tmpid) ? true : b;
     for (i = 0; i < tok->data.call.n_params; i++)
-        b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid)
-            ? true : b;
+        b = cc_ssa_is_livetmp_param(tok->data.call.params[i], tmpid) ? true : b;
     return b;
 }
-static bool cc_ssa_is_livetmp_alloca(const cc_ssa_token* tok,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_alloca(
+    const cc_ssa_token* tok, unsigned int tmpid)
 {
     return cc_ssa_is_livetmp_param(tok->data.alloca.left, tmpid)
         || cc_ssa_is_livetmp_param(tok->data.alloca.size, tmpid)
         || cc_ssa_is_livetmp_param(tok->data.alloca.align, tmpid);
 }
 /* Checks if a temporal with id tmpid is live within a given token */
-static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok,
-    unsigned int tmpid)
+static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
 {
     switch (tok->type) {
     case SSA_TOKEN_ASSIGN:
@@ -1109,8 +1100,7 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok,
     return false;
 }
 /* Obtains the location where the temporal was last live. */
-static size_t cc_ssa_get_livetmp_location(cc_ssa_func* func,
-    unsigned int tmpid)
+static size_t cc_ssa_get_livetmp_location(cc_ssa_func* func, unsigned int tmpid)
 {
     size_t last = 0;
     size_t i;
@@ -1223,8 +1213,7 @@ void cc_ssa_top(cc_context* ctx)
     ctx->ssa_current_func = &static_ctor_func;
     cc_ssa_from_ast(ctx, ctx->root, none_param);
     /* Add the ctor function to the list of functions */
-    ctx->ssa_funcs
-        = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
+    ctx->ssa_funcs = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
     ctx->ssa_funcs[ctx->n_ssa_funcs++] = static_ctor_func;
     ctx->ssa_current_func = NULL;
 

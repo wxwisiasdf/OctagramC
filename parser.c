@@ -348,8 +348,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
             const cc_ast_variable* var = cc_ast_find_variable(
                 cc_get_cfunc_name(ctx), ctok->data, node);
             if (var == NULL)
-                cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data,
-                    node->parent);
+                cc_ast_find_variable(
+                    cc_get_cfunc_name(ctx), ctok->data, node->parent);
 
             if (var != NULL) { /* Variable reference OR call/assignment */
                 cc_parse_expression(ctx, node);
@@ -371,7 +371,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                         = cc_zalloc(sizeof(cc_ast_type));
                     nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
                     cc_ast_add_block_variable(node, &nvar);
-                    
+
                     cc_diag_warning(ctx, "Implicit function declaration");
                     return cc_parse_compund_statment(ctx, node);
                 } else {

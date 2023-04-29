@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *cc_get_cfunc_name(const cc_context *ctx)
+const char* cc_get_cfunc_name(const cc_context* ctx)
 {
     if (ctx->ssa_current_func != NULL)
         return ctx->ssa_current_func->ast_var->name;

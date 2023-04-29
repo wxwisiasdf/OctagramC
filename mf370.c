@@ -210,7 +210,7 @@ static void cc_mf370_gen_assign(
     case SSA_PARAM_VARIABLE: {
         enum cc_mf370_reg val_regno;
         enum cc_mf370_reg ptr_regno;
-        
+
         val_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 1);
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:

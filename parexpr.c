@@ -47,12 +47,12 @@ static bool cc_parse_cast_expression_1(
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && (ctok->type == LEXER_TOKEN_LPAREN)) { /* (cast) */
-        cc_ast_node *cast_node;
+        && (ctok->type == LEXER_TOKEN_LPAREN)) { /* (cast) */
+        cc_ast_node* cast_node;
         cc_lex_token_consume(ctx);
         cast_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_CAST);
         if (!cc_parse_type_name(ctx, cast_node, &cast_node->data.unop.cast)) {
-            if(diag) {
+            if (diag) {
                 cc_diag_error(ctx, "Cast expected a typename");
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
             } else {
@@ -103,23 +103,22 @@ error_handle:
         cc_ast_node* block_node = cc_ast_create_block(ctx, node);              \
         if (lw_fn_name(ctx, block_node)) {                                     \
             const cc_lexer_token* ctok;                                        \
-            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL                     \
-                && (tok_cond)) {                                               \
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL && (tok_cond)) {    \
                 cc_ast_node* binop_node                                        \
                     = cc_ast_create_binop_expr(ctx, node, binop_cond);         \
                 cc_lex_token_consume(ctx);                                     \
                 block_node->parent = binop_node->data.binop.left;              \
                 cc_ast_add_block_node(                                         \
                     binop_node->data.binop.left, block_node);                  \
-                cc_optimizer_merge_block(ctx, &binop_node->data.binop.left,    \
-                    true);                                                     \
+                cc_optimizer_merge_block(                                      \
+                    ctx, &binop_node->data.binop.left, true);                  \
                 fn_name(ctx, binop_node->data.binop.right);                    \
-                cc_optimizer_merge_block(ctx, &binop_node->data.binop.right,   \
-                    true);                                                     \
+                cc_optimizer_merge_block(                                      \
+                    ctx, &binop_node->data.binop.right, true);                 \
                 block_node = binop_node;                                       \
             }                                                                  \
             cc_optimizer_merge_block(ctx, &block_node, true);                  \
-            if(block_node != NULL)                                             \
+            if (block_node != NULL)                                            \
                 cc_ast_add_block_node(node, block_node);                       \
             return true;                                                       \
         }                                                                      \
@@ -130,24 +129,24 @@ error_handle:
 CC_PARSER_OPERATOR_FN(cc_parse_multiplicative_expression,
     cc_parse_cast_expression,
     ctok->type == LEXER_TOKEN_ASTERISK || ctok->type == LEXER_TOKEN_MOD
-    || ctok->type == LEXER_TOKEN_DIV,
-    ctok->type == LEXER_TOKEN_ASTERISK ? AST_BINOP_MUL :
-        ctok->type == LEXER_TOKEN_MOD ? AST_BINOP_MOD : AST_BINOP_DIV)
+        || ctok->type == LEXER_TOKEN_DIV,
+    ctok->type == LEXER_TOKEN_ASTERISK  ? AST_BINOP_MUL
+        : ctok->type == LEXER_TOKEN_MOD ? AST_BINOP_MOD
+                                        : AST_BINOP_DIV)
 CC_PARSER_OPERATOR_FN(cc_parse_additive_expression,
     cc_parse_multiplicative_expression,
     ctok->type == LEXER_TOKEN_PLUS || ctok->type == LEXER_TOKEN_MINUS,
     ctok->type == LEXER_TOKEN_PLUS ? AST_BINOP_ADD : AST_BINOP_SUB)
-CC_PARSER_OPERATOR_FN(cc_parse_shift_expression,
-    cc_parse_additive_expression,
+CC_PARSER_OPERATOR_FN(cc_parse_shift_expression, cc_parse_additive_expression,
     ctok->type == LEXER_TOKEN_LSHIFT || ctok->type == LEXER_TOKEN_RSHIFT,
     ctok->type == LEXER_TOKEN_LSHIFT ? AST_BINOP_LSHIFT : AST_BINOP_RSHIFT)
-CC_PARSER_OPERATOR_FN(cc_parse_relational_expression,
-    cc_parse_shift_expression,
+CC_PARSER_OPERATOR_FN(cc_parse_relational_expression, cc_parse_shift_expression,
     ctok->type == LEXER_TOKEN_GT || ctok->type == LEXER_TOKEN_GTE
-    || ctok->type == LEXER_TOKEN_LT || ctok->type == LEXER_TOKEN_LTE,
-    ctok->type == LEXER_TOKEN_GT ? AST_BINOP_GT : ctok->type == LEXER_TOKEN_GTE
-    ? AST_BINOP_GTE : ctok->type == LEXER_TOKEN_LT ? AST_BINOP_LT
-    : AST_BINOP_LTE)
+        || ctok->type == LEXER_TOKEN_LT || ctok->type == LEXER_TOKEN_LTE,
+    ctok->type == LEXER_TOKEN_GT        ? AST_BINOP_GT
+        : ctok->type == LEXER_TOKEN_GTE ? AST_BINOP_GTE
+        : ctok->type == LEXER_TOKEN_LT  ? AST_BINOP_LT
+                                        : AST_BINOP_LTE)
 CC_PARSER_OPERATOR_FN(cc_parse_equality_expression,
     cc_parse_relational_expression,
     ctok->type == LEXER_TOKEN_COND_EQ || ctok->type == LEXER_TOKEN_COND_NEQ,
@@ -275,15 +274,15 @@ bool cc_parse_assignment_expression(
         cc_ast_add_block_node(assign_node->data.binop.left, var_node);
     }
     /* Match the assignment operator... */
-    if(cc_parse_assignment_operator(ctx, &binop_type)) {
+    if (cc_parse_assignment_operator(ctx, &binop_type)) {
         /* Expand assignment <lhs> += <rhs> into <lhs> = <lhs> + <rhs> */
         assert(binop_type != AST_BINOP_NONE);
         if (binop_type != AST_BINOP_ASSIGN) {
             cc_ast_node* binop_node = cc_ast_create_binop_expr(
                 ctx, assign_node->data.binop.right, binop_type);
             assign_node->data.binop.op = AST_BINOP_ASSIGN;
-            cc_ast_copy_node(ctx,
-                binop_node->data.binop.left, assign_node->data.binop.left);
+            cc_ast_copy_node(
+                ctx, binop_node->data.binop.left, assign_node->data.binop.left);
             cc_parse_assignment_expression(
                 ctx, binop_node->data.binop.right, NULL);
             cc_ast_add_block_node(assign_node->data.binop.right, binop_node);
@@ -376,8 +375,8 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         cc_ast_variable virtual_var = { 0 };
         cc_lex_token_consume(ctx);
         if (!cc_parse_type_name(ctx, virtual_node, &virtual_var.type)) {
-            cc_diag_error(ctx,
-                "Expected unary expression after alignof/sizeof");
+            cc_diag_error(
+                ctx, "Expected unary expression after alignof/sizeof");
             ctx->declaration_ident_optional = old_v;
             cc_ast_destroy_node(virtual_node, true);
             goto error_handle;
@@ -409,7 +408,7 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     }
     cc_ast_destroy_node(virtual_node, true);
 
-    if(virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
+    if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
         if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_vla) {
             /* VLA type uses a node that needs to be computed at runtime! */
             const cc_ast_node* array_size_expr
@@ -429,18 +428,18 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
             cc_ast_literal tmp_literal = { 0 };
             tmp_literal.is_float = tmp_literal.is_signed = false;
             tmp_literal.value.u = r;
-            cc_ast_add_block_node(node,
-                cc_ast_create_literal(ctx, node, tmp_literal));
+            cc_ast_add_block_node(
+                node, cc_ast_create_literal(ctx, node, tmp_literal));
         }
     } else {
         unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
-                    : ctx->get_sizeof(ctx, &virtual_type);
+                                    : ctx->get_sizeof(ctx, &virtual_type);
         cc_ast_literal tmp_literal = { 0 };
         cc_ast_node* literal_node;
         tmp_literal.is_float = tmp_literal.is_signed = false;
         tmp_literal.value.u = r;
-        cc_ast_add_block_node(node,
-            cc_ast_create_literal(ctx, node, tmp_literal));
+        cc_ast_add_block_node(
+            node, cc_ast_create_literal(ctx, node, tmp_literal));
     }
     return true;
 error_handle:
@@ -471,11 +470,12 @@ static void cc_lint_call_node(
         && !type.data.func.variadic) {
         cc_diag_error(ctx,
             "Too many parameters on call to non-variadic function ("
-            "expected %u)", (unsigned int)type.data.func.n_params);
+            "expected %u)",
+            (unsigned int)type.data.func.n_params);
         goto error_handle;
-    } else if (
-        node->data.call.n_params < type.data.func.n_params) {
-        cc_diag_error(ctx, "Too few parameters on call to %s function ("
+    } else if (node->data.call.n_params < type.data.func.n_params) {
+        cc_diag_error(ctx,
+            "Too few parameters on call to %s function ("
             "expected %u)",
             type.data.func.variadic ? "variadic" : "non-variadic",
             (unsigned int)type.data.func.n_params);
@@ -490,26 +490,27 @@ static void cc_lint_call_node(
       printf(); - Is not valid
       printf("hi"); - Is valid */
     for (i = 0; i < node->data.call.n_params && i < type.data.func.n_params;
-        ++i) {
+         ++i) {
         cc_ast_type call_param_type = { 0 };
-        if (cc_ceval_deduce_type(ctx, &node->data.call.params[i],
-                &call_param_type)) {
+        if (cc_ceval_deduce_type(
+                ctx, &node->data.call.params[i], &call_param_type)) {
             cc_ast_variable* param = &type.data.func.params[i];
             /* Expect pointer, but obtained non-pointer */
-            if (param->type.n_cv_qual > 0
-                && call_param_type.n_cv_qual == 0) {
-                cc_diag_warning(ctx, "Passing argument to %i '%s'; implicitly "
+            if (param->type.n_cv_qual > 0 && call_param_type.n_cv_qual == 0) {
+                cc_diag_warning(ctx,
+                    "Passing argument to %i '%s'; implicitly "
                     "converting to a pointer",
                     i + 1,
                     param->type.name == NULL ? "<anonymous>"
                                              : param->type.name);
             } else if (param->type.n_cv_qual != call_param_type.n_cv_qual)
-                cc_diag_warning(ctx, "Difference in pointer depth in "
-                    "argument %i", i + 1);
+                cc_diag_warning(ctx,
+                    "Difference in pointer depth in "
+                    "argument %i",
+                    i + 1);
         }
     }
-error_handle:
-    ;
+error_handle:;
 }
 
 /* Parses the postfix operator part of the postfix expression. The parent
@@ -517,7 +518,7 @@ error_handle:
    in such a way that expr_node->parent is no longer node, but rather
    another node. This is needed for increments and decrements for example. */
 static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
-    cc_ast_node* expr_node, bool *parent_rerouted)
+    cc_ast_node* expr_node, bool* parent_rerouted)
 {
     /* With postfix increment we will do a:
         <unop <op> <expr-node>> */
@@ -644,7 +645,8 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                 ctx, "Unable to deduce type for runtime-evaluated call");
             goto error_handle;
         }
-    } return true;
+    }
+        return true;
     default:
         break;
     }
@@ -661,14 +663,15 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
         return false;
 
     expr_node = cc_ast_create_block(ctx, node);
-    if(cc_parse_primary_expression(ctx, expr_node)) {
+    if (cc_parse_primary_expression(ctx, expr_node)) {
         /* Optional operator after primary expression uwu */
         cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted);
-    } else if(cc_parse_postfix_operator(ctx, node, expr_node, &parent_rerouted)) {
+    } else if (cc_parse_postfix_operator(
+                   ctx, node, expr_node, &parent_rerouted)) {
 
     } else
         goto error_handle;
-    if(!parent_rerouted) {
+    if (!parent_rerouted) {
         cc_ast_add_block_node(node, expr_node);
     }
     return true;
@@ -685,9 +688,9 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
     if (cc_parse_postfix_expression(ctx, node))
         return true;
     else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        cc_ast_node *binop_node = NULL;
-        cc_ast_node *literal_node = NULL;
-        cc_ast_node *unop_node = NULL;
+        cc_ast_node* binop_node = NULL;
+        cc_ast_node* literal_node = NULL;
+        cc_ast_node* unop_node = NULL;
         switch (ctok->type) {
         case LEXER_TOKEN_PLUS: /* Prefix +*/
             cc_lex_token_consume(ctx);
@@ -770,8 +773,8 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
         expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
         break;
     case LEXER_TOKEN_IDENT: {
-        const cc_ast_variable* var = cc_ast_find_variable(
-            cc_get_cfunc_name(ctx), ctok->data, node);
+        const cc_ast_variable* var
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
         cc_lex_token_consume(ctx);
         if (var == NULL) {
             cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
@@ -791,7 +794,7 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
             cc_get_cfunc_name(ctx) != NULL ? cc_get_cfunc_name(ctx) : "");
         break;
     case LEXER_TOKEN_LPAREN: {
-        cc_ast_type tmp_type = {0};
+        cc_ast_type tmp_type = { 0 };
 
         if (ctx->parsing_sizeof) {
             cc_lex_token_consume(ctx);
@@ -808,10 +811,8 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
 
         expr_node = cc_ast_create_block(ctx, node);
         if (!cc_parse_expression(ctx, expr_node)) {
-            cc_diag_error(
-                ctx, "Malformed expression within parenthesis");
-            CC_PARSE_EXPECT(
-                ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+            cc_diag_error(ctx, "Malformed expression within parenthesis");
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
             goto error_handle;
         }
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
