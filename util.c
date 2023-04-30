@@ -40,7 +40,8 @@ void cc_alloc_deinit(void)
         }
     }
     printf("Final used memory: %.2f KB (%u bytes accross %u objects)\n",
-        (float)total / 1000.f, (unsigned int)total, (unsigned int)g_alloc_ctx.n_ptrs);
+        (float)total / 1000.f, (unsigned int)total,
+        (unsigned int)g_alloc_ctx.n_ptrs);
     printf("%.2f%% was used for strings: %.2f KB (%u bytes accross %u "
            "strings)\n",
         100.f * ((float)total_string / (float)total), total_string / 1000.f,
@@ -150,7 +151,7 @@ char* cc_strdup(const char* s)
 {
     size_t len;
     char* ns;
-    
+
     assert(s != NULL);
     len = strlen(s);
 

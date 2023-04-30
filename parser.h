@@ -10,7 +10,7 @@
     do {                                                                       \
         if (((ctok) = cc_lex_token_peek(ctx, 0)) == NULL                       \
             || (ctok)->type != _type) {                                        \
-            cc_diag_error(ctx, msg);                                   \
+            cc_diag_error(ctx, msg);                                           \
             cc_lex_token_consume(ctx);                                         \
             goto error_handle;                                                 \
         }                                                                      \

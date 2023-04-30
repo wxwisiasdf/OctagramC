@@ -258,25 +258,6 @@ static void cc_mf370_gen_assign(
             abort();
         }
         break;
-    case SSA_PARAM_RETVAL:
-        switch (rhs->type) {
-        case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tL\tR15,=F'%lu'\n", rhs->data.constant.value.u);
-            if (rhs->data.constant.is_negative)
-                fprintf(ctx->out, "\tM\tR15,-1\n");
-            break;
-        case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tLA\tR15,=A(%s)\n",
-                cc_mf370_logical_label(rhs->data.var_name));
-            fprintf(ctx->out, "\tL\tR15,(R0)\n");
-            break;
-        case SSA_PARAM_TMPVAR:
-            fprintf(ctx->out, "\tLR\tR15,R0\n");
-            break;
-        default:
-            abort();
-        }
-        break;
     default:
         abort();
     }
@@ -294,9 +275,6 @@ static void cc_mf370_gen_call_param(
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tST\tR0,%u(R13)\n", offset);
-        break;
-    case SSA_PARAM_RETVAL:
-        fprintf(ctx->out, "\tST\tR15,%u(R13)\n", offset);
         break;
     case SSA_PARAM_STRING_LITERAL:
         fprintf(ctx->out, "\tLA\tR1,=A(@@A%u)\n", param->data.string.tmpid);
@@ -325,7 +303,7 @@ static void cc_mf370_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     cc_ssa_param lhs = tok->data.binop.left;
     cc_ssa_param rhs[2];
     cc_ssa_param tmp[2];
-    
+
     rhs[0] = tok->data.binop.right;
     rhs[1] = tok->data.binop.extra;
 

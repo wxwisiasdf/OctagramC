@@ -15,7 +15,6 @@ enum cc_ssa_param_type {
     SSA_PARAM_CONSTANT, /* Constant literal */
     SSA_PARAM_STRING_LITERAL, /* Treated uniquely */
     SSA_PARAM_VARIABLE, /* Non-temporal */
-    SSA_PARAM_RETVAL,
     SSA_PARAM_TMPVAR, /* Unnamed temporal variable */
     SSA_PARAM_LABEL
 };
@@ -138,6 +137,7 @@ typedef struct cc_ssa_token {
         } branch;
         cc_ssa_param dropped;
         cc_ssa_param jump_target;
+        cc_ssa_param retval;
         unsigned short label_id;
     } data;
 } cc_ssa_token;

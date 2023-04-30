@@ -421,8 +421,8 @@ static bool cc_parse_typeof_specifier(
         /* Unqualify if typeof_unqual is used */
         for (i = 0; unqual && i < type->n_cv_qual; i++) {
             cc_ast_type_cv* cv_qual = &type->cv_qual[i];
-            cv_qual->is_atomic = cv_qual->is_const = cv_qual->is_restrict =
-                cv_qual->is_volatile = false;
+            cv_qual->is_atomic = cv_qual->is_const = cv_qual->is_restrict
+                = cv_qual->is_volatile = false;
         }
         return true;
     }
@@ -476,7 +476,7 @@ bool cc_parse_type_specifier(
         break;
     case LEXER_TOKEN__BitInt: {
         cc_ast_literal literal = { 0 };
-        
+
         type->mode = AST_TYPE_MODE_BITINT;
         ctok = cc_lex_token_consume(ctx);
         ctok = cc_lex_token_consume(ctx);
@@ -876,7 +876,9 @@ ignore_missing_ident:
                 param = &var->type.data.func
                              .params[var->type.data.func.n_params++];
                 cc_ast_copy_type(&param->type, &virtual_param_var.type);
+
                 param->name = NULL;
+                param->storage = AST_STORAGE_AUTO; /* Auto storage... */
                 if (virtual_param_var.name != NULL)
                     param->name = cc_strdup(virtual_param_var.name);
 

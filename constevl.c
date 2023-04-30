@@ -250,7 +250,7 @@ static cc_ast_literal cc_ceval_eval_1(
             cc_ceval_io ceval_io = { 0 };
             ceval_io.name = var->type.data.func.params[i].name;
             ceval_io.literal = cc_ceval_eval(ctx, &node->data.call.params[i]);
-            
+
             *list = cc_realloc_array(*list, *n_list + 1);
             (*list)[(*n_list)++] = ceval_io;
         }

@@ -581,8 +581,7 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
 
         /* Create an expression of the form:
             <unop deref <binop <array> + index>>*/
-        arr_deref_node
-            = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
+        arr_deref_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
         arr_index_node = cc_ast_create_binop_expr(
             ctx, arr_deref_node->data.unop.child, AST_BINOP_ADD);
         expr_node->parent = arr_index_node->data.binop.left;

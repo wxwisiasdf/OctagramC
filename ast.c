@@ -839,11 +839,14 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
     }
 }
 
-static void cc_ast_print_var(const cc_ast_variable* var)
+static void cc_ast_print_var(const cc_ast_variable* var, const char* name)
 {
     size_t i;
     if (var == NULL) {
-        printf("<var (null)>");
+        if (name == NULL)
+            printf("<var (null)>");
+        else
+            printf("<var %s (unscoped)>", name);
         return;
     }
 
@@ -891,11 +894,11 @@ static void cc_ast_print_var(const cc_ast_variable* var)
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
         /*printf("(return ");
-        cc_ast_print_var(var->type.data.func.return_type);
+        cc_ast_print_var(var->type.data.func.return_type, NULL);
         printf(")");*/
         printf("(");
         for (i = 0; i < var->type.data.func.n_params; ++i)
-            cc_ast_print_var(&var->type.data.func.params[i]);
+            cc_ast_print_var(&var->type.data.func.params[i], NULL);
         if (var->type.data.func.variadic)
             printf("<...>");
         printf(")");
@@ -936,7 +939,7 @@ void cc_ast_print(const cc_ast_node* node)
         }
 
         for (i = 0; i < node->data.block.n_vars; i++)
-            cc_ast_print_var(&node->data.block.vars[i]);
+            cc_ast_print_var(&node->data.block.vars[i], NULL);
 
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
@@ -1027,7 +1030,8 @@ void cc_ast_print(const cc_ast_node* node)
         printf(">");
         break;
     case AST_NODE_VARIABLE:
-        cc_ast_print_var(cc_ast_find_variable(NULL, node->data.var.name, node));
+        cc_ast_print_var(cc_ast_find_variable(NULL, node->data.var.name, node),
+            node->data.var.name);
         break;
     default:
         printf("<?{%i}>", node->type);

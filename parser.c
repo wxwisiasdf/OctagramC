@@ -82,8 +82,7 @@ static bool cc_parse_iteration_statment(cc_context* ctx, cc_ast_node* node)
         cc_parse_expression(ctx, if_node->data.if_expr.cond);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
 
-        step_node
-            = cc_ast_create_block(ctx, if_node->data.if_expr.block);
+        step_node = cc_ast_create_block(ctx, if_node->data.if_expr.block);
         cc_parse_expression(ctx, step_node);
 
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
@@ -371,8 +370,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     ctx, "Continue not within lexicographical context");
                 goto error_handle;
             }
-            continue_node
-                = cc_ast_create_jump(ctx, node, ctx->continue_node);
+            continue_node = cc_ast_create_jump(ctx, node, ctx->continue_node);
             cc_ast_add_block_node(node, continue_node);
         } break;
         case LEXER_TOKEN_break: {
@@ -382,8 +380,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 cc_diag_error(ctx, "Break not within lexicographical context");
                 goto error_handle;
             }
-            break_node
-                = cc_ast_create_jump(ctx, node, ctx->break_node);
+            break_node = cc_ast_create_jump(ctx, node, ctx->break_node);
             cc_ast_add_block_node(node, break_node);
         } break;
         case LEXER_TOKEN_return: {
