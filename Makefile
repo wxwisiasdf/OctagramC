@@ -1,11 +1,11 @@
-CC = gcc
-CFLAGS = -ansi -DTARGET_AS386=1 -DANSI_COLOUR=1 -Wall -Wextra -pedantic \
+CC = clang
+CFLAGS = -ftime-trace -ansi -DTARGET_AS386=1 -DANSI_COLOUR=1 -Wall -Wextra -pedantic \
 	-Wno-unused-parameter -O0 -g -fsanitize=undefined
 all: build
 
 run: all
 #	valgrind --leak-check=full --track-origins=yes ./occ hello.c -print-ast
-	gdb --args ./occ hello.c -print-ast
+	gdb --args ./occ hello.c -print-ast -o hello.s
 
 build: occ
 
