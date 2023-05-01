@@ -5,8 +5,7 @@ LD=ldwin
 CFLAGS=-S -O2 -fno-common -ansi -I. -I../pdos/pdpclib -D__WIN32__ \
   -D__NOBIVA__ -DTARGET_AS386=1
 # -DTARGET_AS386=1
-OBJS=as386.o diag.o ast.o optzer.o constevl.o lexer.o parser.o main.o util.o \
-     mf370.o parexpr.o ssa.o partyp.o
+OBJS=main.o
 
 all: clean occ.exe
 

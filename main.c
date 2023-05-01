@@ -25,6 +25,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.c"
+#include "constevl.c"
+/*#include "context.c"*/
+#include "diag.c"
+#include "lexer.c"
+#include "optzer.c"
+#include "parexpr.c"
+#include "parser.c"
+#include "partyp.c"
+#include "ssa.c"
+#include "util.c"
+#ifdef TARGET_AS386
+#include "as386.c"
+#elif defined(TARGET_MF370)
+#include "mf370.c"
+#endif
+
 const char* cc_get_cfunc_name(const cc_context* ctx)
 {
     if (ctx->ssa_current_func != NULL)
