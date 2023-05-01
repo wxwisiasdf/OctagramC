@@ -1,6 +1,11 @@
-*.o
-*.out
-.vscode/
-*.S
-occ
-*.in
+*
+!.gitignore
+!.gdbinit
+!.clang-format
+!*.bat
+!*.sh
+!*.c
+!*.h
+!*.jcl
+!Makefile
+!Makefile.*
