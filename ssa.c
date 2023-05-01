@@ -322,8 +322,8 @@ static void cc_ssa_process_binop(
 {
     cc_ssa_token tok = { 0 };
     cc_ast_type lhs_type = { 0 };
-    cc_ssa_param lhs_param;
     cc_ast_type rhs_type = { 0 };
+    cc_ssa_param lhs_param;
     cc_ssa_param rhs_param;
     cc_ssa_param parith_param;
     unsigned int lhs_psize = 0;
@@ -357,120 +357,109 @@ static void cc_ssa_process_binop(
     if (lhs_psize || rhs_psize) {
         cc_ssa_param tmp_param
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);
-        if (lhs_psize) {
-            cc_ssa_from_ast(ctx, node->data.binop.left, tmp_param);
-            cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
 
-            memset(&tok, 0, sizeof(tok));
-            tok.type = SSA_TOKEN_ASSIGN;
-            tok.data.unop.left = lhs_param;
-            tok.data.unop.right = tmp_param;
-            tok.info = node->info;
-            tok.info.filename = cc_strdup(node->info.filename);
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        } else {
-            cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
-            cc_ssa_from_ast(ctx, node->data.binop.right, tmp_param);
-
-            memset(&tok, 0, sizeof(tok));
-            tok.type = SSA_TOKEN_ASSIGN;
-            tok.data.unop.left = rhs_param;
-            tok.data.unop.right = tmp_param;
-            tok.info = node->info;
-            tok.info.filename = cc_strdup(node->info.filename);
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        }
-    } else {
-        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
-        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
-    }
-
-    switch (node->data.binop.op) {
-#define HANDLE_POINTER_ARITH()                                                 \
-    do {                                                                       \
-        if (lhs_psize || rhs_psize) {                                          \
-            cc_ast_literal sizeof_lit;                                         \
-            cc_ssa_param tmp_param;                                            \
-            sizeof_lit.is_float = false;                                       \
-            sizeof_lit.is_signed = false;                                      \
-            sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize;            \
-            tmp_param = cc_ssa_literal_to_param(&sizeof_lit);                  \
-            parith_param = cc_ssa_tempvar_param(                               \
-                ctx, lhs_psize ? &lhs_type : &rhs_type);                       \
-            /* Assignment is an unop here */                                   \
-            tok.type = SSA_TOKEN_MUL;                                          \
-            tok.data.binop.left = parith_param;                                \
-            tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;          \
-            tok.data.binop.extra = tmp_param;                                  \
-            tok.info = node->info;                                             \
-            tok.info.filename = cc_strdup(node->info.filename);                \
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                \
-            memset(&tok, 0, sizeof(tok));                                      \
-        }                                                                      \
-    } while (0)
-    case AST_BINOP_ADD:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_ADD;
-        break;
-    case AST_BINOP_SUB:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_SUB;
-        break;
-#undef HANDLE_POINTER_ARITH
-#define HANDLE_POINTER_ARITH()                                                 \
-    do {                                                                       \
-        if (lhs_psize || rhs_psize)                                            \
-            abort();                                                           \
-    } while (0)
-    case AST_BINOP_MUL:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_MUL;
-        break;
-    case AST_BINOP_DIV:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_DIV;
-        break;
-    case AST_BINOP_ASSIGN: {
-        HANDLE_POINTER_ARITH();
-        /* Generate a sequence of tokens so we store the data onto lhs */
-        /* Assignment is an unop here */
+        cc_ssa_from_ast(
+            ctx, node->data.binop.left, lhs_psize ? tmp_param : lhs_param);
+        cc_ssa_from_ast(
+            ctx, node->data.binop.right, lhs_psize ? rhs_param : tmp_param);
         memset(&tok, 0, sizeof(tok));
-        tok.type = SSA_TOKEN_STORE_FROM;
-        tok.data.unop.left = lhs_param;
-        tok.data.unop.right = rhs_param;
+        tok.type = SSA_TOKEN_ASSIGN;
+        tok.data.unop.left = lhs_psize ? lhs_param : rhs_param;
+        tok.data.unop.right = tmp_param;
         tok.info = node->info;
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-    }
-        return;
-    case AST_BINOP_GT:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_GT;
-        break;
-    case AST_BINOP_GTE:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_GTE;
-        break;
-    case AST_BINOP_LT:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_LT;
-        break;
-    case AST_BINOP_LTE:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_LTE;
-        break;
-    case AST_BINOP_COND_EQ:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_EQ;
-        break;
-    case AST_BINOP_COND_NEQ:
-        HANDLE_POINTER_ARITH();
-        tok.type = SSA_TOKEN_NEQ;
-        break;
-    default:
-        abort();
-    }
+        memset(&tok, 0, sizeof(tok));
 
+        switch (node->data.binop.op) {
+#define HANDLE_POINTER_ARITH()                                                 \
+    do {                                                                       \
+        cc_ast_literal sizeof_lit;                                             \
+        cc_ssa_param tmp_param;                                                \
+        sizeof_lit.is_float = false;                                           \
+        sizeof_lit.is_signed = false;                                          \
+        sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize;                \
+        tmp_param = cc_ssa_literal_to_param(&sizeof_lit);                      \
+        parith_param                                                           \
+            = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);    \
+        /* Assignment is an unop here */                                       \
+        tok.type = SSA_TOKEN_MUL;                                              \
+        tok.data.binop.left = parith_param;                                    \
+        tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
+        tok.data.binop.extra = tmp_param;                                      \
+        tok.info = node->info;                                                 \
+        tok.info.filename = cc_strdup(node->info.filename);                    \
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
+        memset(&tok, 0, sizeof(tok));                                          \
+    } while (0)
+        case AST_BINOP_ADD:
+            HANDLE_POINTER_ARITH();
+            tok.type = SSA_TOKEN_ADD;
+            break;
+        case AST_BINOP_SUB:
+            HANDLE_POINTER_ARITH();
+            tok.type = SSA_TOKEN_SUB;
+            break;
+        default:
+            abort();
+        }
+#undef HANDLE_POINTER_ARITH
+        assert(parith_param.type != SSA_PARAM_NONE);
+    } else {
+        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+
+        switch (node->data.binop.op) {
+        case AST_BINOP_ADD:
+            tok.type = SSA_TOKEN_ADD;
+            break;
+        case AST_BINOP_SUB:
+            tok.type = SSA_TOKEN_SUB;
+            break;
+        case AST_BINOP_MUL:
+            tok.type = SSA_TOKEN_MUL;
+            break;
+        case AST_BINOP_DIV:
+            tok.type = SSA_TOKEN_DIV;
+            break;
+        case AST_BINOP_ASSIGN: {
+            /* Generate a sequence of tokens so we store the data onto lhs */
+            /* Assignment is an unop here */
+            memset(&tok, 0, sizeof(tok));
+            tok.type = SSA_TOKEN_STORE_FROM;
+            tok.data.unop.left = lhs_param;
+            tok.data.unop.right = rhs_param;
+            tok.info = node->info;
+            tok.info.filename = cc_strdup(node->info.filename);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+            return;
+        }
+        case AST_BINOP_GT:
+            tok.type = SSA_TOKEN_GT;
+            break;
+        case AST_BINOP_GTE:
+            tok.type = SSA_TOKEN_GTE;
+            break;
+        case AST_BINOP_LT:
+            tok.type = SSA_TOKEN_LT;
+            break;
+        case AST_BINOP_LTE:
+            tok.type = SSA_TOKEN_LTE;
+            break;
+        case AST_BINOP_COND_EQ:
+            tok.type = SSA_TOKEN_EQ;
+            break;
+        case AST_BINOP_COND_NEQ:
+            tok.type = SSA_TOKEN_NEQ;
+            break;
+        default:
+            abort();
+        }
+    }
+    /* Pointer arithmethic with other pointers isn't allowed */
+    assert((lhs_psize != 0 && rhs_psize == 0)
+        || (lhs_psize == 0 && rhs_psize != 0)
+        || (lhs_psize == 0 && rhs_psize == 0));
     tok.data.binop.left = param;
     tok.data.binop.right = lhs_psize ? lhs_param : parith_param;
     tok.data.binop.extra = rhs_psize ? rhs_param : parith_param;
