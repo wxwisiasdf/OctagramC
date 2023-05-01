@@ -22,6 +22,7 @@ void* cc_realloc(void* p, size_t size);
 void cc_free(void* p);
 char* cc_strndup(const char* s, size_t n);
 char* cc_strdup(const char* s);
+void cc_strfree(char* s);
 #define cc_realloc_array(arr, n) cc_realloc(arr, sizeof(*(arr)) * (n))
 
 typedef unsigned char cc_alnum_char;

@@ -660,7 +660,6 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
             && (lhs->storage & SSA_STORAGE_STACK) == 0) {
             if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0)
                 fprintf(ctx->out, ".globl\t_%s\n", lhs->data.var_name);
-            fprintf(ctx->out, "\t.align\t4\n");
             fprintf(ctx->out, "_%s:\n", lhs->data.var_name);
             assert(size->data.constant.is_float == false);
             fprintf(ctx->out, "\t.space\t%lu\n", size->data.constant.value.u);

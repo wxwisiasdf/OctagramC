@@ -16,7 +16,7 @@ static char* cc_lex_get_logical_line(cc_context* ctx)
 {
     size_t total_len = 0;
     char* p = NULL;
-    char tmpbuf[80];
+    char tmpbuf[8192];
     while (fgets(tmpbuf, sizeof(tmpbuf), ctx->fp)) {
         size_t len = strlen(tmpbuf);
         total_len += len;
@@ -91,20 +91,22 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
         case '.':
             base = 10;
             goto after_frac;
-        case 'x':
+        case 'x': /* Hexadecimal */
+        case 'h': /* Non-standard hex */
             base = 16;
+            ++p;
             break;
-        case 'o':
+        case 'o': /* Octal */
             base = 8;
+            ++p;
             break;
-        case 'b':
+        case 'b': /* Binary */
+            base = 2;
+            ++p;
             break;
-        /* Non-standard */
-        case 'h':
-            base = 16;
-            break;
-        case 'd':
+        case 'd': /* Non-standard decimal */
             base = 10;
+            ++p;
             break;
         default:
             return p;
@@ -263,7 +265,7 @@ static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
     case LEXER_TOKEN_NUMBER:
     case LEXER_TOKEN_CHAR_LITERAL:
     case LEXER_TOKEN_STRING_LITERAL:
-        cc_free(tok->data);
+        cc_strfree(tok->data);
         break;
     default:
         break;

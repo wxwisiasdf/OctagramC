@@ -108,7 +108,7 @@ bool cc_parse_struct_or_union_specifier(
         cc_ast_type* s_or_u_type = cc_ast_find_type(type->name, node);
         if (s_or_u_type != NULL) { /* We're using an already existing type? */
             if (type->name != NULL) {
-                cc_free(type->name);
+                cc_strfree(type->name);
                 type->name = NULL;
             }
             cc_ast_copy_type(type, s_or_u_type);
@@ -192,7 +192,7 @@ static bool cc_parse_enum_specifier(
         cc_ast_type* enum_type = cc_ast_find_type(type->name, node);
         if (enum_type != NULL) { /* We're using an already existing type? */
             if (type->name != NULL) {
-                cc_free(type->name);
+                cc_strfree(type->name);
                 type->name = NULL;
             }
             cc_ast_copy_type(type, enum_type);

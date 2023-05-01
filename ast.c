@@ -118,7 +118,7 @@ cc_ast_node* cc_ast_create_literal_from_str(
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_LITERAL);
     cc_ast_literal* literal = &node->data.literal;
-    if (!strcmp(s, "0")) {
+    if (s[0] == '0' && s[1] == '\0') {
         literal->value.u = 0;
         literal->is_signed = ctx->is_default_signed;
         literal->is_float = false;
@@ -126,8 +126,8 @@ cc_ast_node* cc_ast_create_literal_from_str(
         literal->value.d = strtod(s, NULL);
         literal->is_signed = false;
         literal->is_float = true;
-    } else if (s[0] == '0' && !isdigit(s[1])) {
-        int base = 10;
+    } else if (s[0] == '0') {
+        int base = 8;
         switch (s[1]) {
         case 'o':
             base = 8;
@@ -246,7 +246,7 @@ void cc_ast_destroy_type(cc_ast_type* type, bool managed)
             size_t i;
             for (i = 0; i < type->data.func.n_params; i++) {
                 cc_ast_destroy_type(&type->data.func.params[i].type, false);
-                cc_free(type->data.func.params[i].name);
+                cc_strfree(type->data.func.params[i].name);
             }
             cc_free(type->data.func.params);
         }
@@ -304,7 +304,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
         cc_ast_destroy_node(node->data.return_expr, true);
         break;
     case AST_NODE_VARIABLE:
-        cc_free(node->data.var.name);
+        cc_strfree(node->data.var.name);
         break;
     default:
         break;

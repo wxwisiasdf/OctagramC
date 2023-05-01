@@ -126,12 +126,12 @@ void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
             size_t j;
 
             info->line = new_info.line;
-            cc_free(new_info.filename); /* Discard new_info's filename */
+            cc_strfree(new_info.filename); /* Discard new_info's filename */
             i++;
             /* Cutoff includes after returning to this one */
             for (j = i; j < ctx->n_diag_infos; j++) {
                 cc_diag_info* info = &ctx->diag_infos[j];
-                cc_free(info->filename);
+                cc_strfree(info->filename);
             }
             ctx->n_diag_infos = i;
             return;

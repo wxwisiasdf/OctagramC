@@ -77,6 +77,7 @@ static void cc_alloc_remove(void* p)
         return;
     for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
         if (g_alloc_ctx.ptrs[i].p == p) {
+            assert(g_alloc_ctx.ptrs[i].is_string == g_alloc_ctx.is_string);
             memmove(&g_alloc_ctx.ptrs[i], &g_alloc_ctx.ptrs[i + 1],
                 sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs - i - 1));
             g_alloc_ctx.n_ptrs--;
@@ -163,4 +164,14 @@ char* cc_strdup(const char* s)
     memcpy(ns, s, len);
     ns[len] = '\0';
     return ns;
+}
+
+void cc_strfree(char* s)
+{
+    if (s == NULL)
+        return;
+    g_alloc_ctx.is_string = true;
+    cc_alloc_remove(s);
+    g_alloc_ctx.is_string = false;
+    free(s);
 }
