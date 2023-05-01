@@ -11,6 +11,7 @@
 #define LEXER_TOKEN_LIST_R(x) LEXER_TOKEN_LIST_1(x, #x)
 #define LEXER_TOKEN_LIST                                                       \
     LEXER_TOKEN_LIST_1(NONE, 0), \
+    LEXER_TOKEN_LIST_R(__builtin_va_list), \
     LEXER_TOKEN_LIST_R(reinterpret_cast), \
     LEXER_TOKEN_LIST_R(atomic_noexcept), \
     LEXER_TOKEN_LIST_R(typeof_unqual), \
@@ -93,7 +94,7 @@
     LEXER_TOKEN_LIST_R(catch), \
     LEXER_TOKEN_LIST_R(const), \
     LEXER_TOKEN_LIST_R(class), \
-    LEXER_TOKEN_LIST_R(false), \
+    LEXER_TOKEN_LIST_1(false, "false"), \
     LEXER_TOKEN_LIST_R(float), \
     LEXER_TOKEN_LIST_R(short), \
     LEXER_TOKEN_LIST_R(throw), \
@@ -108,7 +109,7 @@
     LEXER_TOKEN_LIST_R(enum), \
     LEXER_TOKEN_LIST_R(goto), \
     LEXER_TOKEN_LIST_R(long), \
-    LEXER_TOKEN_LIST_R(true), \
+    LEXER_TOKEN_LIST_1(true, "true"), \
     LEXER_TOKEN_LIST_R(void), \
     LEXER_TOKEN_LIST_R(this), \
     LEXER_TOKEN_LIST_R(near), \

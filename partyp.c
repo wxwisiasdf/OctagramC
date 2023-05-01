@@ -495,16 +495,19 @@ bool cc_parse_type_specifier(
         type->mode = AST_TYPE_MODE_BOOL;
         break;
     case LEXER_TOKEN__Complex:
-        type->mode = AST_TYPE_MODE__COMPLEX;
+        type->mode = AST_TYPE_MODE_COMPLEX;
         break;
     case LEXER_TOKEN__Decimal32:
-        type->mode = AST_TYPE_MODE__DECIMAL32;
+        type->mode = AST_TYPE_MODE_DECIMAL32;
         break;
     case LEXER_TOKEN__Decimal64:
-        type->mode = AST_TYPE_MODE__DECIMAL64;
+        type->mode = AST_TYPE_MODE_DECIMAL64;
         break;
     case LEXER_TOKEN__Decimal128:
-        type->mode = AST_TYPE_MODE__DECIMAL128;
+        type->mode = AST_TYPE_MODE_DECIMAL128;
+        break;
+    case LEXER_TOKEN___builtin_va_list:
+        type->mode = AST_TYPE_MODE_VA_LIST;
         break;
     case LEXER_TOKEN_struct:
     case LEXER_TOKEN_union:
