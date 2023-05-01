@@ -6,3 +6,4 @@ define print_ast
         set $i = $i + 1
     end
 end
+br cc_diag_error
