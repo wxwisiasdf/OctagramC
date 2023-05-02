@@ -279,12 +279,18 @@ static bool cc_parse_enum_specifier(
         type->data.enumer.elems[type->data.enumer.n_elems++] = member;
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_COMMA
+            && (ctok = cc_lex_token_peek(ctx, 1)) != NULL
+            && ctok->type == LEXER_TOKEN_RBRACE) {
+            cc_lex_token_consume(ctx); /* Skip comma, right-brace is consumed
+                                          after exiting the loop */
+            cc_diag_warning(ctx, "Trailing comma in enum");
+            break;
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COMMA) {
             cc_lex_token_consume(ctx);
             continue;
-        }
-
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE)
             break;
     }
@@ -305,7 +311,6 @@ static bool cc_parse_enum_specifier(
             }
         }
     }
-
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
     /* We will add non-anonymous enums. */

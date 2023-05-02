@@ -215,8 +215,8 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 tok.type = LEXER_TOKEN_NUMBER;
             } else if (ISSTARTIDENT(*ctx->cptr)) { /* Identifiers */
                 const char* s = ctx->cptr++;
-                while (ISIDENT(*ctx->cptr))
-                    ctx->cptr++;
+                for (; ISIDENT(*ctx->cptr); ++ctx->cptr)
+                    /* ... */;
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = LEXER_TOKEN_IDENT;
             } else if (*ctx->cptr == '\"' || *ctx->cptr == '\'') {
