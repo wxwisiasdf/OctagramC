@@ -603,20 +603,25 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
     case LEXER_TOKEN_ARROW: {
         cc_ast_node* accessor_node;
         cc_ast_type type = { 0 };
+
         cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
+
         accessor_node = cc_ast_create_field_access(ctx, node, ctok->data);
         expr_node->parent = accessor_node->data.field_access.left;
         *parent_rerouted = true;
         cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
         cc_ast_add_block_node(node, accessor_node);
-
-        cc_ceval_deduce_type(ctx, expr_node, &type);
-        if (cc_ast_get_field_of(
-                &type, accessor_node->data.field_access.field_name)
-            == NULL)
-            cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
-                accessor_node->data.field_access.field_name, type.name);
+        
+        if (!cc_ceval_deduce_type(ctx, expr_node, &type))
+            cc_diag_error(ctx, "Unable to deduce type");
+        else {
+            if (cc_ast_get_field_of(
+                    &type, accessor_node->data.field_access.field_name)
+                == NULL)
+                cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
+                    accessor_node->data.field_access.field_name, type.name);
+        }
         return true;
     }
     case LEXER_TOKEN_LPAREN: {

@@ -157,16 +157,17 @@ static unsigned int cc_as386_get_sizeof(
     case AST_TYPE_MODE_STRUCT: {
         size_t total = 0;
         size_t i;
-        for (i = 0; i < type->data.s_or_u.n_members; i++)
-            total += ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+        for (i = 0; i < type->data.shared->s_or_u.n_members; i++)
+            total += ctx->get_sizeof(
+                ctx, &type->data.shared->s_or_u.members[i].type);
         return total;
     }
     case AST_TYPE_MODE_UNION: {
         size_t upper_lim = 0;
         size_t i;
-        for (i = 0; i < type->data.s_or_u.n_members; i++) {
-            size_t count
-                = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
+        for (i = 0; i < type->data.shared->s_or_u.n_members; i++) {
+            size_t count = ctx->get_sizeof(
+                ctx, &type->data.shared->s_or_u.members[i].type);
             upper_lim = count > upper_lim ? count : upper_lim;
         }
         return upper_lim;
@@ -196,9 +197,10 @@ static unsigned int cc_as386_get_offsetof(
     if (type->mode == AST_TYPE_MODE_UNION)
         return 0;
 
-    for (i = 0; i < type->data.s_or_u.n_members; i++) {
-        size_t count = ctx->get_sizeof(ctx, &type->data.s_or_u.members[i].type);
-        if (!strcmp(type->data.s_or_u.members[i].name, field))
+    for (i = 0; i < type->data.shared->s_or_u.n_members; i++) {
+        size_t count
+            = ctx->get_sizeof(ctx, &type->data.shared->s_or_u.members[i].type);
+        if (!strcmp(type->data.shared->s_or_u.members[i].name, field))
             return upper_lim;
         upper_lim = count > upper_lim ? count : upper_lim;
     }

@@ -54,6 +54,8 @@ typedef struct cc_context {
                                          encountered */
     unsigned short anon_count; /* Used for assigning anonymous Ids */
     char anon_name[6]; /* Temporal storage for anonymous names */
+    union cc_ast_shared_type* shared_types; /* Everything a type needs to
+                                               share is located here */
 
     /* Diagnostics */
     struct cc_diag_info* diag_infos;

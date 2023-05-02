@@ -178,13 +178,16 @@ void cc_optimizer_expr_condense(
         cc_optimizer_expr_condense(ctx, &node->data.switch_expr.control, true);
         cc_optimizer_expr_condense(ctx, &node->data.switch_expr.block, true);
         break;
+    case AST_NODE_FIELD_ACCESS:
+        cc_optimizer_expr_condense(ctx, &node->data.field_access.left, true);
+        break;
     case AST_NODE_JUMP:
     case AST_NODE_STRING_LITERAL:
     case AST_NODE_LITERAL:
     case AST_NODE_VARIABLE:
         break;
     default:
-        break;
+        abort();
     }
 }
 

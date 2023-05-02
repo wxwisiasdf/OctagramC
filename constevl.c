@@ -367,6 +367,11 @@ bool cc_ceval_deduce_type(
         cc_ast_variable* var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
         cc_ceval_promote_type(type, &var->type);
+
+        if (type->mode == AST_TYPE_MODE_FUNCTION
+        || type->mode == AST_TYPE_MODE_STRUCT
+        || type->mode == AST_TYPE_MODE_UNION)
+            assert(type->data.shared != NULL);
         return true;
     }
     case AST_NODE_CALL: {

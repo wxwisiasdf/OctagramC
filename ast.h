@@ -80,9 +80,21 @@ typedef struct cc_ast_enum_member {
     cc_ast_literal literal;
 } cc_ast_enum_member;
 
+typedef union cc_ast_shared_type {
+    struct {
+        bool packed : 1;
+        struct cc_ast_variable* members;
+        size_t n_members;
+    } s_or_u;
+    struct {
+        cc_ast_enum_member* elems;
+        size_t n_elems;
+    } enumer;
+} cc_ast_shared_type;
+
 typedef struct cc_ast_type {
-    enum cc_ast_type_mode mode;
     char* name; /* Name is optional for some types */
+    enum cc_ast_type_mode mode;
     unsigned short min_alignment;
     unsigned short max_alignment;
     cc_ast_type_cv cv_qual[MAX_CV_QUALIFIERS];
@@ -108,15 +120,7 @@ typedef struct cc_ast_type {
             bool irq : 1;
             bool variadic : 1; /* Variadic functions */
         } func;
-        struct {
-            bool packed : 1;
-            struct cc_ast_variable* members;
-            size_t n_members;
-        } s_or_u;
-        struct {
-            cc_ast_enum_member* elems;
-            size_t n_elems;
-        } enumer;
+        cc_ast_shared_type* shared;
     } data;
 } cc_ast_type;
 

@@ -35,7 +35,7 @@ static bool cc_parse_type_attributes(
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
         if (!strcmp(ctok->data, "packed")) {
-            type->data.s_or_u.packed = true;
+            type->data.shared->s_or_u.packed = true;
         } else if (!strcmp(ctok->data, "aligned")
             || !strcmp(ctok->data, "alignment")
             || !strcmp(ctok->data, "align")) {
@@ -89,28 +89,20 @@ bool cc_parse_struct_or_union_specifier(
         type->mode = AST_TYPE_MODE_UNION;
         break;
     default:
-        assert(0);
-        break;
+        abort();
     }
 
     while (cc_parse_struct_or_union_attributes(ctx, node, type))
         ;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        cc_lex_token_consume(ctx);
+        cc_ast_type* s_or_u_type;
         type->name = cc_strdup(ctok->data);
-    }
 
-    /* Struct/Union without brace means declaration of a variable OR forward
-       declaration... */
-    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
-        || ctok->type != LEXER_TOKEN_LBRACE) {
-        cc_ast_type* s_or_u_type = cc_ast_find_type(type->name, node);
-        if (s_or_u_type != NULL) { /* We're using an already existing type? */
-            if (type->name != NULL) {
-                cc_strfree(type->name);
-                type->name = NULL;
-            }
+        s_or_u_type = cc_ast_find_type(type->name, node);
+        if (s_or_u_type != NULL) {
+            /* We're using an already existing type for this structure,
+               i.e "struct name { ... };" -> "struct name a;" */
             cc_ast_copy_type(type, s_or_u_type);
             if (s_or_u_type->mode != AST_TYPE_MODE_STRUCT
                 && s_or_u_type->mode != AST_TYPE_MODE_UNION) {
@@ -118,12 +110,24 @@ bool cc_parse_struct_or_union_specifier(
                     ctx, "%s isn't a valid struct/union", s_or_u_type->name);
                 type->mode = AST_TYPE_MODE_STRUCT;
             }
-        } else { /* Not an existing type, forward declaration... */
-            /* ... */
+            cc_lex_token_consume(ctx);
+        } else {
+            /* Could be a forward declaration of an struct? */
+            cc_lex_token_consume(ctx);
         }
-        return true;
+        if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
+            || ctok->type != LEXER_TOKEN_LBRACE) {
+            if (type->name == NULL) {
+                cc_diag_error(ctx, "Forward declaration of anonymous %s",
+                    type->mode == AST_TYPE_MODE_STRUCT ? "struct" : "union");
+                goto error_handle;
+            }
+            if (type->data.shared == NULL)
+                type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
+            cc_ast_add_block_type(node, type);
+            return true;
+        }
     }
-
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACE, "Expected '{'");
 
     /* TODO: Attributes */
@@ -131,6 +135,8 @@ bool cc_parse_struct_or_union_specifier(
         && ctok->type == LEXER_TOKEN_RBRACE)
         goto empty_memberlist;
 
+    /* TODO: allocation for shared_type */
+    type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
     while (cc_parse_declarator(ctx, node, &virtual_member)) {
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COLON) {
@@ -174,7 +180,7 @@ empty_memberlist:
 
     /* We will add structs that are not anonymous into the current defined
        types list so we can use them later as required. */
-    if (type->name != NULL) /* Non-anonymous struct */
+    if (type->name != NULL)
         cc_ast_add_block_type(node, type);
     return true;
 error_handle:
@@ -233,7 +239,7 @@ static bool cc_parse_enum_specifier(
     }
 
     /* Syntax is <ident> = <const-expr> , */
-    memset(&type->data, '\0', sizeof(type->data));
+    type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_ast_enum_member member = { 0 };
@@ -256,7 +262,7 @@ static bool cc_parse_enum_specifier(
                 cc_diag_error(ctx, "Unable to evaluate constant expression");
                 if (const_expr != NULL)
                     cc_ast_destroy_node(const_expr, true);
-                return false;
+                goto error_handle;
             }
             if (const_expr != NULL)
                 cc_ast_destroy_node(const_expr, true);
@@ -284,9 +290,11 @@ static bool cc_parse_enum_specifier(
         var.initializer = cc_ast_create_literal(ctx, node, member.literal);
         cc_ast_add_or_replace_block_variable(node, &var);
 
-        type->data.enumer.elems = cc_realloc_array(
-            type->data.enumer.elems, type->data.enumer.n_elems + 1);
-        type->data.enumer.elems[type->data.enumer.n_elems++] = member;
+        type->data.shared->enumer.elems
+            = cc_realloc_array(type->data.shared->enumer.elems,
+                type->data.shared->enumer.n_elems + 1);
+        type->data.shared->enumer.elems[type->data.shared->enumer.n_elems++]
+            = member;
 
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COMMA
@@ -305,17 +313,17 @@ static bool cc_parse_enum_specifier(
             break;
     }
 
-    for (i = 0; i < type->data.enumer.n_elems; i++) {
+    for (i = 0; i < type->data.shared->enumer.n_elems; i++) {
         size_t j;
-        for (j = 0; j < type->data.enumer.n_elems; j++) {
+        for (j = 0; j < type->data.shared->enumer.n_elems; j++) {
             if (i != j
-                && !memcmp(&type->data.enumer.elems[i].literal,
-                    &type->data.enumer.elems[j].literal,
+                && !memcmp(&type->data.shared->enumer.elems[i].literal,
+                    &type->data.shared->enumer.elems[j].literal,
                     sizeof(cc_ast_literal))) {
                 cc_diag_error(ctx,
                     "Enumerator elements '%s' and '%s' with same value",
-                    type->data.enumer.elems[i].name,
-                    type->data.enumer.elems[j].name);
+                    type->data.shared->enumer.elems[i].name,
+                    type->data.shared->enumer.elems[j].name);
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
                 goto error_handle;
             }
@@ -809,14 +817,20 @@ bool cc_parse_declarator(
     /* Forward declarations such as "struct a;" or "union b;" */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        if ((var->type.mode == AST_TYPE_MODE_ENUM
+        || var->type.mode == AST_TYPE_MODE_STRUCT
+        || var->type.mode == AST_TYPE_MODE_UNION)
+        && var->type.data.shared == NULL)
+            var->type.data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
+        
         /* Empty structures, unions or enums do not require a diagnostic(?)
            but we'll provide one anyways. */
         if ((var->type.mode == AST_TYPE_MODE_ENUM
-                && var->type.data.enumer.n_elems == 0))
+                && var->type.data.shared->enumer.n_elems == 0))
             cc_diag_warning(ctx, "Empty enum");
         else if ((var->type.mode == AST_TYPE_MODE_STRUCT
                      || var->type.mode == AST_TYPE_MODE_UNION)
-            && var->type.data.s_or_u.n_members == 0)
+            && var->type.data.shared->s_or_u.n_members == 0)
             cc_diag_warning(ctx, "Empty structure/union");
         return true;
     }
