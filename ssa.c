@@ -480,6 +480,11 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
     cc_ssa_param param, const cc_ast_variable* var)
 {
     cc_ssa_token tok = { 0 };
+
+    /* typedefs are a c-construct language that is irrelevant for codegen */
+    if ((var->storage & AST_STORAGE_TYPEDEF) != 0)
+        return;
+
     if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
         cc_ssa_func func = { 0 };
         cc_ssa_func* old_current_ssa_func;
