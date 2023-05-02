@@ -325,7 +325,7 @@ static void cc_ssa_process_binop(
     cc_ast_type rhs_type = { 0 };
     cc_ssa_param lhs_param;
     cc_ssa_param rhs_param;
-    cc_ssa_param parith_param;
+    cc_ssa_param parith_param = { 0 };
     unsigned int lhs_psize = 0;
     unsigned int rhs_psize = 0;
 
@@ -354,7 +354,7 @@ static void cc_ssa_process_binop(
         }
     }
 
-    if (lhs_psize || rhs_psize) {
+    if (lhs_psize > 0 || rhs_psize > 0) {
         cc_ssa_param tmp_param
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);
 
@@ -452,17 +452,34 @@ static void cc_ssa_process_binop(
         case AST_BINOP_COND_NEQ:
             tok.type = SSA_TOKEN_NEQ;
             break;
+        case AST_BINOP_LSHIFT:
+            tok.type = SSA_TOKEN_LSHIFT;
+            break;
+        case AST_BINOP_RSHIFT:
+            tok.type = SSA_TOKEN_RSHIFT;
+            break;
+        case AST_BINOP_AND:
+            tok.type = SSA_TOKEN_AND;
+            break;
+        case AST_BINOP_OR:
+            tok.type = SSA_TOKEN_OR;
+            break;
+        case AST_BINOP_XOR:
+            tok.type = SSA_TOKEN_XOR;
+            break;
         default:
             abort();
         }
+        assert(lhs_psize == 0 && rhs_psize == 0);
     }
     /* Pointer arithmethic with other pointers isn't allowed */
     assert((lhs_psize != 0 && rhs_psize == 0)
         || (lhs_psize == 0 && rhs_psize != 0)
         || (lhs_psize == 0 && rhs_psize == 0));
+
     tok.data.binop.left = param;
-    tok.data.binop.right = lhs_psize ? lhs_param : parith_param;
-    tok.data.binop.extra = rhs_psize ? rhs_param : parith_param;
+    tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
+    tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     tok.info = node->info;
     tok.info.filename = cc_strdup(node->info.filename);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -773,6 +790,26 @@ static void cc_ssa_process_unop(
         tok.info.filename = cc_strdup(node->info.filename);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         break;
+    case AST_UNOP_POSTINC:
+    case AST_UNOP_POSTDEC: {
+        cc_ssa_param one_param;
+        cc_ast_literal one_literal = { 0 };
+        one_literal.is_signed = one_literal.is_float = false;
+        one_literal.value.u = 1;
+        one_param = cc_ssa_literal_to_param(&one_literal);
+        
+        child_param = cc_ssa_tempvar_param(ctx, &child_type);
+        cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+        tok.type = node->data.unop.op == AST_UNOP_POSTINC
+            ? SSA_TOKEN_ADD
+            : SSA_TOKEN_SUB;
+        tok.data.binop.left = param;
+        tok.data.binop.right = child_param;
+        tok.data.binop.extra = one_param;
+        tok.info = node->info;
+        tok.info.filename = cc_strdup(node->info.filename);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } break;
     default:
         abort();
     }
@@ -970,6 +1007,8 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_LTE:
             case SSA_TOKEN_EQ:
             case SSA_TOKEN_NEQ:
+            case SSA_TOKEN_LSHIFT:
+            case SSA_TOKEN_RSHIFT:
                 cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_CALL:
@@ -1108,6 +1147,12 @@ static void cc_ssa_labmerge_branch(
     cc_ssa_labmerge_param(&tok->data.branch.f_branch, label_id, new_label_id);
 }
 /* Helper function for cc_ssa_labmerge_func_1 */
+static void cc_ssa_labmerge_jump(
+    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
+{
+    cc_ssa_labmerge_param(&tok->data.retval, label_id, new_label_id);
+}
+/* Helper function for cc_ssa_labmerge_func_1 */
 static void cc_ssa_labmerge_ret(
     unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
 {
@@ -1142,6 +1187,8 @@ static void cc_ssa_labmerge_func_1(
         case SSA_TOKEN_LTE:
         case SSA_TOKEN_EQ:
         case SSA_TOKEN_NEQ:
+        case SSA_TOKEN_LSHIFT:
+        case SSA_TOKEN_RSHIFT:
             cc_ssa_labmerge_binop(label_id, new_label_id, tok);
             break;
         case SSA_TOKEN_CALL:
@@ -1155,6 +1202,9 @@ static void cc_ssa_labmerge_func_1(
             break;
         case SSA_TOKEN_RET:
             cc_ssa_labmerge_ret(label_id, new_label_id, tok);
+            break;
+        case SSA_TOKEN_JUMP:
+            cc_ssa_labmerge_jump(label_id, new_label_id, tok);
             break;
         case SSA_TOKEN_LABEL:
             /* No operation */
@@ -1221,6 +1271,8 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
     case SSA_TOKEN_LTE:
     case SSA_TOKEN_EQ:
     case SSA_TOKEN_NEQ:
+    case SSA_TOKEN_LSHIFT:
+    case SSA_TOKEN_RSHIFT:
         return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
@@ -1313,6 +1365,8 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
     case SSA_TOKEN_LTE:
     case SSA_TOKEN_EQ:
     case SSA_TOKEN_NEQ:
+    case SSA_TOKEN_LSHIFT:
+    case SSA_TOKEN_RSHIFT:
         return &tok->data.binop.left;
     case SSA_TOKEN_CALL:
         return &tok->data.call.left;
