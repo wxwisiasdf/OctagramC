@@ -528,7 +528,8 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     *parent_rerouted = false;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-
+    
+    assert(expr_node != NULL);
     switch (ctok->type) {
     case LEXER_TOKEN_INCREMENT:
     case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
@@ -604,13 +605,15 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         return true;
     case LEXER_TOKEN_DOT:
     case LEXER_TOKEN_ARROW: {
-        cc_ast_node* accessor_node;
+        cc_ast_node* block_node = cc_ast_create_block(ctx, node);
+        cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, block_node,
+            ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT : AST_BINOP_ARROW);
         cc_ast_node* var_node;
         cc_ast_type type = { 0 };
+        bool block_parent_rerouted;
 
         cc_lex_token_consume(ctx);
-        accessor_node = cc_ast_create_binop_expr(ctx, node,
-            ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT : AST_BINOP_ARROW);
+
         expr_node->parent = accessor_node->data.binop.left;
         *parent_rerouted = true;
         cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
@@ -620,8 +623,15 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
         /* Condense the single field */
         cc_optimizer_expr_condense(ctx, &accessor_node->data.binop.right, true);
+        
+        cc_ast_add_block_node(block_node, accessor_node);
 
-        cc_ast_add_block_node(node, accessor_node);
+        /* May have a postfix expression after this acessor node
+           like a postincrement. */
+        if(cc_parse_postfix_operator(ctx, node, block_node,
+            &block_parent_rerouted))
+            if(!block_parent_rerouted)
+                cc_ast_add_block_node(node, block_node);
 
         cc_ceval_deduce_type(ctx, expr_node, &type);
         if (cc_ast_get_field_of(&type, var_node->data.var.name) == NULL)
@@ -677,9 +687,8 @@ static bool cc_parse_postfix_expression(cc_context* ctx, cc_ast_node* node)
 
     } else
         goto error_handle;
-    if (!parent_rerouted) {
+    if (!parent_rerouted)
         cc_ast_add_block_node(node, expr_node);
-    }
     return true;
 error_handle:
     if (expr_node != NULL)
