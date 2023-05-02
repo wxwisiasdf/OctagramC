@@ -530,6 +530,10 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
                    of reasons, however this isn't an error, so we can continue
                    normal execution. */
                 cc_diag_warning(ctx, "Anonymous enum");
+                if(var.name == NULL)
+                    var.name = cc_strdup(cc_get_anon_name(ctx));
+                if(var.type.name == NULL)
+                    var.type.name = cc_strdup(cc_get_anon_name(ctx));
             } else {
                 cc_diag_error(ctx, "Anonymous external declaration of variable");
                 goto error_handle;

@@ -51,6 +51,18 @@ const char* cc_get_cfunc_name(const cc_context* ctx)
     return NULL;
 }
 
+const char* cc_get_anon_name(cc_context* ctx)
+{
+    assert(ctx->anon_count < USHRT_MAX);
+    ctx->anon_name[0] = '_';
+    ctx->anon_name[1] = '$';
+    ctx->anon_name[3] = 'A' + ((ctx->anon_count >> 8) & 0xFF);
+    ctx->anon_name[4] = 'A' + (ctx->anon_count & 0xFF);
+    ctx->anon_name[5] = '\0';
+    ++ctx->anon_count;
+    return ctx->anon_name;
+}
+
 int main(int argc, char** argv)
 {
     const char *output_filename = "out.asm", *input_filename = "main.c";

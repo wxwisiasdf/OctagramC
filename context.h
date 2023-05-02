@@ -53,6 +53,8 @@ typedef struct cc_context {
     unsigned short if_depth; /* Number of If's encountered */
     unsigned short if_w_braces_depth; /* Number of If's with braces
                                          encountered */
+    unsigned short anon_count; /* Used for assigning anonymous Ids */
+    char anon_name[6]; /* Temporal storage for anonymous names */
 
     /* Diagnostics */
     struct cc_diag_info* diag_infos;
@@ -84,5 +86,6 @@ typedef struct cc_context {
 } cc_context;
 
 const char* cc_get_cfunc_name(const cc_context* ctx);
+const char* cc_get_anon_name(cc_context* ctx);
 
 #endif
