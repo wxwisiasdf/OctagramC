@@ -240,7 +240,10 @@ void cc_ast_add_or_replace_block_variable(
 
     for (i = 0; i < node->data.block.n_vars; i++) {
         cc_ast_variable* bvar = &node->data.block.vars[i];
-        assert(strcmp(bvar->name, var->name) != 0);
+        if (!strcmp(bvar->name, var->name)) {
+            *bvar = *var;
+            return;
+        }
     }
 
     node->data.block.vars

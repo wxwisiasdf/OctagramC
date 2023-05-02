@@ -112,6 +112,9 @@ bool cc_parse_struct_or_union_specifier(
             }
             cc_lex_token_consume(ctx);
         } else {
+            /* TODO: allocation for shared_type */
+            assert(type->data.shared == NULL);
+            type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
             /* Could be a forward declaration of an struct? */
             cc_lex_token_consume(ctx);
         }
@@ -122,11 +125,12 @@ bool cc_parse_struct_or_union_specifier(
                     type->mode == AST_TYPE_MODE_STRUCT ? "struct" : "union");
                 goto error_handle;
             }
-            if (type->data.shared == NULL)
-                type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
             cc_ast_add_block_type(node, type);
             return true;
         }
+    } else {
+        assert(type->data.shared == NULL);
+        type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
     }
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_LBRACE, "Expected '{'");
 
@@ -135,8 +139,6 @@ bool cc_parse_struct_or_union_specifier(
         && ctok->type == LEXER_TOKEN_RBRACE)
         goto empty_memberlist;
 
-    /* TODO: allocation for shared_type */
-    type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
     while (cc_parse_declarator(ctx, node, &virtual_member)) {
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_COLON) {
@@ -239,6 +241,7 @@ static bool cc_parse_enum_specifier(
     }
 
     /* Syntax is <ident> = <const-expr> , */
+    assert(type->data.shared == NULL);
     type->data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
@@ -820,9 +823,11 @@ bool cc_parse_declarator(
         if ((var->type.mode == AST_TYPE_MODE_ENUM
         || var->type.mode == AST_TYPE_MODE_STRUCT
         || var->type.mode == AST_TYPE_MODE_UNION)
-        && var->type.data.shared == NULL)
+        && var->type.data.shared == NULL) {
+            assert(var->type.data.shared == NULL);
             var->type.data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
-        
+        }
+
         /* Empty structures, unions or enums do not require a diagnostic(?)
            but we'll provide one anyways. */
         if ((var->type.mode == AST_TYPE_MODE_ENUM
