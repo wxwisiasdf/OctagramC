@@ -800,11 +800,12 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var
             = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
-        cc_lex_token_consume(ctx);
         if (var == NULL) {
             cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
+            cc_lex_token_consume(ctx);
             goto error_handle;
         }
+        cc_lex_token_consume(ctx);
         expr_node = cc_ast_create_var_ref(ctx, node, var);
     } break;
     case LEXER_TOKEN_STRING_LITERAL:

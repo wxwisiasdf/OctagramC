@@ -56,7 +56,7 @@ static bool cc_parse_type_attributes(
 static bool cc_parse_struct_or_union_attributes(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
-    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
         || ctok->type != LEXER_TOKEN_LBRACKET)
         return false;
@@ -74,9 +74,9 @@ error_handle:
 bool cc_parse_struct_or_union_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
-    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
+    const cc_lexer_token* ctok;
     cc_ast_variable virtual_member = { 0 };
-    if (ctok == NULL)
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
 
     switch (ctok->type) {
@@ -234,7 +234,7 @@ static bool cc_parse_enum_specifier(
     }
 
     /* Syntax is <ident> = <const-expr> , */
-    memset(&type->data, 0, sizeof(type->data));
+    memset(&type->data, '\0', sizeof(type->data));
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_ast_enum_member member = { 0 };
@@ -334,8 +334,8 @@ error_handle:
 
 static bool cc_parse_function_specifier(cc_context* ctx, cc_ast_variable* var)
 {
-    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
-    if (ctok == NULL)
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
     switch (ctok->type) {
     case LEXER_TOKEN_inline:
@@ -1023,10 +1023,7 @@ bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
     bool decl_result;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-
-    /* TODO: Handle cases such as:
-       typedef struct SomeThing {} NewName ident; */
-
+    
     /* Declaration specifiers */
 comma_list_initializers: /* Jump here, reusing the variable's stack
                             location **but** copying over the type
@@ -1041,11 +1038,6 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
        specifiers. */
     if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
         var->storage = AST_STORAGE_GLOBAL;
-
-    if (var->name == NULL) {
-        cc_diag_error(ctx, "Variable needs to have an identifier");
-        goto error_handle;
-    }
 
     if (!decl_result)
         goto error_handle;

@@ -228,7 +228,11 @@ void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var)
     assert(var->name != NULL);
     for (i = 0; i < block->data.block.n_vars; i++) {
         cc_ast_variable* bvar = &block->data.block.vars[i];
-        assert(strcmp(bvar->name, var->name) != 0);
+        /*assert(strcmp(bvar->name, var->name) != 0);*/
+        if (!strcmp(bvar->name, var->name)) {
+            *bvar = *var;
+            return;
+        }
     }
     block->data.block.vars = cc_realloc_array(
         block->data.block.vars, block->data.block.n_vars + 1);

@@ -317,119 +317,119 @@ error_handle:
 static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    assert(node != NULL);
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        switch (ctok->type) {
-        case LEXER_TOKEN_RBRACE: /* TODO: Why does } make this break??? */
-            goto error_handle;
-        case LEXER_TOKEN_case: {
-            cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-            cc_lex_token_consume(ctx);
-
-            block_node->data.block.is_case = true;
-            block_node->ref_count++; /* Referenced by switch node */
-            cc_parse_constant_expression(
-                ctx, node, &block_node->data.block.case_val);
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
-            cc_parse_statment(ctx, block_node);
-            cc_ast_add_block_node(node, block_node);
-        }
-            return true;
-        case LEXER_TOKEN_default: {
-            cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-            cc_lex_token_consume(ctx);
-            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
-            cc_parse_statment(ctx, block_node);
-
-            block_node->data.block.is_case = true;
-            block_node->data.block.is_default = true;
-            block_node->ref_count++; /* Referenced by switch node */
-            cc_ast_add_block_node(node, block_node);
-        }
-            return true;
-        case LEXER_TOKEN_if:
-        case LEXER_TOKEN_switch: {
-            cc_parse_selection_statment(ctx, node);
-        }
-            return true;
-        case LEXER_TOKEN_for:
-        case LEXER_TOKEN_while:
-        case LEXER_TOKEN_do: {
-            cc_parse_iteration_statment(ctx, node);
-        }
-            return true;
-        case LEXER_TOKEN_continue: {
-            cc_ast_node* continue_node;
-            cc_lex_token_consume(ctx);
-            if (ctx->continue_node == NULL) {
-                cc_diag_error(
-                    ctx, "Continue not within lexicographical context");
-                goto error_handle;
-            }
-            continue_node = cc_ast_create_jump(ctx, node, ctx->continue_node);
-            cc_ast_add_block_node(node, continue_node);
-        } break;
-        case LEXER_TOKEN_break: {
-            cc_ast_node* break_node;
-            cc_lex_token_consume(ctx);
-            if (ctx->break_node == NULL) {
-                cc_diag_error(ctx, "Break not within lexicographical context");
-                goto error_handle;
-            }
-            break_node = cc_ast_create_jump(ctx, node, ctx->break_node);
-            cc_ast_add_block_node(node, break_node);
-        } break;
-        case LEXER_TOKEN_return: {
-            cc_ast_node* ret_node;
-            cc_lex_token_consume(ctx);
-            ret_node = cc_ast_create_ret_expr(ctx, node);
-            cc_parse_expression(ctx, ret_node->data.return_expr);
-            cc_ast_add_block_node(node, ret_node);
-        } break;
-        case LEXER_TOKEN_IDENT: {
-            const cc_ast_variable* var = cc_ast_find_variable(
-                cc_get_cfunc_name(ctx), ctok->data, node);
-            if (var == NULL)
-                cc_ast_find_variable(
-                    cc_get_cfunc_name(ctx), ctok->data, node->parent);
-
-            if (var != NULL) { /* Variable reference OR call/assignment */
-                cc_parse_expression(ctx, node);
-            } else { /* Type for declaration within compound stmt */
-                /* Implicit function declarations, where the prototype
-                   is missing from the function and it's declared in place
-                   this exception exists for some fucking reason??? */
-                if ((ctok = cc_lex_token_peek(ctx, 1)) != NULL
-                    && ctok->type == LEXER_TOKEN_LPAREN) {
-                    cc_ast_variable nvar = { 0 };
-
-                    ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
-                    nvar.name = cc_strdup(ctok->data);
-                    cc_swap_func_decl(&nvar.type);
-                    nvar.storage = AST_STORAGE_EXTERN;
-                    /* Variadic, basically meaning we have no fucking idea */
-                    nvar.type.data.func.variadic = true;
-                    nvar.type.data.func.return_type
-                        = cc_zalloc(sizeof(cc_ast_type));
-                    nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
-                    cc_ast_add_block_variable(node, &nvar);
-
-                    cc_diag_warning(ctx, "Implicit function declaration");
-                    return cc_parse_compund_statment(ctx, node);
-                } else {
-                    cc_ast_variable nvar = { 0 };
-                    if (!cc_parse_declarator_list(ctx, node, &nvar))
-                        goto error_handle;
-                    cc_ast_add_block_variable(node, &nvar);
-                }
-            }
-        } break;
-        default:
-            return cc_parse_compund_statment_potential_declarator(
-                ctx, node, true);
-        }
-    } else {
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
+    
+    switch (ctok->type) {
+    case LEXER_TOKEN_RBRACE: /* TODO: Why does } make this break??? */
+        goto error_handle;
+    case LEXER_TOKEN_case: {
+        cc_ast_node* block_node = cc_ast_create_block(ctx, node);
+        cc_lex_token_consume(ctx);
+
+        block_node->data.block.is_case = true;
+        block_node->ref_count++; /* Referenced by switch node */
+        cc_parse_constant_expression(
+            ctx, node, &block_node->data.block.case_val);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
+        cc_parse_statment(ctx, block_node);
+        cc_ast_add_block_node(node, block_node);
+    }
+        return true;
+    case LEXER_TOKEN_default: {
+        cc_ast_node* block_node = cc_ast_create_block(ctx, node);
+        cc_lex_token_consume(ctx);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
+        cc_parse_statment(ctx, block_node);
+
+        block_node->data.block.is_case = true;
+        block_node->data.block.is_default = true;
+        block_node->ref_count++; /* Referenced by switch node */
+        cc_ast_add_block_node(node, block_node);
+    }
+        return true;
+    case LEXER_TOKEN_if:
+    case LEXER_TOKEN_switch: {
+        cc_parse_selection_statment(ctx, node);
+    }
+        return true;
+    case LEXER_TOKEN_for:
+    case LEXER_TOKEN_while:
+    case LEXER_TOKEN_do: {
+        cc_parse_iteration_statment(ctx, node);
+    }
+        return true;
+    case LEXER_TOKEN_continue: {
+        cc_ast_node* continue_node;
+        cc_lex_token_consume(ctx);
+        if (ctx->continue_node == NULL) {
+            cc_diag_error(
+                ctx, "Continue not within lexicographical context");
+            goto error_handle;
+        }
+        continue_node = cc_ast_create_jump(ctx, node, ctx->continue_node);
+        cc_ast_add_block_node(node, continue_node);
+    } break;
+    case LEXER_TOKEN_break: {
+        cc_ast_node* break_node;
+        cc_lex_token_consume(ctx);
+        if (ctx->break_node == NULL) {
+            cc_diag_error(ctx, "Break not within lexicographical context");
+            goto error_handle;
+        }
+        break_node = cc_ast_create_jump(ctx, node, ctx->break_node);
+        cc_ast_add_block_node(node, break_node);
+    } break;
+    case LEXER_TOKEN_return: {
+        cc_ast_node* ret_node;
+        cc_lex_token_consume(ctx);
+        ret_node = cc_ast_create_ret_expr(ctx, node);
+        cc_parse_expression(ctx, ret_node->data.return_expr);
+        cc_ast_add_block_node(node, ret_node);
+    } break;
+    case LEXER_TOKEN_IDENT: {
+        const cc_ast_variable* var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data, node);
+        if (var == NULL)
+            cc_ast_find_variable(
+                cc_get_cfunc_name(ctx), ctok->data, node->parent);
+
+        if (var != NULL
+        && (var->storage & AST_STORAGE_TYPEDEF) == 0) {
+            /* Variable reference OR call/assignment */
+            cc_parse_expression(ctx, node);
+        } else { /* Type for declaration within compound stmt */
+            /* Implicit function declarations, where the prototype
+                is missing from the function and it's declared in place
+                this exception exists for some fucking reason??? */
+            if ((ctok = cc_lex_token_peek(ctx, 1)) != NULL
+                && ctok->type == LEXER_TOKEN_LPAREN) {
+                cc_ast_variable nvar = { 0 };
+
+                ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
+                nvar.name = cc_strdup(ctok->data);
+                cc_swap_func_decl(&nvar.type);
+                nvar.storage = AST_STORAGE_EXTERN;
+                /* Variadic, basically meaning we have no fucking idea */
+                nvar.type.data.func.variadic = true;
+                nvar.type.data.func.return_type
+                    = cc_zalloc(sizeof(cc_ast_type));
+                nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
+                cc_ast_add_block_variable(node, &nvar);
+
+                cc_diag_warning(ctx, "Implicit function declaration");
+                return cc_parse_compund_statment(ctx, node);
+            } else {
+                cc_ast_variable nvar = { 0 };
+                if (!cc_parse_declarator_list(ctx, node, &nvar))
+                    goto error_handle;
+                cc_ast_add_block_variable(node, &nvar);
+            }
+        }
+    } break;
+    default:
+        return cc_parse_compund_statment_potential_declarator(
+            ctx, node, true);
     }
 
     /* Compound statments ends with semicolon! */
