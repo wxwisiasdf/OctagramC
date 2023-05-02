@@ -12,11 +12,27 @@ static const char* lexer_token_match[] = { LEXER_TOKEN_LIST };
 #undef LEXER_TOKEN_LIST_1
 #undef LEXER_TOKEN_LIST
 
+static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
+{
+    switch (tok->type) {
+    case LEXER_TOKEN_IDENT:
+    case LEXER_TOKEN_NUMBER:
+    case LEXER_TOKEN_CHAR_LITERAL:
+    case LEXER_TOKEN_STRING_LITERAL:
+        cc_strfree(tok->data);
+        break;
+    default:
+        break;
+    }
+    if (managed)
+        cc_free(tok);
+}
+
 static char* cc_lex_get_logical_line(cc_context* ctx)
 {
     size_t total_len = 0;
     char* p = NULL;
-    char tmpbuf[8192];
+    char tmpbuf[8192 * 2];
     while (fgets(tmpbuf, sizeof(tmpbuf), ctx->fp)) {
         size_t len = strlen(tmpbuf);
         total_len += len;
@@ -186,8 +202,56 @@ const cc_lexer_token* cc_lex_skip_until(
     return NULL;
 }
 
+static bool cc_parse_preprocessor(cc_context* ctx)
+{
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+        && ctok->type == LEXER_TOKEN_HASHTAG) {
+        cc_lex_token_consume(ctx);
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(ctok->data, "line")) {
+            cc_lex_token_consume(ctx);
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type == LEXER_TOKEN_NUMBER) {
+                unsigned long int n_lines = strtoul(ctok->data, NULL, 10);
+                cc_lex_token_consume(ctx);
+
+                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                    && ctok->type == LEXER_TOKEN_STRING_LITERAL) {
+                    const char* filename = ctok->data;
+                    unsigned char flags = 0;
+                    cc_lex_token_consume(ctx);
+
+                    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                        && ctok->type == LEXER_TOKEN_NUMBER) {
+                        flags |= 1 << (unsigned char)atoi(ctok->data);
+                        cc_lex_token_consume(ctx);
+                    }
+
+                    if ((flags & (1 << 1)) != 0) { /* New file */
+                        cc_diag_info info;
+                        info.filename = cc_strdup(filename);
+                        info.line = n_lines;
+                        cc_diag_add_info(ctx, info);
+                    } else if ((flags & (1 << 2)) != 0) { /* Return to file */
+                        cc_diag_info info;
+                        info.filename = cc_strdup(filename);
+                        info.line = n_lines;
+                        cc_diag_add_info(ctx, info);
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 static void cc_lex_line(cc_context* ctx, const char* line)
 {
+    bool is_preproc = false;
+    size_t tokens_before_line = ctx->n_tokens;
+
     ctx->cptr = ctx->cbuf = line;
     while (*ctx->cptr != '\0') {
         cc_lexer_token tok = { 0 };
@@ -204,7 +268,9 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             goto handle_literal;
 
         tok.type = cc_lex_match_token(ctx); /* Match a token */
-        if (tok.type == LEXER_TOKEN_NONE) {
+        if (tok.type == LEXER_TOKEN_HASHTAG) {
+            is_preproc = true;
+        } else if (tok.type == LEXER_TOKEN_NONE) {
             /* Special handling for the idents, literals, etc */
             if (isdigit(*ctx->cptr)) { /* Numbers */
                 const char* s;
@@ -245,6 +311,16 @@ static void cc_lex_line(cc_context* ctx, const char* line)
         ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_tokens + 1);
         ctx->tokens[ctx->n_tokens++] = tok;
     }
+
+    if (is_preproc) {
+        size_t i;
+        /* Run a minimal parsing of the preprocessor, and discard the tokens
+           from the preprocessor line. */
+        cc_parse_preprocessor(ctx);
+        for (i = tokens_before_line + 1; i < ctx->n_tokens; ++i)
+            cc_lex_destroy_token(&ctx->tokens[i], false);
+        ctx->n_tokens = tokens_before_line;
+    }
 }
 
 int cc_lex_top(cc_context* ctx)
@@ -255,23 +331,8 @@ int cc_lex_top(cc_context* ctx)
         cc_lex_line(ctx, line);
         cc_free(line);
     }
+    ctx->c_token = 0;
     return 0;
-}
-
-static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
-{
-    switch (tok->type) {
-    case LEXER_TOKEN_IDENT:
-    case LEXER_TOKEN_NUMBER:
-    case LEXER_TOKEN_CHAR_LITERAL:
-    case LEXER_TOKEN_STRING_LITERAL:
-        cc_strfree(tok->data);
-        break;
-    default:
-        break;
-    }
-    if (managed)
-        cc_free(tok);
 }
 
 void cc_lex_deinit(cc_context* ctx)

@@ -539,56 +539,10 @@ error_handle:
     return false;
 }
 
-static bool cc_parse_preprocessor(cc_context* ctx)
-{
-    const cc_lexer_token* ctok;
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_HASHTAG) {
-        cc_lex_token_consume(ctx);
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(ctok->data, "line")) {
-            cc_lex_token_consume(ctx);
-            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                && ctok->type == LEXER_TOKEN_NUMBER) {
-                unsigned long int n_lines = strtoul(ctok->data, NULL, 10);
-                cc_lex_token_consume(ctx);
-
-                if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                    && ctok->type == LEXER_TOKEN_STRING_LITERAL) {
-                    const char* filename = ctok->data;
-                    char flags = 0;
-                    cc_lex_token_consume(ctx);
-
-                    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-                        && ctok->type == LEXER_TOKEN_NUMBER) {
-                        flags |= 1 << (char)atoi(ctok->data);
-                        cc_lex_token_consume(ctx);
-                    }
-
-                    if ((flags & (1 << 1)) != 0) { /* New file */
-                        cc_diag_info info;
-                        info.filename = cc_strdup(filename);
-                        info.line = n_lines;
-                        cc_diag_add_info(ctx, info);
-                    } else if ((flags & (1 << 2)) != 0) { /* Return to file */
-                        cc_diag_info info;
-                        info.filename = cc_strdup(filename);
-                        info.line = n_lines;
-                        cc_diag_add_info(ctx, info);
-                    }
-                }
-            }
-        }
-        return true;
-    }
-    return false;
-}
-
 static bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
 {
     bool has_match = false;
-    while (
-        cc_parse_preprocessor(ctx) || cc_parse_external_declaration(ctx, node))
+    while (cc_parse_external_declaration(ctx, node))
         has_match = true;
     return has_match;
 }
