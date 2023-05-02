@@ -171,6 +171,11 @@ static unsigned int cc_as386_get_sizeof(
         }
         return upper_lim;
     }
+    case AST_TYPE_MODE_BITINT: {
+        unsigned short bits = type->data.num.bitint_bits;
+        assert(bits != 0);
+        return (bits + (8 - (bits % 8))) / 8;
+    }
     default:
         break;
     }
