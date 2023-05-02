@@ -139,8 +139,19 @@ bool cc_parse_struct_or_union_specifier(
             if (literal.is_signed && literal.value.s < 0) {
                 cc_diag_error(ctx, "Number of bits can't be negative");
                 goto error_handle;
+            } else if (literal.is_float) {
+                cc_diag_error(ctx, "Bits must be a whole integer");
+                goto error_handle;
+            } else if ((literal.is_signed && literal.value.s == 0)
+            || (!literal.is_signed && literal.value.u == 0)) {
+                cc_diag_error(ctx, "0-bit width in bitfield is invalid");
+                goto error_handle;
             }
-            virtual_member.type.data.num.bitint_bits = literal.value.u;
+            if (literal.is_signed)
+                virtual_member.type.data.num.bitint_bits
+                    = (unsigned int)literal.value.s;
+            else
+                virtual_member.type.data.num.bitint_bits = literal.value.u;
         }
         cc_ast_add_type_member(type, &virtual_member);
 
