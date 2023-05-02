@@ -454,6 +454,9 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         if (regno != AS386_EAX)
             fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg_names[regno]);
     } break;
+    case SSA_PARAM_NONE:
+        /* Discard result of call... */
+        break;
     default:
         abort();
     }
