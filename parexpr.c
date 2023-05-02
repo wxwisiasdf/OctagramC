@@ -291,15 +291,16 @@ bool cc_parse_assignment_expression(
             assign_node->data.binop.op = binop_type;
             /* Field name follows, thankfully for us (and our sanity), we are
             able to use a direct identifier :D */
-            if (binop_type == AST_BINOP_DOT || binop_type == AST_BINOP_ARROW) {
+            /*if (binop_type == AST_BINOP_DOT || binop_type == AST_BINOP_ARROW) {
                 CC_PARSE_EXPECT(
                     ctx, ctok, LEXER_TOKEN_IDENT, "Field-name expected");
                 cc_ast_add_block_node(assign_node->data.binop.right,
                     cc_ast_create_field_ref(
-                        ctx, assign_node->data.binop.right, ctok->data));
-            } else
-                cc_parse_assignment_expression(
-                    ctx, assign_node->data.binop.right, NULL);
+                        ctx, assign_node->data.binop.right, ctok->data));*
+                abort();
+            } else*/
+            cc_parse_assignment_expression(
+                ctx, assign_node->data.binop.right, NULL);
         }
     }
     cc_ast_add_block_node(node, assign_node);
@@ -515,21 +516,17 @@ static void cc_lint_call_node(
 error_handle:;
 }
 
-/* Parses the postfix operator part of the postfix expression. The parent
-   rerouting argument tells if this function did rearrange the expr_node
-   in such a way that expr_node->parent is no longer node, but rather
-   another node. This is needed for increments and decrements for example. */
-static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
+/* Helper function for cc_parse_postfix_operator */
+static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
     cc_ast_node* expr_node, bool* parent_rerouted)
 {
-    /* With postfix increment we will do a:
-        <unop <op> <expr-node>> */
     const cc_lexer_token* ctok;
-    *parent_rerouted = false;
+    assert(ctx != NULL && node != NULL && expr_node != NULL
+        && parent_rerouted != NULL);
+
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
-    assert(expr_node != NULL);
+
     switch (ctok->type) {
     case LEXER_TOKEN_INCREMENT:
     case LEXER_TOKEN_DECREMENT: { /* Postfix ++/-- */
@@ -542,8 +539,8 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
         *parent_rerouted = true;
         cc_ast_add_block_node(pi_node->data.unop.child, expr_node);
         cc_ast_add_block_node(node, pi_node);
-    }
         return true;
+    }
     /* Array accessor <expr>[<expr>] syntax */
     case LEXER_TOKEN_LBRACKET: {
         /* Obtain the sizeof first and foremost! */
@@ -599,46 +596,28 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
             goto error_handle;
         }
         cc_ast_add_block_node(node, arr_deref_node);
-
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACKET, "Expected ']'");
-    }
         return true;
+    }
     case LEXER_TOKEN_DOT:
     case LEXER_TOKEN_ARROW: {
-        cc_ast_node* block_node = cc_ast_create_block(ctx, node);
-        cc_ast_node* accessor_node = cc_ast_create_binop_expr(ctx, block_node,
-            ctok->type == LEXER_TOKEN_DOT ? AST_BINOP_DOT : AST_BINOP_ARROW);
-        cc_ast_node* var_node;
+        cc_ast_node* accessor_node;
         cc_ast_type type = { 0 };
-        bool block_parent_rerouted;
-
         cc_lex_token_consume(ctx);
-
-        expr_node->parent = accessor_node->data.binop.left;
-        *parent_rerouted = true;
-        cc_ast_add_block_node(accessor_node->data.binop.left, expr_node);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
-        var_node = cc_ast_create_field_ref(
-            ctx, accessor_node->data.binop.right, ctok->data);
-        cc_ast_add_block_node(accessor_node->data.binop.right, var_node);
-        /* Condense the single field */
-        cc_optimizer_expr_condense(ctx, &accessor_node->data.binop.right, true);
-        
-        cc_ast_add_block_node(block_node, accessor_node);
-
-        /* May have a postfix expression after this acessor node
-           like a postincrement. */
-        if(cc_parse_postfix_operator(ctx, node, block_node,
-            &block_parent_rerouted))
-            if(!block_parent_rerouted)
-                cc_ast_add_block_node(node, block_node);
+        accessor_node = cc_ast_create_field_access(ctx, node, ctok->data);
+        expr_node->parent = accessor_node->data.field_access.left;
+        *parent_rerouted = true;
+        cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
+        cc_ast_add_block_node(node, accessor_node);
 
         cc_ceval_deduce_type(ctx, expr_node, &type);
-        if (cc_ast_get_field_of(&type, var_node->data.var.name) == NULL)
+        if (cc_ast_get_field_of(&type,
+            accessor_node->data.field_access.field_name) == NULL)
             cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
-                var_node->data.var.name, type.name);
-    }
+                accessor_node->data.field_access.field_name, type.name);
         return true;
+    }
     case LEXER_TOKEN_LPAREN: {
         cc_ast_node* result_node = NULL;
         cc_ast_type type = { 0 };
@@ -661,12 +640,43 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
                 ctx, "Unable to deduce type for runtime-evaluated call");
             goto error_handle;
         }
-    }
         return true;
+    }
     default:
-        break;
+        return false;
     }
 error_handle:
+    return false;
+}
+/* Parses the postfix operator part of the postfix expression. The parent
+   rerouting argument tells if this function did rearrange the expr_node
+   in such a way that expr_node->parent is no longer node, but rather
+   another node. This is needed for increments and decrements for example. */
+static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
+    cc_ast_node* expr_node, bool* parent_rerouted)
+{
+    /* With postfix increment we will do a:
+        <unop <op> <expr-node>> */
+    const cc_lexer_token* ctok;
+    cc_ast_node* block_node;
+
+    *parent_rerouted = false;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    
+    assert(expr_node != NULL);
+    block_node = cc_ast_create_block(ctx, node);
+    if (cc_parse_postfix_operator_1(ctx, block_node, expr_node, parent_rerouted)) {
+        bool block_parent_rerouted = false;
+        /* May have a postfix expression after this acessor node
+            like a postincrement. */
+        cc_parse_postfix_operator(ctx, node, block_node, &block_parent_rerouted);
+        if(!block_parent_rerouted)
+            cc_ast_add_block_node(node, block_node);
+        return true;
+    } else {
+        cc_ast_destroy_node(block_node, true);
+    }
     return false;
 }
 

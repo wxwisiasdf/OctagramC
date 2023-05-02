@@ -61,7 +61,7 @@ enum cc_ast_type_mode {
     AST_TYPE_MODE_STRUCT,
     AST_TYPE_MODE_UNION,
     AST_TYPE_MODE_ENUM,
-    AST_TYPE_MODE_FUNCTION,
+    AST_TYPE_MODE_FUNCTION
 };
 
 typedef struct cc_ast_literal {
@@ -142,7 +142,7 @@ enum cc_ast_node_type {
     AST_NODE_STRING_LITERAL,
     AST_NODE_SWITCH,
     AST_NODE_REGISTER,
-    AST_NODE_FIELD
+    AST_NODE_FIELD_ACCESS
 };
 
 enum cc_ast_binop_type {
@@ -158,8 +158,6 @@ enum cc_ast_binop_type {
     AST_BINOP_XOR,
     AST_BINOP_AND,
     AST_BINOP_OR,
-    AST_BINOP_ARROW,
-    AST_BINOP_DOT,
     AST_BINOP_COND_EQ,
     AST_BINOP_COND_NEQ,
     AST_BINOP_COND_AND,
@@ -192,7 +190,6 @@ typedef struct cc_ast_node {
     unsigned short size_type; /* Size to operate upon */
     union {
         cc_ast_literal literal;
-        const char* field_name;
         /* For pattern matching, we only use reg_group to specify which
            group of registers are allowed to be matched.
            
@@ -248,6 +245,10 @@ typedef struct cc_ast_node {
             struct cc_ast_node* control;
             struct cc_ast_node* block;
         } switch_expr;
+        struct {
+            struct cc_ast_node* left;
+            const char *field_name;
+        } field_access;
         struct cc_ast_node* return_expr; /* Return value */
     } data;
 } cc_ast_node;
@@ -261,12 +262,12 @@ cc_ast_node* cc_ast_create_binop_expr(
 cc_ast_node* cc_ast_create_unop_expr(
     cc_context* ctx, cc_ast_node* parent, enum cc_ast_unop_type type);
 cc_ast_node* cc_ast_create_if_expr(cc_context* ctx, cc_ast_node* parent);
+cc_ast_node* cc_ast_create_field_access(cc_context* ctx, cc_ast_node* parent,
+    const char *field_name);
 cc_ast_node* cc_ast_create_switch_expr(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_ret_expr(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_var_ref(
     cc_context* ctx, cc_ast_node* parent, const cc_ast_variable* var);
-cc_ast_node* cc_ast_create_field_ref(
-    cc_context* ctx, cc_ast_node* parent, const char* fieldname);
 cc_ast_node* cc_ast_create_call(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_string_literal(
     cc_context* ctx, cc_ast_node* parent, const char* s);

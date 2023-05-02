@@ -367,8 +367,8 @@ bool cc_ceval_deduce_type(
         cc_ast_variable* var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
         cc_ceval_promote_type(type, &var->type);
-    }
         return true;
+    }
     case AST_NODE_CALL: {
         cc_ast_type tmp_type = { 0 };
         if (!cc_ceval_deduce_type(ctx, node->data.call.call_expr, &tmp_type))
@@ -376,8 +376,8 @@ bool cc_ceval_deduce_type(
         assert(tmp_type.mode == AST_TYPE_MODE_FUNCTION
             && tmp_type.data.func.return_type != NULL);
         *type = tmp_type;
-    }
         return true;
+    }
     case AST_NODE_STRING_LITERAL:
         *type = cc_ceval_get_string_type(ctx);
         return true;
@@ -390,29 +390,25 @@ bool cc_ceval_deduce_type(
         /* Assignments promote to their lvalue type */
         if (node->data.binop.op == AST_BINOP_ASSIGN)
             return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
-        else if (node->data.binop.op == AST_BINOP_DOT) {
-            cc_ast_variable* field_var;
-            cc_ast_type vtype = { 0 };
-
-            if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &vtype)) {
-                cc_diag_error(ctx, "Can't deduce type of left struct");
-                goto error_handle;
-            }
-
-            assert(node->data.binop.right->type == AST_NODE_FIELD);
-            field_var = cc_ast_get_field_of(
-                &vtype, node->data.binop.right->data.field_name);
-            if (field_var == NULL) {
-                cc_diag_error(ctx, "Unable to obtain field '%s'",
-                    node->data.binop.right->data.field_name);
-                goto error_handle;
-            }
-
-            *type = field_var->type;
-            return true;
-        }
         /*cc_ceval_deduce_type(ctx, node->data.binop.right, type);*/
         return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
+    case AST_NODE_FIELD_ACCESS: {
+        cc_ast_variable* field_var;
+        cc_ast_type vtype = { 0 };
+        if (!cc_ceval_deduce_type(ctx, node->data.field_access.left, &vtype)) {
+            cc_diag_error(ctx, "Can't deduce type of left struct");
+            goto error_handle;
+        }
+        field_var = cc_ast_get_field_of(&vtype,
+            node->data.field_access.field_name);
+        if (field_var == NULL) {
+            cc_diag_error(ctx, "Unable to obtain field '%s'",
+                node->data.field_access.field_name);
+            goto error_handle;
+        }
+        *type = field_var->type;
+        return true;
+    }
     case AST_NODE_UNOP:
         if (node->data.unop.op == AST_UNOP_CAST) {
             *type = node->data.unop.cast;
@@ -496,6 +492,8 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_IF:
         return cc_ceval_is_const(ctx, node->data.if_expr.tail_else)
             && cc_ceval_is_const(ctx, node->data.if_expr.block);
+    case AST_NODE_FIELD_ACCESS:
+        return cc_ceval_is_const(ctx, node->data.field_access.left);
     default:
         abort();
     }

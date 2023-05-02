@@ -67,6 +67,15 @@ cc_ast_node* cc_ast_create_if_expr(cc_context* ctx, cc_ast_node* parent)
     return node;
 }
 
+cc_ast_node* cc_ast_create_field_access(cc_context* ctx, cc_ast_node* parent,
+    const char *field_name)
+{
+    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
+    node->data.field_access.left = cc_ast_create_block(ctx, node);
+    node->data.field_access.field_name = cc_strdup(field_name);
+    return node;
+}
+
 cc_ast_node* cc_ast_create_switch_expr(cc_context* ctx, cc_ast_node* parent)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_SWITCH);
@@ -87,14 +96,6 @@ cc_ast_node* cc_ast_create_var_ref(
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_VARIABLE);
     node->data.var.name = cc_strdup(var->name);
-    return node;
-}
-
-cc_ast_node* cc_ast_create_field_ref(
-    cc_context* ctx, cc_ast_node* parent, const char* fieldname)
-{
-    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD);
-    node->data.field_name = cc_strdup(fieldname);
     return node;
 }
 
@@ -179,6 +180,20 @@ void cc_ast_add_block_node(
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
     assert(child != NULL && child->parent == block);
+    assert(block->type == AST_NODE_NONE
+        || block->type == AST_NODE_BINOP
+        || block->type == AST_NODE_UNOP
+        || block->type == AST_NODE_BLOCK
+        || block->type == AST_NODE_JUMP
+        || block->type == AST_NODE_IF
+        || block->type == AST_NODE_RETURN
+        || block->type == AST_NODE_CALL
+        || block->type == AST_NODE_VARIABLE
+        || block->type == AST_NODE_LITERAL
+        || block->type == AST_NODE_STRING_LITERAL
+        || block->type == AST_NODE_SWITCH
+        || block->type == AST_NODE_REGISTER
+        || block->type == AST_NODE_FIELD_ACCESS);
     block->data.block.children = cc_realloc_array(
         block->data.block.children, block->data.block.n_children + 1);
     block->data.block.children[block->data.block.n_children++] = *child;
@@ -426,8 +441,8 @@ static cc_ast_node* cc_ast_create_generic(
         return cc_ast_create_block(ctx, parent);
     case AST_NODE_CALL:
         return cc_ast_create_call(ctx, parent);
-    case AST_NODE_FIELD:
-        return cc_ast_create_any(ctx, parent, AST_NODE_FIELD);
+    case AST_NODE_FIELD_ACCESS:
+        return cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
     case AST_NODE_IF:
         return cc_ast_create_if_expr(ctx, parent);
     case AST_NODE_JUMP:
@@ -804,8 +819,6 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
         return "=";
     case AST_BINOP_AND:
         return "&";
-    case AST_BINOP_ARROW:
-        return "->";
     case AST_BINOP_COND_AND:
         return "&&";
     case AST_BINOP_COND_EQ:
@@ -816,8 +829,6 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
         return "||";
     case AST_BINOP_DIV:
         return "/";
-    case AST_BINOP_DOT:
-        return ".";
     case AST_BINOP_LSHIFT:
         return "<<";
     case AST_BINOP_SUB:
@@ -1032,6 +1043,11 @@ void cc_ast_print(const cc_ast_node* node)
     case AST_NODE_VARIABLE:
         cc_ast_print_var(cc_ast_find_variable(NULL, node->data.var.name, node),
             node->data.var.name);
+        break;
+    case AST_NODE_FIELD_ACCESS:
+        printf("<field-access(");
+        cc_ast_print(node->data.field_access.left);
+        printf(")%s>", node->data.field_access.field_name);
         break;
     default:
         printf("<?{%i}>", node->type);
