@@ -484,6 +484,10 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
         cc_ast_copy_node(ctx, dest->data.binop.left, src->data.binop.left);
         cc_ast_copy_node(ctx, dest->data.binop.right, src->data.binop.right);
         break;
+    case AST_NODE_UNOP:
+        dest->data.unop.op = src->data.unop.op;
+        cc_ast_copy_node(ctx, dest->data.unop.child, src->data.unop.child);
+        break;
     case AST_NODE_CALL: {
         size_t i;
         cc_ast_copy_node(
@@ -524,8 +528,7 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
         }
     } break;
     default:
-        assert(0);
-        break;
+        abort();
     }
 }
 
