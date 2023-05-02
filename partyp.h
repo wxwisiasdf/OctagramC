@@ -16,7 +16,7 @@ bool cc_parse_declarator_braced_initializer(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
 bool cc_parse_declarator(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
-bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
-    cc_ast_variable* var);
+bool cc_parse_declarator_list(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var);
 
 #endif

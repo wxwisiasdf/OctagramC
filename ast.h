@@ -247,7 +247,7 @@ typedef struct cc_ast_node {
         } switch_expr;
         struct {
             struct cc_ast_node* left;
-            const char *field_name;
+            const char* field_name;
         } field_access;
         struct cc_ast_node* return_expr; /* Return value */
     } data;
@@ -262,8 +262,8 @@ cc_ast_node* cc_ast_create_binop_expr(
 cc_ast_node* cc_ast_create_unop_expr(
     cc_context* ctx, cc_ast_node* parent, enum cc_ast_unop_type type);
 cc_ast_node* cc_ast_create_if_expr(cc_context* ctx, cc_ast_node* parent);
-cc_ast_node* cc_ast_create_field_access(cc_context* ctx, cc_ast_node* parent,
-    const char *field_name);
+cc_ast_node* cc_ast_create_field_access(
+    cc_context* ctx, cc_ast_node* parent, const char* field_name);
 cc_ast_node* cc_ast_create_switch_expr(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_ret_expr(cc_context* ctx, cc_ast_node* parent);
 cc_ast_node* cc_ast_create_var_ref(
@@ -281,8 +281,8 @@ void cc_ast_add_block_node(
     cc_ast_node* restrict block, const cc_ast_node* restrict child);
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type);
 void cc_ast_remove_block_node(cc_ast_node* block, size_t i);
-void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var);
-void cc_ast_update_block_variable(cc_ast_node* block, const cc_ast_variable* var);
+void cc_ast_add_or_replace_block_variable(
+    cc_ast_node* block, const cc_ast_variable* var);
 void cc_ast_add_call_param(
     cc_ast_node* restrict call, const cc_ast_node* restrict param);
 void cc_ast_destroy_type(cc_ast_type* type, bool managed);

@@ -71,7 +71,7 @@ static bool cc_parse_cast_expression_1(
             var.name = cc_strdup("__cnd_1");
             cc_ast_copy_type(&var.type, &cast_node->data.unop.cast);
             cc_parse_declarator_braced_initializer(ctx, node, &var);
-            cc_ast_add_block_variable(node, &var);
+            cc_ast_add_or_replace_block_variable(node, &var);
             return true;
         }
 #endif
@@ -612,8 +612,9 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
         cc_ast_add_block_node(node, accessor_node);
 
         cc_ceval_deduce_type(ctx, expr_node, &type);
-        if (cc_ast_get_field_of(&type,
-            accessor_node->data.field_access.field_name) == NULL)
+        if (cc_ast_get_field_of(
+                &type, accessor_node->data.field_access.field_name)
+            == NULL)
             cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
                 accessor_node->data.field_access.field_name, type.name);
         return true;
@@ -663,15 +664,17 @@ static bool cc_parse_postfix_operator(cc_context* ctx, cc_ast_node* node,
     *parent_rerouted = false;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     assert(expr_node != NULL);
     block_node = cc_ast_create_block(ctx, node);
-    if (cc_parse_postfix_operator_1(ctx, block_node, expr_node, parent_rerouted)) {
+    if (cc_parse_postfix_operator_1(
+            ctx, block_node, expr_node, parent_rerouted)) {
         bool block_parent_rerouted = false;
         /* May have a postfix expression after this acessor node
             like a postincrement. */
-        cc_parse_postfix_operator(ctx, node, block_node, &block_parent_rerouted);
-        if(!block_parent_rerouted)
+        cc_parse_postfix_operator(
+            ctx, node, block_node, &block_parent_rerouted);
+        if (!block_parent_rerouted)
             cc_ast_add_block_node(node, block_node);
         return true;
     } else {

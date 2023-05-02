@@ -303,7 +303,7 @@ static bool cc_parse_compund_statment_potential_declarator(
             cc_ast_destroy_var(&nvar, false);
             goto error_handle;
         }
-        cc_ast_add_block_variable(node, &nvar);
+        cc_ast_add_or_replace_block_variable(node, &nvar);
     }
     if (expect_semicolon)
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_SEMICOLON, "Expected ';'");
@@ -319,7 +319,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     switch (ctok->type) {
     case LEXER_TOKEN_RBRACE: /* TODO: Why does } make this break??? */
         goto error_handle;
@@ -363,8 +363,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         cc_ast_node* continue_node;
         cc_lex_token_consume(ctx);
         if (ctx->continue_node == NULL) {
-            cc_diag_error(
-                ctx, "Continue not within lexicographical context");
+            cc_diag_error(ctx, "Continue not within lexicographical context");
             goto error_handle;
         }
         continue_node = cc_ast_create_jump(ctx, node, ctx->continue_node);
@@ -388,14 +387,13 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         cc_ast_add_block_node(node, ret_node);
     } break;
     case LEXER_TOKEN_IDENT: {
-        const cc_ast_variable* var = cc_ast_find_variable(
-            cc_get_cfunc_name(ctx), ctok->data, node);
+        const cc_ast_variable* var
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
         if (var == NULL)
             cc_ast_find_variable(
                 cc_get_cfunc_name(ctx), ctok->data, node->parent);
 
-        if (var != NULL
-        && (var->storage & AST_STORAGE_TYPEDEF) == 0) {
+        if (var != NULL && (var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Variable reference OR call/assignment */
             cc_parse_expression(ctx, node);
         } else { /* Type for declaration within compound stmt */
@@ -415,7 +413,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 nvar.type.data.func.return_type
                     = cc_zalloc(sizeof(cc_ast_type));
                 nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
-                cc_ast_add_block_variable(node, &nvar);
+                cc_ast_add_or_replace_block_variable(node, &nvar);
 
                 cc_diag_warning(ctx, "Implicit function declaration");
                 return cc_parse_compund_statment(ctx, node);
@@ -423,13 +421,12 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 cc_ast_variable nvar = { 0 };
                 if (!cc_parse_declarator_list(ctx, node, &nvar))
                     goto error_handle;
-                cc_ast_add_block_variable(node, &nvar);
+                cc_ast_add_or_replace_block_variable(node, &nvar);
             }
         }
     } break;
     default:
-        return cc_parse_compund_statment_potential_declarator(
-            ctx, node, true);
+        return cc_parse_compund_statment_potential_declarator(ctx, node, true);
     }
 
     /* Compound statments ends with semicolon! */
@@ -471,8 +468,8 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             const cc_ast_variable* old_ast_current_func;
             bool old_is_func_body;
             if ((var.storage & AST_STORAGE_TYPEDEF) != 0
-            || (var.storage & AST_STORAGE_THREAD_LOCAL) != 0
-            || (var.storage & AST_STORAGE_REGISTER) != 0) {
+                || (var.storage & AST_STORAGE_THREAD_LOCAL) != 0
+                || (var.storage & AST_STORAGE_REGISTER) != 0) {
                 cc_diag_error(ctx, "Invalid function definition specifiers");
                 goto error_handle;
             } else if (var.type.mode != AST_TYPE_MODE_FUNCTION) {
@@ -487,7 +484,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             }
 
             cc_lex_token_consume(ctx);
-            cc_ast_add_block_variable(node, &var);
+            cc_ast_add_or_replace_block_variable(node, &var);
 
             /* And variable for the function itself */
             var.body = cc_ast_create_block(ctx, node);
@@ -501,7 +498,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             ctx->ast_current_func = old_ast_current_func;
             ctx->is_func_body = old_is_func_body;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
-            cc_ast_update_block_variable(node, &var);
+            cc_ast_add_or_replace_block_variable(node, &var);
             return true;
         }
         default:
@@ -517,12 +514,13 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
                    of reasons, however this isn't an error, so we can continue
                    normal execution. */
                 cc_diag_warning(ctx, "Anonymous enum");
-                if(var.name == NULL)
+                if (var.name == NULL)
                     var.name = cc_strdup(cc_get_anon_name(ctx));
-                if(var.type.name == NULL)
+                if (var.type.name == NULL)
                     var.type.name = cc_strdup(cc_get_anon_name(ctx));
             } else {
-                cc_diag_error(ctx, "Anonymous external declaration of variable");
+                cc_diag_error(
+                    ctx, "Anonymous external declaration of variable");
                 goto error_handle;
             }
         } else {
@@ -534,7 +532,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         have any other linkage specifiers. */
     if (var.storage == AST_STORAGE_NONE)
         var.storage = AST_STORAGE_GLOBAL;
-    cc_ast_add_block_variable(node, &var);
+    cc_ast_add_or_replace_block_variable(node, &var);
     return true;
 error_handle:
     cc_ast_destroy_var(&var, false);

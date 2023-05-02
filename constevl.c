@@ -399,9 +399,9 @@ bool cc_ceval_deduce_type(
             cc_diag_error(ctx, "Can't deduce type of left struct");
             goto error_handle;
         }
-        field_var = cc_ast_get_field_of(&vtype,
-            node->data.field_access.field_name);
-        if (field_var == NULL) {
+        if ((field_var = cc_ast_get_field_of(
+                 &vtype, node->data.field_access.field_name))
+            == NULL) {
             cc_diag_error(ctx, "Unable to obtain field '%s'",
                 node->data.field_access.field_name);
             goto error_handle;

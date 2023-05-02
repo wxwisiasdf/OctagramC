@@ -113,9 +113,9 @@ bool cc_parse_struct_or_union_specifier(
             }
             cc_ast_copy_type(type, s_or_u_type);
             if (s_or_u_type->mode != AST_TYPE_MODE_STRUCT
-            && s_or_u_type->mode != AST_TYPE_MODE_UNION) {
-                cc_diag_error(ctx, "%s isn't a valid struct/union",
-                    s_or_u_type->name);
+                && s_or_u_type->mode != AST_TYPE_MODE_UNION) {
+                cc_diag_error(
+                    ctx, "%s isn't a valid struct/union", s_or_u_type->name);
                 type->mode = AST_TYPE_MODE_STRUCT;
             }
         } else { /* Not an existing type, forward declaration... */
@@ -149,7 +149,7 @@ bool cc_parse_struct_or_union_specifier(
                 cc_diag_error(ctx, "Bits must be a whole integer");
                 goto error_handle;
             } else if ((literal.is_signed && literal.value.s == 0)
-            || (!literal.is_signed && literal.value.u == 0)) {
+                || (!literal.is_signed && literal.value.u == 0)) {
                 cc_diag_error(ctx, "0-bit width in bitfield is invalid");
                 goto error_handle;
             }
@@ -214,8 +214,7 @@ static bool cc_parse_enum_specifier(
             }
             cc_ast_copy_type(type, enum_type);
             if (enum_type->mode != AST_TYPE_MODE_ENUM) {
-                cc_diag_error(ctx, "%s isn't a valid enum",
-                    enum_type->name);
+                cc_diag_error(ctx, "%s isn't a valid enum", enum_type->name);
                 type->mode = AST_TYPE_MODE_ENUM;
             }
         } else { /* Not an existing type, forward declaration... */
@@ -283,7 +282,7 @@ static bool cc_parse_enum_specifier(
         var.storage = AST_STORAGE_CONSTEXPR;
         var.name = cc_strdup(member.name);
         var.initializer = cc_ast_create_literal(ctx, node, member.literal);
-        cc_ast_add_block_variable(node, &var);
+        cc_ast_add_or_replace_block_variable(node, &var);
 
         type->data.enumer.elems = cc_realloc_array(
             type->data.enumer.elems, type->data.enumer.n_elems + 1);
@@ -405,9 +404,9 @@ static bool cc_parse_typedef_name(
 {
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_IDENT) {
-        const cc_ast_variable* tpdef = cc_ast_find_variable(
-            cc_get_cfunc_name(ctx), ctok->data, node);
+        && ctok->type == LEXER_TOKEN_IDENT) {
+        const cc_ast_variable* tpdef
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
         if (tpdef == NULL || (tpdef->storage & AST_STORAGE_TYPEDEF) == 0)
             return false;
         cc_lex_token_consume(ctx);
@@ -607,7 +606,8 @@ static bool cc_parse_storage_class_specifier(
             cc_diag_error(ctx, "auto can't appear alongside typedef");
     } else if ((var->storage & AST_STORAGE_TYPEDEF) != 0) {
         if ((var->storage & ~AST_STORAGE_TYPEDEF) != 0)
-            cc_diag_error(ctx, "typedef can't appear alongside other specifiers");
+            cc_diag_error(
+                ctx, "typedef can't appear alongside other specifiers");
     }
 error_handle: /* Normal finish */
     cc_lex_token_consume(ctx);
@@ -832,10 +832,10 @@ bool cc_parse_declarator(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         break;
     case LEXER_TOKEN_IDENT: { /* <ident> <attr> */
-        const cc_ast_variable* other_var = cc_ast_find_variable(
-            cc_get_cfunc_name(ctx), ctok->data, node);
+        const cc_ast_variable* other_var
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
         if (other_var == NULL
-        || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
+            || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Not a typedef, so must be the identifier of this variable! */
             if (var->name != NULL) {
                 cc_diag_error(ctx,
@@ -1016,14 +1016,14 @@ error_handle:
    To avoid code repetition inwithinhence our parsing code
    as this is used by both compound and external declarations to declare
    multiple variables at once. */
-bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
-    cc_ast_variable* var)
+bool cc_parse_declarator_list(
+    cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
     bool decl_result;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     /* Declaration specifiers */
 comma_list_initializers: /* Jump here, reusing the variable's stack
                             location **but** copying over the type
@@ -1053,7 +1053,7 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
            function body. */
         if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
             var->storage = AST_STORAGE_GLOBAL;
-        cc_ast_add_block_variable(node, var);
+        cc_ast_add_or_replace_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);
         cc_ast_destroy_type(&stype, false);

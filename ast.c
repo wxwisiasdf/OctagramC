@@ -67,8 +67,8 @@ cc_ast_node* cc_ast_create_if_expr(cc_context* ctx, cc_ast_node* parent)
     return node;
 }
 
-cc_ast_node* cc_ast_create_field_access(cc_context* ctx, cc_ast_node* parent,
-    const char *field_name)
+cc_ast_node* cc_ast_create_field_access(
+    cc_context* ctx, cc_ast_node* parent, const char* field_name)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
     node->data.field_access.left = cc_ast_create_block(ctx, node);
@@ -180,19 +180,13 @@ void cc_ast_add_block_node(
 {
     assert(block != NULL && block->type == AST_NODE_BLOCK);
     assert(child != NULL && child->parent == block);
-    assert(block->type == AST_NODE_NONE
-        || block->type == AST_NODE_BINOP
-        || block->type == AST_NODE_UNOP
-        || block->type == AST_NODE_BLOCK
-        || block->type == AST_NODE_JUMP
-        || block->type == AST_NODE_IF
-        || block->type == AST_NODE_RETURN
-        || block->type == AST_NODE_CALL
-        || block->type == AST_NODE_VARIABLE
-        || block->type == AST_NODE_LITERAL
+    assert(block->type == AST_NODE_NONE || block->type == AST_NODE_BINOP
+        || block->type == AST_NODE_UNOP || block->type == AST_NODE_BLOCK
+        || block->type == AST_NODE_JUMP || block->type == AST_NODE_IF
+        || block->type == AST_NODE_RETURN || block->type == AST_NODE_CALL
+        || block->type == AST_NODE_VARIABLE || block->type == AST_NODE_LITERAL
         || block->type == AST_NODE_STRING_LITERAL
-        || block->type == AST_NODE_SWITCH
-        || block->type == AST_NODE_REGISTER
+        || block->type == AST_NODE_SWITCH || block->type == AST_NODE_REGISTER
         || block->type == AST_NODE_FIELD_ACCESS);
     block->data.block.children = cc_realloc_array(
         block->data.block.children, block->data.block.n_children + 1);
@@ -221,36 +215,23 @@ void cc_ast_remove_block_node(cc_ast_node* block, size_t i)
     block->data.block.n_children--;
 }
 
-void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var)
+void cc_ast_add_or_replace_block_variable(
+    cc_ast_node* node, const cc_ast_variable* var)
 {
     size_t i;
-    assert(block->type == AST_NODE_BLOCK);
+    assert(node->type == AST_NODE_BLOCK);
     assert(var->name != NULL);
-    for (i = 0; i < block->data.block.n_vars; i++) {
-        cc_ast_variable* bvar = &block->data.block.vars[i];
+    for (i = 0; i < node->data.block.n_vars; i++) {
+        cc_ast_variable* bvar = &node->data.block.vars[i];
         /*assert(strcmp(bvar->name, var->name) != 0);*/
         if (!strcmp(bvar->name, var->name)) {
             *bvar = *var;
             return;
         }
     }
-    block->data.block.vars = cc_realloc_array(
-        block->data.block.vars, block->data.block.n_vars + 1);
-    block->data.block.vars[block->data.block.n_vars++] = *var;
-}
-
-void cc_ast_update_block_variable(cc_ast_node* block, const cc_ast_variable* var)
-{
-    size_t i;
-    assert(block->type == AST_NODE_BLOCK);
-    assert(var->name != NULL);
-    for (i = 0; i < block->data.block.n_vars; i++) {
-        cc_ast_variable* bvar = &block->data.block.vars[i];
-        if (!strcmp(bvar->name, var->name)) {
-            *bvar = *var;
-            break;
-        }
-    }
+    node->data.block.vars
+        = cc_realloc_array(node->data.block.vars, node->data.block.n_vars + 1);
+    node->data.block.vars[node->data.block.n_vars++] = *var;
 }
 
 void cc_ast_add_call_param(
