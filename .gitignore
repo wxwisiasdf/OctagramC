@@ -9,3 +9,6 @@
 !*.jcl
 !Makefile
 !Makefile.*
+
+!tests/
+!tests/*.c
