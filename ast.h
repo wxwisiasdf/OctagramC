@@ -39,7 +39,8 @@ enum cc_ast_storage {
     AST_STORAGE_CONSTEXPR = 0x10,
     AST_STORAGE_GLOBAL = 0x20,
     AST_STORAGE_THREAD_LOCAL = 0x40,
-    AST_STORAGE_INLINE = 0x80
+    AST_STORAGE_INLINE = 0x80,
+    AST_STORAGE_TYPEDEF = 0x100
 };
 
 enum cc_ast_type_mode {
@@ -81,16 +82,15 @@ typedef struct cc_ast_enum_member {
 
 typedef struct cc_ast_type {
     enum cc_ast_type_mode mode;
+    char* name; /* Name is optional for some types */
+    unsigned short min_alignment;
+    unsigned short max_alignment;
     cc_ast_type_cv cv_qual[MAX_CV_QUALIFIERS];
     unsigned short n_cv_qual; /* Number of cv qualifiers
                                0 = <cv> <type> <ident>;
                                1 = <cv> *<cv> <type> <ident>;
                                2 = <cv> *<cv> *<cv> <type> <ident>;
                                and so on... */
-    bool is_typedef : 1; /* Set for typedefs */
-    char* name; /* Name is optional for some types */
-    unsigned short min_alignment;
-    unsigned short max_alignment;
     union {
         struct {
             bool is_signed : 1;
@@ -124,8 +124,8 @@ typedef struct cc_ast_variable {
     char* name;
     struct cc_ast_node* body; /* For functions. */
     struct cc_ast_node* initializer; /* Initializer for constexpr and such. */
-    cc_ast_type type;
     enum cc_ast_storage storage;
+    cc_ast_type type;
 } cc_ast_variable;
 
 enum cc_ast_node_type {
@@ -282,6 +282,7 @@ void cc_ast_add_block_node(
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type);
 void cc_ast_remove_block_node(cc_ast_node* block, size_t i);
 void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var);
+void cc_ast_update_block_variable(cc_ast_node* block, const cc_ast_variable* var);
 void cc_ast_add_call_param(
     cc_ast_node* restrict call, const cc_ast_node* restrict param);
 void cc_ast_destroy_type(cc_ast_type* type, bool managed);
@@ -290,7 +291,6 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed);
 cc_ast_variable* cc_ast_find_variable(
     const char* fn_name, const char* name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
-cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node);
 cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node);
 void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
     const cc_ast_node* restrict src);

@@ -226,20 +226,27 @@ void cc_ast_add_block_variable(cc_ast_node* block, const cc_ast_variable* var)
     size_t i;
     assert(block->type == AST_NODE_BLOCK);
     assert(var->name != NULL);
-
     for (i = 0; i < block->data.block.n_vars; i++) {
         cc_ast_variable* bvar = &block->data.block.vars[i];
-        if (!strcmp(bvar->name, var->name)) {
-            /* TODO: Check that the declaration is the same */
-            cc_ast_destroy_var(bvar, false);
-            *bvar = *var;
-            return;
-        }
+        assert(strcmp(bvar->name, var->name) != 0);
     }
-
     block->data.block.vars = cc_realloc_array(
         block->data.block.vars, block->data.block.n_vars + 1);
     block->data.block.vars[block->data.block.n_vars++] = *var;
+}
+
+void cc_ast_update_block_variable(cc_ast_node* block, const cc_ast_variable* var)
+{
+    size_t i;
+    assert(block->type == AST_NODE_BLOCK);
+    assert(var->name != NULL);
+    for (i = 0; i < block->data.block.n_vars; i++) {
+        cc_ast_variable* bvar = &block->data.block.vars[i];
+        if (!strcmp(bvar->name, var->name)) {
+            *bvar = *var;
+            break;
+        }
+    }
 }
 
 void cc_ast_add_call_param(
@@ -280,7 +287,7 @@ void cc_ast_destroy_var(cc_ast_variable* var, bool managed)
 {
     assert(var != NULL);
     cc_ast_destroy_type(&var->type, false);
-    /*cc_free(var->name);*/
+    cc_strfree(var->name);
     if (managed)
         cc_free(var);
 }
@@ -399,21 +406,6 @@ cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
             return bnode;
     }
     return cc_ast_find_label(name, node->parent);
-}
-
-cc_ast_type* cc_ast_find_typedef(const char* name, cc_ast_node* node)
-{
-    if (node == NULL)
-        return NULL;
-    if (node->type == AST_NODE_BLOCK) {
-        size_t i;
-        for (i = 0; i < node->data.block.n_types; i++) {
-            cc_ast_type* type = &node->data.block.types[i];
-            if (type->is_typedef && !strcmp(type->name, name))
-                return type;
-        }
-    }
-    return cc_ast_find_typedef(name, node->parent);
 }
 
 cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node)
@@ -540,7 +532,6 @@ void cc_ast_copy_type(
 {
     memset(dest, 0, sizeof(*dest));
     dest->mode = src->mode;
-    dest->is_typedef = src->is_typedef;
 
     dest->max_alignment = src->max_alignment;
     dest->min_alignment = src->min_alignment;

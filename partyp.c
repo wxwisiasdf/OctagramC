@@ -112,6 +112,12 @@ bool cc_parse_struct_or_union_specifier(
                 type->name = NULL;
             }
             cc_ast_copy_type(type, s_or_u_type);
+            if (s_or_u_type->mode != AST_TYPE_MODE_STRUCT
+            && s_or_u_type->mode != AST_TYPE_MODE_UNION) {
+                cc_diag_error(ctx, "%s isn't a valid struct/union",
+                    s_or_u_type->name);
+                type->mode = AST_TYPE_MODE_STRUCT;
+            }
         } else { /* Not an existing type, forward declaration... */
             /* ... */
         }
@@ -207,6 +213,11 @@ static bool cc_parse_enum_specifier(
                 type->name = NULL;
             }
             cc_ast_copy_type(type, enum_type);
+            if (enum_type->mode != AST_TYPE_MODE_ENUM) {
+                cc_diag_error(ctx, "%s isn't a valid enum",
+                    enum_type->name);
+                type->mode = AST_TYPE_MODE_ENUM;
+            }
         } else { /* Not an existing type, forward declaration... */
             /* ... */
         }
@@ -392,16 +403,15 @@ void cc_swap_func_decl(cc_ast_type* type)
 static bool cc_parse_typedef_name(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
-    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
-    if (ctok == NULL)
-        return false;
-
-    if (ctok->type == LEXER_TOKEN_IDENT) {
-        const cc_ast_type* tpdef = NULL;
-        if ((tpdef = cc_ast_find_typedef(ctok->data, node)) == NULL)
+    const cc_lexer_token* ctok;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_IDENT) {
+        const cc_ast_variable* tpdef = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data, node);
+        if (tpdef == NULL || (tpdef->storage & AST_STORAGE_TYPEDEF) == 0)
             return false;
         cc_lex_token_consume(ctx);
-        cc_ast_copy_type(type, tpdef);
+        cc_ast_copy_type(type, &tpdef->type);
         return true;
     }
     return false;
@@ -567,7 +577,7 @@ static bool cc_parse_storage_class_specifier(
         var->storage |= AST_STORAGE_CONSTEXPR;
         break;
     case LEXER_TOKEN_typedef:
-        ctx->is_parsing_typedef = true;
+        var->storage |= AST_STORAGE_TYPEDEF;
         break;
     default:
         return false;
@@ -593,8 +603,11 @@ static bool cc_parse_storage_class_specifier(
                 "constexpr may only be used with auto, register"
                 " or static");
     } else if ((var->storage & AST_STORAGE_AUTO) != 0) {
-        if (ctx->is_parsing_typedef == true)
+        if ((var->storage & AST_STORAGE_TYPEDEF) != 0)
             cc_diag_error(ctx, "auto can't appear alongside typedef");
+    } else if ((var->storage & AST_STORAGE_TYPEDEF) != 0) {
+        if ((var->storage & ~AST_STORAGE_TYPEDEF) != 0)
+            cc_diag_error(ctx, "typedef can't appear alongside other specifiers");
     }
 error_handle: /* Normal finish */
     cc_lex_token_consume(ctx);
@@ -705,14 +718,11 @@ static bool cc_parse_declarator_braced_initializer_element(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
-    bool named_element = false;
-
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_DOT) {
         cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected 'ident'");
     }
-
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASSIGN)
         cc_parse_assignment_expression(ctx, node, var);
@@ -775,7 +785,6 @@ static bool cc_parse_declarator_assignment_expression(
         return cc_parse_declarator_braced_initializer(ctx, node, var);
     } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASSIGN) {
-        cc_ast_node* var_node = cc_ast_create_var_ref(ctx, node, var);
         while (cc_parse_assignment_expression(ctx, node, var)) {
             const cc_lexer_token* ctok;
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -797,7 +806,7 @@ bool cc_parse_declarator(
     const cc_lexer_token* ctok;
     cc_parse_declaration_specifier(ctx, node, var);
 
-    /* On cases such as struct b { <...> }; */
+    /* Forward declarations such as "struct a;" or "union b;" */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_SEMICOLON) {
         /* Empty structures, unions or enums do not require a diagnostic(?)
@@ -823,24 +832,28 @@ bool cc_parse_declarator(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         break;
     case LEXER_TOKEN_IDENT: { /* <ident> <attr> */
-        const cc_ast_type* tpdef = cc_ast_find_typedef(ctok->data, node);
-        cc_lex_token_consume(ctx);
-        if (tpdef == NULL) {
+        const cc_ast_variable* other_var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data, node);
+        if (other_var == NULL
+        || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
+            /* Not a typedef, so must be the identifier of this variable! */
             if (var->name != NULL) {
                 cc_diag_error(ctx,
-                    "More than one identifier on declaration ("
-                    "%s and %s)",
+                    "More than one identifier on declaration (%s and %s)",
                     var->name, ctok->data);
+                cc_lex_token_consume(ctx);
                 goto error_handle;
             }
             var->name = cc_strdup(ctok->data);
         } else {
-            /* A typedef name, so copy over the type from the typedef */
-            cc_ast_copy_type(&var->type, tpdef);
+            assert(other_var != NULL);
+            assert((other_var->storage & AST_STORAGE_TYPEDEF) != 0);
+            cc_ast_copy_type(&var->type, &other_var->type);
         }
+        cc_lex_token_consume(ctx);
     } break;
     default:
-        if (ctx->is_parsing_prototype || ctx->declaration_ident_optional) {
+        if (ctx->is_parsing_prototype || ctx->abstract_declarator) {
             if (var->type.mode == AST_TYPE_MODE_NONE) {
                 cc_diag_error(ctx, "Unable to disambiguate");
                 cc_lex_token_consume(ctx);
@@ -894,12 +907,11 @@ ignore_missing_ident:
                         var->type.data.func.n_params + 1);
                 param = &var->type.data.func
                              .params[var->type.data.func.n_params++];
-                cc_ast_copy_type(&param->type, &virtual_param_var.type);
-
                 param->name = NULL;
                 param->storage = AST_STORAGE_AUTO; /* Auto storage... */
                 if (virtual_param_var.name != NULL)
                     param->name = cc_strdup(virtual_param_var.name);
+                cc_ast_copy_type(&param->type, &virtual_param_var.type);
 
                 /* Clear virtual parameter name */
                 cc_ast_destroy_var(&virtual_param_var, false);
@@ -1005,7 +1017,7 @@ error_handle:
    as this is used by both compound and external declarations to declare
    multiple variables at once. */
 bool cc_parse_declarator_list(cc_context* ctx, cc_ast_node* node,
-    cc_ast_variable* var, bool* is_parsing_typedef)
+    cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
     bool decl_result;
@@ -1027,19 +1039,13 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
 
        This state is updated accordingly on the type storage
        specifiers. */
-    *is_parsing_typedef = ctx->is_parsing_typedef; /* Save temp */
-    if (ctx->is_parsing_typedef) {
-        cc_ast_type ntpdef = { 0 };
-        if (var->name == NULL) {
-            cc_diag_error(ctx, "Anonymous typedef");
-            goto error_handle;
-        }
-        cc_ast_copy_type(&ntpdef, &var->type); /* Copy type over */
-        ntpdef.name = cc_strdup(var->name);
-        ntpdef.is_typedef = true;
-        cc_ast_add_block_type(node, &ntpdef);
+    if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
+        var->storage = AST_STORAGE_GLOBAL;
+
+    if (var->name == NULL) {
+        cc_diag_error(ctx, "Variable needs to have an identifier");
+        goto error_handle;
     }
-    ctx->is_parsing_typedef = false;
 
     if (!decl_result)
         goto error_handle;

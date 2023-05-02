@@ -25,7 +25,7 @@ typedef struct cc_context {
     unsigned int label_id; /* Label Id assignation */
 
     /* Options */
-    bool declaration_ident_optional; /* alignas/alignof/sizeof type-name
+    bool abstract_declarator; /* alignas/alignof/sizeof type-name
                                          ignores/doesn't fail when no identifier
                                          is specified. */
     bool print_ast; /* Printing of AST is allowed/disallowed */
@@ -48,7 +48,6 @@ typedef struct cc_context {
     struct cc_ast_node* break_node; /* Node to jump to in break */
     bool is_parsing_prototype; /* Allow ignoring missing identifiers on
                                    parameters. */
-    bool is_parsing_typedef; /* Handling for typedefs */
     const struct cc_ast_variable* ast_current_func;
     unsigned short if_depth; /* Number of If's encountered */
     unsigned short if_w_braces_depth; /* Number of If's with braces

@@ -360,9 +360,9 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     /* This block is just a virtual block and will be destroyed
         once we finish evaluating our alignof/sizeof. */
     virtual_node = cc_ast_create_block(ctx, node);
-    old_v = ctx->declaration_ident_optional;
+    old_v = ctx->abstract_declarator;
     old_szv = ctx->parsing_sizeof;
-    ctx->declaration_ident_optional = true;
+    ctx->abstract_declarator = true;
     ctx->parsing_sizeof = true;
 
     /* Parenthesis following means we can evaluate and obtain the size
@@ -379,7 +379,7 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         if (!cc_parse_type_name(ctx, virtual_node, &virtual_var.type)) {
             cc_diag_error(
                 ctx, "Expected unary expression after alignof/sizeof");
-            ctx->declaration_ident_optional = old_v;
+            ctx->abstract_declarator = old_v;
             cc_ast_destroy_node(virtual_node, true);
             goto error_handle;
         }
@@ -390,16 +390,16 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         cc_ast_destroy_var(&virtual_var, false);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } else {
-        ctx->declaration_ident_optional = true;
+        ctx->abstract_declarator = true;
         if (!cc_parse_unary_expression(ctx, virtual_node)) {
             cc_diag_error(
                 ctx, "Expected unary expression after alignof/sizeof");
-            ctx->declaration_ident_optional = old_v;
+            ctx->abstract_declarator = old_v;
             cc_ast_destroy_node(virtual_node, true);
             goto error_handle;
         }
     }
-    ctx->declaration_ident_optional = old_v;
+    ctx->abstract_declarator = old_v;
     ctx->parsing_sizeof = old_szv;
     if (deduce_required) {
         if (!cc_ceval_deduce_type(ctx, virtual_node, &virtual_type)) {
@@ -446,7 +446,7 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     }
     return true;
 error_handle:
-    ctx->declaration_ident_optional = old_v;
+    ctx->abstract_declarator = old_v;
     ctx->parsing_sizeof = old_szv;
     return false;
 }
