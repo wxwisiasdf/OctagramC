@@ -8,7 +8,7 @@
 #include <string.h>
 
 #define LEXER_TOKEN_LIST_1(x, v) v
-static const char* lexer_token_match[] = { LEXER_TOKEN_LIST };
+static const char* lexer_token_match[NUM_LEXER_TOKENS] = { LEXER_TOKEN_LIST };
 #undef LEXER_TOKEN_LIST_1
 #undef LEXER_TOKEN_LIST
 
