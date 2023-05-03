@@ -718,72 +718,69 @@ error_handle:
 bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
 {
     const cc_lexer_token* ctok;
-    if (cc_parse_postfix_expression(ctx, node))
-        return true;
-    else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL) {
-        cc_ast_node* binop_node = NULL;
-        cc_ast_node* literal_node = NULL;
-        cc_ast_node* unop_node = NULL;
-        switch (ctok->type) {
-        case LEXER_TOKEN_PLUS: /* Prefix +*/
-            cc_lex_token_consume(ctx);
-            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_ADD);
-            literal_node = cc_ast_create_literal_from_str(
-                ctx, binop_node->data.binop.left, "0");
-            break;
-        case LEXER_TOKEN_MINUS: /* Prefix - */
-            cc_lex_token_consume(ctx);
-            binop_node = cc_ast_create_binop_expr(ctx, node, AST_BINOP_SUB);
-            literal_node = cc_ast_create_literal_from_str(
-                ctx, binop_node->data.binop.left, "0");
-            break;
-        case LEXER_TOKEN_INCREMENT: /* Prefix ++ */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_PREINC);
-            break;
-        case LEXER_TOKEN_DECREMENT: /* Prefix -- */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_PREDEC);
-            break;
-        case LEXER_TOKEN_AMPERSAND: /* Reference */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_REF);
-            break;
-        case LEXER_TOKEN_ASTERISK: /* Dereference */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
-            break;
-        case LEXER_TOKEN_COND_NOT: /* Conditional not */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_COND_NOT);
-            break;
-        case LEXER_TOKEN_NOT: /* Bitwise not */
-            cc_lex_token_consume(ctx);
-            unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_NOT);
-            break;
-        default:
-            if (cc_parse_unary_sizeof_or_alignof(ctx, node))
-                return true;
-            break;
-        }
+    cc_ast_node* binop_node = NULL;
+    cc_ast_node* unop_node = NULL;
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    
+    switch (ctok->type) {
+    case LEXER_TOKEN_PLUS:  /* Prefix + */
+    case LEXER_TOKEN_MINUS: { /* Prefix - */
+        cc_ast_node* literal_node;
+        cc_lex_token_consume(ctx);
+        literal_node = cc_ast_create_literal_from_str(
+            ctx, binop_node->data.binop.left, "0");
+        binop_node = cc_ast_create_binop_expr(ctx, node,
+            ctok->type == LEXER_TOKEN_PLUS ? AST_BINOP_ADD : AST_BINOP_SUB);
+        cc_ast_add_block_node(binop_node->data.binop.left, literal_node);
+    } break;
+    case LEXER_TOKEN_INCREMENT: /* Prefix ++ */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_PREINC);
+        break;
+    case LEXER_TOKEN_DECREMENT: /* Prefix -- */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_PREDEC);
+        break;
+    case LEXER_TOKEN_AMPERSAND: /* Reference */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_REF);
+        break;
+    case LEXER_TOKEN_ASTERISK: /* Dereference */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_DEREF);
+        break;
+    case LEXER_TOKEN_COND_NOT: /* Conditional not */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_COND_NOT);
+        break;
+    case LEXER_TOKEN_NOT: /* Bitwise not */
+        cc_lex_token_consume(ctx);
+        unop_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_NOT);
+        break;
+    default:
+        if (cc_parse_postfix_expression(ctx, node))
+            return true;
+        if (cc_parse_unary_sizeof_or_alignof(ctx, node))
+            return true;
+        break;
+    }
 
-        assert(!(binop_node != NULL && unop_node != NULL));
-        if (binop_node != NULL) {
-            cc_ast_add_block_node(binop_node->data.binop.left, literal_node);
-            if (!cc_parse_unary_expression(ctx, binop_node->data.binop.right)) {
-                cc_diag_error(ctx, "Expected an unary expression after binop");
-                goto error_handle;
-            }
-            cc_ast_add_block_node(node, binop_node);
-            return true;
-        } else if (unop_node != NULL) {
-            if (!cc_parse_unary_expression(ctx, unop_node->data.unop.child)) {
-                cc_diag_error(ctx, "Expected an unary expression after unary");
-                goto error_handle;
-            }
-            cc_ast_add_block_node(node, unop_node);
-            return true;
+    assert(!(binop_node != NULL && unop_node != NULL));
+    if (binop_node != NULL) {
+        if (!cc_parse_cast_expression(ctx, binop_node->data.binop.right)) {
+            cc_diag_error(ctx, "Expected an unary expression after binop");
+            goto error_handle;
         }
+        cc_ast_add_block_node(node, binop_node);
+        return true;
+    } else if (unop_node != NULL) {
+        if (!cc_parse_cast_expression(ctx, unop_node->data.unop.child)) {
+            cc_diag_error(ctx, "Expected an unary expression after unary");
+            goto error_handle;
+        }
+        cc_ast_add_block_node(node, unop_node);
+        return true;
     }
 error_handle:
     return false;
