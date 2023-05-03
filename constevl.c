@@ -358,9 +358,11 @@ static void cc_ceval_promote_type(cc_ast_type* dest, const cc_ast_type* src)
 
 /* Deduces a type from a node, the type written into type is a non-owning
    view of the real type, hence use cc_ast_copy_type to safely obtain a
-   owning version if desired. */
-bool cc_ceval_deduce_type(
-    cc_context* ctx, const cc_ast_node* node, cc_ast_type* type)
+   owning version if desired.
+   The as_func parameter will return the type of the call function instead
+   of it's returning value. */
+bool cc_ceval_deduce_type_1(
+    cc_context* ctx, const cc_ast_node* node, cc_ast_type* type, bool as_func)
 {
     switch (node->type) {
     case AST_NODE_VARIABLE: {
@@ -376,11 +378,11 @@ bool cc_ceval_deduce_type(
     }
     case AST_NODE_CALL: {
         cc_ast_type tmp_type = { 0 };
-        if (!cc_ceval_deduce_type(ctx, node->data.call.call_expr, &tmp_type))
+        if (!cc_ceval_deduce_type_1(ctx, node->data.call.call_expr, &tmp_type, as_func))
             return false;
         assert(tmp_type.mode == AST_TYPE_MODE_FUNCTION
             && tmp_type.data.func.return_type != NULL);
-        *type = tmp_type;
+        *type = as_func ? tmp_type : *tmp_type.data.func.return_type;
         return true;
     }
     case AST_NODE_STRING_LITERAL:
@@ -394,13 +396,13 @@ bool cc_ceval_deduce_type(
     case AST_NODE_BINOP:
         /* Assignments promote to their lvalue type */
         if (node->data.binop.op == AST_BINOP_ASSIGN)
-            return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
-        /*cc_ceval_deduce_type(ctx, node->data.binop.right, type);*/
-        return cc_ceval_deduce_type(ctx, node->data.binop.left, type);
+            return cc_ceval_deduce_type_1(ctx, node->data.binop.left, type, as_func);
+        /*cc_ceval_deduce_type_1(ctx, node->data.binop.right, type, as_func);*/
+        return cc_ceval_deduce_type_1(ctx, node->data.binop.left, type, as_func);
     case AST_NODE_FIELD_ACCESS: {
         cc_ast_variable* field_var;
         cc_ast_type vtype = { 0 };
-        if (!cc_ceval_deduce_type(ctx, node->data.field_access.left, &vtype)) {
+        if (!cc_ceval_deduce_type_1(ctx, node->data.field_access.left, &vtype, as_func)) {
             cc_diag_error(ctx, "Can't deduce type of left struct");
             goto error_handle;
         }
@@ -419,7 +421,7 @@ bool cc_ceval_deduce_type(
             *type = node->data.unop.cast;
             return true;
         } else if (node->data.unop.op == AST_UNOP_DEREF) {
-            if (!cc_ceval_deduce_type(ctx, node->data.unop.child, type))
+            if (!cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func))
                 return false;
             /* Dereference type */
             if (type->n_cv_qual == 0) {
@@ -429,7 +431,7 @@ bool cc_ceval_deduce_type(
             type->n_cv_qual--;
             return true;
         } else if (node->data.unop.op == AST_UNOP_REF) {
-            if (!cc_ceval_deduce_type(ctx, node->data.unop.child, type))
+            if (!cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func))
                 return false;
             /* Reference type */
             type->cv_qual[type->n_cv_qual++] = type->cv_qual[0];
@@ -439,17 +441,23 @@ bool cc_ceval_deduce_type(
             }
             return true;
         }
-        return cc_ceval_deduce_type(ctx, node->data.unop.child, type);
+        return cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func);
     case AST_NODE_BLOCK:
         if (!node->data.block.n_children)
             return true;
-        return cc_ceval_deduce_type(ctx,
-            &node->data.block.children[node->data.block.n_children - 1], type);
+        return cc_ceval_deduce_type_1(ctx,
+            &node->data.block.children[node->data.block.n_children - 1], type, as_func);
     default:
         abort();
     }
 error_handle:
     return false;
+}
+
+bool cc_ceval_deduce_type(
+    cc_context* ctx, const cc_ast_node* node, cc_ast_type* type)
+{
+    return cc_ceval_deduce_type_1(ctx, node, type, false);
 }
 
 /* Obtain the offset of the field in an structure of type type, where the

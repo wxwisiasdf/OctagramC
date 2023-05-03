@@ -639,7 +639,7 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
         /* Do linting for parameters (for example when passing an integer as
            as pointer) - warning about those is not required if I recall
            correctly, however everyone nowadays expects a good linter. */
-        if (cc_ceval_deduce_type(ctx, result_node, &type)) {
+        if (cc_ceval_deduce_type_1(ctx, result_node, &type, true)) {
             cc_lint_call_node(ctx, result_node, type);
         } else {
             cc_diag_error(
