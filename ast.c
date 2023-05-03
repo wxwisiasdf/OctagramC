@@ -435,8 +435,11 @@ static cc_ast_node* cc_ast_create_generic(
         return cc_ast_create_block(ctx, parent);
     case AST_NODE_CALL:
         return cc_ast_create_call(ctx, parent);
-    case AST_NODE_FIELD_ACCESS:
-        return cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
+    case AST_NODE_FIELD_ACCESS: {
+        cc_ast_node *node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
+        node->data.field_access.left = cc_ast_create_block(ctx, node);
+        return node;
+    }
     case AST_NODE_IF:
         return cc_ast_create_if_expr(ctx, parent);
     case AST_NODE_JUMP:
