@@ -734,14 +734,21 @@ static bool cc_parse_declarator_braced_initializer_element(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
     const cc_lexer_token* ctok;
-    while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_DOT) {
-        cc_lex_token_consume(ctx);
-        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected 'ident'");
+    if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
+        return false;
+    
+    if (ctok->type == LEXER_TOKEN_DOT) {
+        while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_DOT) {
+            cc_lex_token_consume(ctx);
+            CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected 'ident'");
+        }
+        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_ASSIGN)
+            cc_parse_assignment_expression(ctx, node, NULL);
+    } else {
+        cc_parse_assignment_expression(ctx, node, NULL);
     }
-    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-        && ctok->type == LEXER_TOKEN_ASSIGN)
-        cc_parse_assignment_expression(ctx, node, var);
     return true;
 error_handle:
     return false;
@@ -756,14 +763,15 @@ bool cc_parse_declarator_braced_initializer(
         cc_lex_token_consume(ctx);
         /* {0} is a shorthand to zero-initialize an structure */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(ctok->data, "0")) {
+            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(ctok->data, "0")
+            && (ctok = cc_lex_token_peek(ctx, 0)) != NULL
+            && ctok->type == LEXER_TOKEN_RBRACE) {
             cc_lex_token_consume(ctx);
             /* TODO: Zero-initialize */
         } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE) {
             /* N2900 Consistent, Warningless, and Intuitive Initialization with {} */
-        } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type != LEXER_TOKEN_RBRACE) {
+        } else {
             while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type != LEXER_TOKEN_RBRACE) {
                 cc_parse_declarator_braced_initializer_element(ctx, node, var);
@@ -774,11 +782,11 @@ bool cc_parse_declarator_braced_initializer(
                 }
                 break;
             }
+            /* Trailing declarator list comma */
+            if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+                && ctok->type == LEXER_TOKEN_COMMA)
+                cc_lex_token_consume(ctx);
         }
-        /* Trailing declarator list comma */
-        if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_COMMA)
-            cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
         return true;
     }

@@ -32,7 +32,7 @@ static char* cc_lex_get_logical_line(cc_context* ctx)
 {
     size_t total_len = 0;
     char* p = NULL;
-    char tmpbuf[8192 * 2];
+    char tmpbuf[2048];
     while (fgets(tmpbuf, sizeof(tmpbuf), ctx->fp)) {
         size_t len = strlen(tmpbuf);
         total_len += len;
