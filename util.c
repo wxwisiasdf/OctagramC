@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef OCC_MEMSTATS
 static struct cc_alloc_context {
     struct cc_alloc_ptr {
         void* p;
@@ -19,15 +20,19 @@ static struct cc_alloc_context {
     size_t total_normal;
     size_t total_strings;
 } g_alloc_ctx;
+#endif
 
 void cc_alloc_init(bool track)
 {
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.active = track;
+#endif
     atexit(cc_alloc_deinit);
 }
 
 void cc_alloc_deinit(void)
 {
+#ifdef OCC_MEMSTATS
     size_t total = 0;
     size_t total_string = 0;
     size_t n_strings = 0;
@@ -55,8 +60,10 @@ void cc_alloc_deinit(void)
     free(g_alloc_ctx.ptrs);
     g_alloc_ctx.ptrs = NULL;
     g_alloc_ctx.n_ptrs = 0;
+#endif
 }
 
+#ifdef OCC_MEMSTATS
 static void cc_alloc_add(void* p, size_t size)
 {
     if (!g_alloc_ctx.active)
@@ -67,7 +74,7 @@ static void cc_alloc_add(void* p, size_t size)
     g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].p = p;
     g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].size = size;
     g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].is_string = g_alloc_ctx.is_string;
-    g_alloc_ctx.n_ptrs++;
+    ++g_alloc_ctx.n_ptrs;
 }
 
 static void cc_alloc_remove(void* p)
@@ -78,16 +85,19 @@ static void cc_alloc_remove(void* p)
     for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
         if (g_alloc_ctx.ptrs[i].p == p) {
             assert(g_alloc_ctx.ptrs[i].is_string == g_alloc_ctx.is_string);
-            memmove(&g_alloc_ctx.ptrs[i], &g_alloc_ctx.ptrs[i + 1],
-                sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs - i - 1));
+            if (i + 1 < g_alloc_ctx.n_ptrs)
+                memmove(&g_alloc_ctx.ptrs[i], &g_alloc_ctx.ptrs[i + 1],
+                    sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs - i - 1));
             g_alloc_ctx.n_ptrs--;
             return;
         }
     }
 }
+#endif
 
 void* cc_malloc(size_t size)
 {
+#ifdef OCC_MEMSTATS
     void* p = malloc(size);
     cc_alloc_add(p, size);
     if (p == NULL) {
@@ -95,10 +105,14 @@ void* cc_malloc(size_t size)
         cc_alloc_deinit();
     }
     return p;
+#else
+    return malloc(size);
+#endif
 }
 
 void* cc_zalloc(size_t size)
 {
+#ifdef OCC_MEMSTATS
     void* p = malloc(size);
     cc_alloc_add(p, size);
     if (p == NULL) {
@@ -107,10 +121,14 @@ void* cc_zalloc(size_t size)
     }
     memset(p, 0, size);
     return p;
+#else
+    return calloc(size, 1);
+#endif
 }
 
 void* cc_realloc(void* p, size_t size)
 {
+#ifdef OCC_MEMSTATS
     void* np;
     if (p == NULL)
         return cc_malloc(size);
@@ -122,13 +140,18 @@ void* cc_realloc(void* p, size_t size)
         cc_alloc_deinit();
     }
     return np;
+#else
+    return realloc(p, size);
+#endif
 }
 
 void cc_free(void* p)
 {
+#ifdef OCC_MEMSTATS
     if (p == NULL)
         return;
     cc_alloc_remove(p);
+#endif
     free(p);
 }
 
@@ -138,10 +161,14 @@ char* cc_strndup(const char* s, size_t n)
     assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
 
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     g_alloc_ctx.total_strings += n + 1;
+#endif
     ns = cc_malloc(n + 1);
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = false;
+#endif
 
     memcpy(ns, s, n);
     ns[n] = '\0';
@@ -156,10 +183,14 @@ char* cc_strdup(const char* s)
     assert(s != NULL);
     len = strlen(s);
 
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     g_alloc_ctx.total_strings += len + 1;
+#endif
     ns = cc_malloc(len + 1);
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = false;
+#endif
 
     memcpy(ns, s, len);
     ns[len] = '\0';
@@ -172,14 +203,17 @@ char* cc_strdupcat(const char* s1, const char* s2)
     char* ns;
     assert(s1 != NULL && s2 != NULL);
 
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     g_alloc_ctx.total_strings += n + 1;
+#endif
     ns = cc_malloc(n + 1);
     memcpy(ns, s1, strlen(s1));
     memcpy(ns + strlen(s1), s2, strlen(s2));
     ns[n] = '\0';
-
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = false;
+#endif
     return ns;
 }
 
@@ -187,8 +221,10 @@ void cc_strfree(char* s)
 {
     if (s == NULL)
         return;
+#ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     cc_alloc_remove(s);
     g_alloc_ctx.is_string = false;
+#endif
     free(s);
 }
