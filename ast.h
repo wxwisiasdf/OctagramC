@@ -191,7 +191,6 @@ typedef struct cc_ast_node {
     cc_diag_info info;
     unsigned short label_id;
     unsigned short ref_count; /* Label ref_count */
-    unsigned short size_type; /* Size to operate upon */
     union {
         cc_ast_literal literal;
         /* For pattern matching, we only use reg_group to specify which
