@@ -166,6 +166,23 @@ char* cc_strdup(const char* s)
     return ns;
 }
 
+char* cc_strdupcat(const char *s1, const char* s2)
+{
+    size_t n = strlen(s1) + strlen(s2) + 1;
+    char* ns;
+    assert(s1 != NULL && s2 != NULL);
+
+    g_alloc_ctx.is_string = true;
+    g_alloc_ctx.total_strings += n + 1;
+    ns = cc_malloc(n + 1);
+    memcpy(ns, s1, strlen(s1));
+    memcpy(ns + strlen(s1), s2, strlen(s2));
+    ns[n] = '\0';
+
+    g_alloc_ctx.is_string = false;
+    return ns;
+}
+
 void cc_strfree(char* s)
 {
     if (s == NULL)

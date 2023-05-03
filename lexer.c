@@ -289,12 +289,22 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = LEXER_TOKEN_IDENT;
             } else if (*ctx->cptr == '\"' || *ctx->cptr == '\'') {
+                cc_lexer_token* prev_tok = &ctx->tokens[ctx->n_tokens - 1];
                 const char* s;
                 char ch = *ctx->cptr;
                 ctx->cptr = cc_lex_string(ctx, ctx->cptr, &s);
-                tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = ch == '\'' ? LEXER_TOKEN_CHAR_LITERAL
                                       : LEXER_TOKEN_STRING_LITERAL;
+                tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                if(ctx->n_tokens > 0
+                && prev_tok->type == tok.type) {
+                    char *ns = cc_strdupcat(prev_tok->data, tok.data);
+                    cc_strfree(prev_tok->data);
+                    cc_strfree(tok.data);
+                    prev_tok->data = ns;
+                    ctx->cptr++; /* Skip closing quotes */
+                    continue; /* Next token, do not add to tokenlist! */
+                }
                 ctx->cptr++; /* Skip closing quotes */
             } else {
                 cc_diag_error(ctx, "Unrecognized token");
