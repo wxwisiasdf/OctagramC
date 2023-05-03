@@ -179,6 +179,17 @@ bool cc_parse_struct_or_union_specifier(
 
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
+    if (type->data.shared != NULL) {
+        /* Empty structures, unions or enums do not require a diagnostic(?)
+            but we'll provide one anyways. */
+        if ((type->mode == AST_TYPE_MODE_ENUM
+                && type->data.shared->enumer.n_elems == 0))
+            cc_diag_warning(ctx, "Empty enum");
+        else if ((type->mode == AST_TYPE_MODE_STRUCT
+                        || type->mode == AST_TYPE_MODE_UNION)
+            && type->data.shared->s_or_u.n_members == 0)
+            cc_diag_warning(ctx, "Empty structure/union");
+    }
 
     /* We will add structs that are not anonymous into the current defined
        types list so we can use them later as required. */
@@ -840,16 +851,6 @@ bool cc_parse_declarator(
             assert(var->type.data.shared == NULL);
             var->type.data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
         }
-
-        /* Empty structures, unions or enums do not require a diagnostic(?)
-           but we'll provide one anyways. */
-        if ((var->type.mode == AST_TYPE_MODE_ENUM
-                && var->type.data.shared->enumer.n_elems == 0))
-            cc_diag_warning(ctx, "Empty enum");
-        else if ((var->type.mode == AST_TYPE_MODE_STRUCT
-                     || var->type.mode == AST_TYPE_MODE_UNION)
-            && var->type.data.shared->s_or_u.n_members == 0)
-            cc_diag_warning(ctx, "Empty structure/union");
         return true;
     }
 
