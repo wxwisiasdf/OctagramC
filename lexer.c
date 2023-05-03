@@ -156,6 +156,9 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
         cc_diag_error(ctx, "Invalid numeric literal base %i", base);
         return NULL;
     }
+    /* Literal specifiers */
+    for (; isalpha(*p); ++p)
+        ;
     return p;
 }
 
