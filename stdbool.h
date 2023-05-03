@@ -3,6 +3,8 @@
 
 #ifdef __STDC__
 typedef enum { false = 0, true } bool;
+#else
+#define bool _Bool
 #endif
 
 #endif
