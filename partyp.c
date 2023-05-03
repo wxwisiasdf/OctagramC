@@ -17,29 +17,28 @@
 #include <string.h>
 
 /* Symbols from PDPCLIB */
-static const char* libc_names[140] = { "clearerr", "fclose", "feof", "ferror",
-    "fflush", "fgetc", "fgetpos", "fgets", "fopen", "fprintf", "fputc", "fputs",
-    "fread", "freopen", "fscanf", "fseek", "fsetpos", "ftell", "fwrite", "getc",
-    "getchar", "gets", "perror", "printf", "putc", "putchar", "puts", "remove",
-    "rename", "rewind", "scanf", "setbuf", "setvbuf", "sprintf", "sscanf",
-    "tmpfile", "tmpnam", "ungetc", "vfprintf", "vprintf", "vsprintf", "memchr",
-    "memcmp", "memcpy", "memmove", "memset", "strcat", "strchr", "strcmp",
-    "strcoll", "strcpy", "strcspn", "strerror", "strlen", "strncat", "strncmp",
-    "strncpy", "strpbrk", "strrchr", "strspn", "strstr", "strtok", "strxfrm",
-    "abort", "abs", "atexit", "atof", "atoi", "atol", "bsearch", "calloc",
-    "div", "exit", "free", "getenv", "labs", "ldiv", "malloc", "mblen",
-    "mbstowcs", "mbtowc", "qsort", "rand", "realloc", "srand", "strtod",
-    "strtol", "strtoul", "system", "wcstombs", "wctomb", "asctime", "clock",
-    "ctime", "difftime", "gmtime", "localtime", "mktime", "strftime", "time",
-    "raise", "signal", "localeconv", "setlocale", "isalnum", "isalpha",
-    "iscntrl", "isdigit", "isgraph", "islower", "isprint", "ispunct", "isspace",
-    "isupper", "isxdigit", "tolower", "toupper", "longjmp", "acos", "asin",
-    "atan", "atan2", "ceil", "cos", "cosh", "exp", "fabs", "floor", "fmod",
-    "frexp", "ldexp", "log", "log10", "modf", "pow", "sin", "sinh", "sqrt",
-    "tan", "tanh",
+static const char* libc_names[140 + 3] = { "clearerr", "fclose", "feof",
+    "ferror", "fflush", "fgetc", "fgetpos", "fgets", "fopen", "fprintf",
+    "fputc", "fputs", "fread", "freopen", "fscanf", "fseek", "fsetpos", "ftell",
+    "fwrite", "getc", "getchar", "gets", "perror", "printf", "putc", "putchar",
+    "puts", "remove", "rename", "rewind", "scanf", "setbuf", "setvbuf",
+    "sprintf", "sscanf", "tmpfile", "tmpnam", "ungetc", "vfprintf", "vprintf",
+    "vsprintf", "memchr", "memcmp", "memcpy", "memmove", "memset", "strcat",
+    "strchr", "strcmp", "strcoll", "strcpy", "strcspn", "strerror", "strlen",
+    "strncat", "strncmp", "strncpy", "strpbrk", "strrchr", "strspn", "strstr",
+    "strtok", "strxfrm", "abort", "abs", "atexit", "atof", "atoi", "atol",
+    "bsearch", "calloc", "div", "exit", "free", "getenv", "labs", "ldiv",
+    "malloc", "mblen", "mbstowcs", "mbtowc", "qsort", "rand", "realloc",
+    "srand", "strtod", "strtol", "strtoul", "system", "wcstombs", "wctomb",
+    "asctime", "clock", "ctime", "difftime", "gmtime", "localtime", "mktime",
+    "strftime", "time", "raise", "signal", "localeconv", "setlocale", "isalnum",
+    "isalpha", "iscntrl", "isdigit", "isgraph", "islower", "isprint", "ispunct",
+    "isspace", "isupper", "isxdigit", "tolower", "toupper", "longjmp", "acos",
+    "asin", "atan", "atan2", "ceil", "cos", "cosh", "exp", "fabs", "floor",
+    "fmod", "frexp", "ldexp", "log", "log10", "modf", "pow", "sin", "sinh",
+    "sqrt", "tan", "tanh",
     /* msvcrt part of pdpclib */
-    "__gtin", "__gtout", "gterr"
-};
+    "__gtin", "__gtout", "gterr" };
 
 static unsigned short cc_parse_attribute_literal_param(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
