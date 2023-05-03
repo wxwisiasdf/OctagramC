@@ -160,5 +160,5 @@ int main(int argc, char** argv)
 
     if (ctx.out != stdout)
         fclose(ctx.out);
-    return 0;
+    return !ctx.error_cnt ? EXIT_SUCCESS : EXIT_FAILURE;
 }
