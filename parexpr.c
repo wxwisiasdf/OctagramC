@@ -828,11 +828,14 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
             cc_get_cfunc_name(ctx) != NULL ? cc_get_cfunc_name(ctx) : "");
         break;
     case LEXER_TOKEN_LPAREN: {
-        cc_ast_type tmp_type = { 0 };
-
         if (ctx->parsing_sizeof) {
             cc_lex_token_consume(ctx);
-            if (cc_parse_type_name(ctx, node, ctx->sizeof_type)) {
+            if (cc_parse_unary_expression(ctx, node)) {
+                if(!cc_ceval_deduce_type(ctx, node, ctx->sizeof_type))
+                    cc_diag_error(ctx, "Unable to deduce type within sizeof");
+                CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
+                return true;
+            } else if (cc_parse_type_name(ctx, node, ctx->sizeof_type)) {
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
                 return true;
             }
