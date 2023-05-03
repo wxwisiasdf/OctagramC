@@ -700,6 +700,8 @@ bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
     const cc_lexer_token* ctok;
     bool qualified_once = false;
+    size_t old_c_token = ctx->c_token;
+
     while (cc_parse_declaration_specifier_attributes(ctx, node, type))
         ;
     /* Consume cv-qualifiers */
@@ -709,7 +711,6 @@ bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
     /* Parse pointers that can be of any depths */
     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASTERISK) {
-        qualified_once = true;
         cc_lex_token_consume(ctx);
         type->n_cv_qual++;
         if (type->n_cv_qual >= MAX_CV_QUALIFIERS) {
@@ -720,6 +721,10 @@ bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
         while (cc_parse_type_qualifier(ctx, type))
             ; /* Consume qualifiers */
     }
+
+    /* Restore old qualifiactions */
+    if(qualified_once == false)
+        ctx->c_token = old_c_token;
     return qualified_once;
 error_handle:
     return false;
