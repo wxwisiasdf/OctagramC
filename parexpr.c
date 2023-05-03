@@ -612,7 +612,7 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
         *parent_rerouted = true;
         cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
         cc_ast_add_block_node(node, accessor_node);
-        
+
         if (!cc_ceval_deduce_type(ctx, expr_node, &type))
             cc_diag_error(ctx, "Unable to deduce type");
         else {
@@ -722,9 +722,9 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
     cc_ast_node* unop_node = NULL;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     switch (ctok->type) {
-    case LEXER_TOKEN_PLUS:  /* Prefix + */
+    case LEXER_TOKEN_PLUS: /* Prefix + */
     case LEXER_TOKEN_MINUS: { /* Prefix - */
         cc_ast_node* literal_node;
         cc_lex_token_consume(ctx);
@@ -828,7 +828,7 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
         if (ctx->parsing_sizeof) {
             cc_lex_token_consume(ctx);
             if (cc_parse_unary_expression(ctx, node)) {
-                if(!cc_ceval_deduce_type(ctx, node, ctx->sizeof_type))
+                if (!cc_ceval_deduce_type(ctx, node, ctx->sizeof_type))
                     cc_diag_error(ctx, "Unable to deduce type within sizeof");
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
                 return true;

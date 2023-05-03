@@ -113,12 +113,13 @@ typedef struct cc_ast_type {
             struct cc_ast_type* return_type;
             struct cc_ast_variable* params;
             size_t n_params;
-            bool no_return : 1;
-            bool no_discard : 1;
-            bool deprecated : 1;
-            bool naked : 1;
-            bool irq : 1;
-            bool variadic : 1; /* Variadic functions */
+            bool no_return : 1; /* Will not return */
+            bool no_discard : 1; /* Do not discard return value */
+            bool deprecated : 1; /* Deprecated (shouldn't call) */
+            bool naked : 1; /* Functions w/o epilogue or prologues */
+            bool irq : 1; /* IRQ entry stub functions */
+            bool variadic : 1; /* Takes any number of arguments */
+            bool builtin_libc : 1; /* Is a function part of the libc? */
         } func;
         cc_ast_shared_type* shared;
     } data;

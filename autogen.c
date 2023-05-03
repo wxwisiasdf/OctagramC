@@ -9,7 +9,7 @@
 #include <string.h>
 
 /* Autogenerate makefiles and such from the given input */
-static const char* files[] = { "as386.c", "ast.c", "constevl.c", "diag.c",
+static const char* files[16] = { "as386.c", "ast.c", "constevl.c", "diag.c",
     "lexer.c", "main.c", "mf370.c", "optzer.c", "parexpr.c", "parser.c",
     "partyp.c", "ssa.c", "util.c" };
 static const char* project_name = "occ";

@@ -296,9 +296,8 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 tok.type = ch == '\'' ? LEXER_TOKEN_CHAR_LITERAL
                                       : LEXER_TOKEN_STRING_LITERAL;
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
-                if(ctx->n_tokens > 0
-                && prev_tok->type == tok.type) {
-                    char *ns = cc_strdupcat(prev_tok->data, tok.data);
+                if (ctx->n_tokens > 0 && prev_tok->type == tok.type) {
+                    char* ns = cc_strdupcat(prev_tok->data, tok.data);
                     cc_strfree(prev_tok->data);
                     cc_strfree(tok.data);
                     prev_tok->data = ns;

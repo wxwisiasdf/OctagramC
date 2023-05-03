@@ -403,6 +403,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 && ctok->type == LEXER_TOKEN_LPAREN) {
                 cc_ast_variable nvar = { 0 };
 
+                cc_diag_warning(ctx, "Implicit function declaration");
+
                 ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
                 nvar.name = cc_strdup(ctok->data);
                 cc_swap_func_decl(&nvar.type);
@@ -413,8 +415,6 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                     = cc_zalloc(sizeof(cc_ast_type));
                 nvar.type.data.func.return_type->mode = AST_TYPE_MODE_INT;
                 cc_ast_add_or_replace_block_variable(node, &nvar);
-
-                cc_diag_warning(ctx, "Implicit function declaration");
                 return cc_parse_compund_statment(ctx, node);
             } else {
                 cc_ast_variable nvar = { 0 };
@@ -448,6 +448,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
 
     /* Declaration specifiers */
     cc_parse_declarator_list(ctx, node, &var);
+    if (!ctx->is_libc_decl && !var.type.data.func.builtin_libc) {
     if (var.name != NULL) {
         if (var.name[0] == '_' && isupper(var.name[1])
             && !(var.storage & AST_STORAGE_EXTERN)) {
@@ -455,6 +456,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         } else if (var.name[0] == '_' && var.name[1] == '_'
             && !(var.storage & AST_STORAGE_EXTERN)) {
             cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
+            }
         }
     }
 

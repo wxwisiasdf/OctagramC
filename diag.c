@@ -32,7 +32,7 @@ static void cc_diag_print_diag(
         char tmpbuf[80];
         unsigned short line = 0;
         size_t i;
-        
+
         while (fgets(tmpbuf, sizeof(tmpbuf), fp) != NULL
             && line != info.line - 1) {
             size_t len = strlen(tmpbuf);

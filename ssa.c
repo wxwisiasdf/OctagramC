@@ -797,12 +797,11 @@ static void cc_ssa_process_unop(
         one_literal.is_signed = one_literal.is_float = false;
         one_literal.value.u = 1;
         one_param = cc_ssa_literal_to_param(&one_literal);
-        
+
         child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-        tok.type = node->data.unop.op == AST_UNOP_POSTINC
-            ? SSA_TOKEN_ADD
-            : SSA_TOKEN_SUB;
+        tok.type = node->data.unop.op == AST_UNOP_POSTINC ? SSA_TOKEN_ADD
+                                                          : SSA_TOKEN_SUB;
         tok.data.binop.left = param;
         tok.data.binop.right = child_param;
         tok.data.binop.extra = one_param;

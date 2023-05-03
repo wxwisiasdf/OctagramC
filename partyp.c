@@ -16,6 +16,31 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Symbols from PDPCLIB */
+static const char* libc_names[140] = { "clearerr", "fclose", "feof", "ferror",
+    "fflush", "fgetc", "fgetpos", "fgets", "fopen", "fprintf", "fputc", "fputs",
+    "fread", "freopen", "fscanf", "fseek", "fsetpos", "ftell", "fwrite", "getc",
+    "getchar", "gets", "perror", "printf", "putc", "putchar", "puts", "remove",
+    "rename", "rewind", "scanf", "setbuf", "setvbuf", "sprintf", "sscanf",
+    "tmpfile", "tmpnam", "ungetc", "vfprintf", "vprintf", "vsprintf", "memchr",
+    "memcmp", "memcpy", "memmove", "memset", "strcat", "strchr", "strcmp",
+    "strcoll", "strcpy", "strcspn", "strerror", "strlen", "strncat", "strncmp",
+    "strncpy", "strpbrk", "strrchr", "strspn", "strstr", "strtok", "strxfrm",
+    "abort", "abs", "atexit", "atof", "atoi", "atol", "bsearch", "calloc",
+    "div", "exit", "free", "getenv", "labs", "ldiv", "malloc", "mblen",
+    "mbstowcs", "mbtowc", "qsort", "rand", "realloc", "srand", "strtod",
+    "strtol", "strtoul", "system", "wcstombs", "wctomb", "asctime", "clock",
+    "ctime", "difftime", "gmtime", "localtime", "mktime", "strftime", "time",
+    "raise", "signal", "localeconv", "setlocale", "isalnum", "isalpha",
+    "iscntrl", "isdigit", "isgraph", "islower", "isprint", "ispunct", "isspace",
+    "isupper", "isxdigit", "tolower", "toupper", "longjmp", "acos", "asin",
+    "atan", "atan2", "ceil", "cos", "cosh", "exp", "fabs", "floor", "fmod",
+    "frexp", "ldexp", "log", "log10", "modf", "pow", "sin", "sinh", "sqrt",
+    "tan", "tanh",
+    /* msvcrt part of pdpclib */
+    "__gtin", "__gtout", "gterr"
+};
+
 static unsigned short cc_parse_attribute_literal_param(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
@@ -186,7 +211,7 @@ empty_memberlist:
                 && type->data.shared->enumer.n_elems == 0))
             cc_diag_warning(ctx, "Empty enum");
         else if ((type->mode == AST_TYPE_MODE_STRUCT
-                        || type->mode == AST_TYPE_MODE_UNION)
+                     || type->mode == AST_TYPE_MODE_UNION)
             && type->data.shared->s_or_u.n_members == 0)
             cc_diag_warning(ctx, "Empty structure/union");
     }
@@ -734,7 +759,7 @@ bool cc_parse_type_name(cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
     }
 
     /* Restore old qualifiactions */
-    if(qualified_once == false)
+    if (qualified_once == false)
         ctx->c_token = old_c_token;
     return qualified_once;
 error_handle:
@@ -747,7 +772,7 @@ static bool cc_parse_declarator_braced_initializer_element(
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
-    
+
     if (ctok->type == LEXER_TOKEN_DOT) {
         while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_DOT) {
@@ -845,9 +870,9 @@ bool cc_parse_declarator(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_SEMICOLON) {
         if ((var->type.mode == AST_TYPE_MODE_ENUM
-        || var->type.mode == AST_TYPE_MODE_STRUCT
-        || var->type.mode == AST_TYPE_MODE_UNION)
-        && var->type.data.shared == NULL) {
+                || var->type.mode == AST_TYPE_MODE_STRUCT
+                || var->type.mode == AST_TYPE_MODE_UNION)
+            && var->type.data.shared == NULL) {
             assert(var->type.data.shared == NULL);
             var->type.data.shared = cc_zalloc(sizeof(cc_ast_shared_type));
         }
@@ -903,8 +928,16 @@ ignore_missing_ident:
     /* Parenthesis after this equates into a function */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_LPAREN) {
+        size_t i;
         cc_lex_token_consume(ctx);
         cc_swap_func_decl(&var->type);
+
+        /* Check if this function is part of the libc declaration */
+        for (i = 0; i < ARRAY_SIZE(libc_names); ++i)
+            if (!strcmp(libc_names[i], var->name)) {
+                var->type.data.func.builtin_libc = true;
+                break;
+            }
 
         /* No storage specified? set extern then */
         /*if (var->storage == AST_STORAGE_AUTO) {
@@ -933,6 +966,7 @@ ignore_missing_ident:
         } else {
             cc_ast_variable virtual_param_var = { 0 };
             ctx->is_parsing_prototype = true;
+            ctx->is_libc_decl = var->type.data.func.builtin_libc;
             while (cc_parse_declarator(ctx, node, &virtual_param_var)) {
                 cc_ast_variable* param;
                 var->type.data.func.params
@@ -964,7 +998,7 @@ ignore_missing_ident:
                 }
                 break;
             }
-            ctx->is_parsing_prototype = false;
+            ctx->is_parsing_prototype = ctx->is_libc_decl = false;
             CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         }
     }

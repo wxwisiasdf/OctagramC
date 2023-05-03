@@ -166,7 +166,7 @@ char* cc_strdup(const char* s)
     return ns;
 }
 
-char* cc_strdupcat(const char *s1, const char* s2)
+char* cc_strdupcat(const char* s1, const char* s2)
 {
     size_t n = strlen(s1) + strlen(s2) + 1;
     char* ns;

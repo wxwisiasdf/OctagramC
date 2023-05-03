@@ -205,8 +205,8 @@ void cc_ast_add_block_type(cc_ast_node* node, const cc_ast_type* type)
         if (!strcmp(btype->name, type->name)) {
             assert(btype->mode == type->mode);
             if (btype->mode == AST_TYPE_MODE_ENUM
-            || btype->mode == AST_TYPE_MODE_STRUCT
-            || btype->mode == AST_TYPE_MODE_UNION) {
+                || btype->mode == AST_TYPE_MODE_STRUCT
+                || btype->mode == AST_TYPE_MODE_UNION) {
                 /* TODO: cc_ast_shared_type refcounts or smh */
                 btype->data.shared = type->data.shared;
                 return;

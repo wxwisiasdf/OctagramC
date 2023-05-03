@@ -369,8 +369,8 @@ bool cc_ceval_deduce_type(
         cc_ceval_promote_type(type, &var->type);
 
         if (type->mode == AST_TYPE_MODE_FUNCTION
-        || type->mode == AST_TYPE_MODE_STRUCT
-        || type->mode == AST_TYPE_MODE_UNION)
+            || type->mode == AST_TYPE_MODE_STRUCT
+            || type->mode == AST_TYPE_MODE_UNION)
             assert(type->data.shared != NULL);
         return true;
     }
