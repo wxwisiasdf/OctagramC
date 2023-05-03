@@ -814,6 +814,43 @@ static void cc_ssa_process_unop(
     }
 }
 
+static void cc_ssa_process_field_access(
+    cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
+{
+    cc_ssa_token tok = { 0 };
+    cc_ast_type left_type = { 0 };
+    cc_ssa_param left_param = { 0 };
+    cc_ast_variable* field_var;
+    size_t field_offset;
+    if (!cc_ceval_deduce_type(ctx, node->data.field_access.left, &left_type))
+        abort();
+    left_param = cc_ssa_tempvar_param(ctx, &left_type);
+    cc_ssa_from_ast(ctx, node->data.field_access.left, left_param);
+
+    field_var
+        = cc_ast_get_field_of(&left_type, node->data.field_access.field_name);
+    assert(field_var != NULL);
+    field_offset = ctx->get_offsetof(
+        ctx, &left_type, node->data.field_access.field_name);
+    if (field_offset) {
+        cc_ssa_token tok = { 0 };
+        cc_ssa_param size_param = { 0 };
+        cc_ast_literal size_literal = { 0 };
+
+        size_literal.is_float = size_literal.is_signed = false;
+        size_literal.value.u = (unsigned int)field_offset;
+        size_param = cc_ssa_literal_to_param(&size_literal);
+
+        tok.type = SSA_TOKEN_ADD;
+        tok.data.binop.left = param;
+        tok.data.binop.right = left_param;
+        tok.data.binop.extra = size_param;
+        tok.info = node->info;
+        tok.info.filename = cc_strdup(node->info.filename);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    }
+}
+
 static void cc_ssa_process_variable(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
@@ -825,7 +862,7 @@ static void cc_ssa_process_variable(
         ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
     var_param = cc_ssa_variable_to_param(ctx, var);
 
-    tok.type = SSA_TOKEN_ASSIGN;
+    tok.type = SSA_TOKEN_LOAD_FROM;
     tok.data.unop.left = param;
     tok.data.unop.right = var_param;
     tok.info = node->info;
@@ -887,6 +924,9 @@ static void cc_ssa_from_ast(
         break;
     case AST_NODE_VARIABLE:
         cc_ssa_process_variable(ctx, node, param);
+        break;
+    case AST_NODE_FIELD_ACCESS:
+        cc_ssa_process_field_access(ctx, node, param);
         break;
     default:
         abort();
@@ -1327,14 +1367,18 @@ static void cc_ssa_livetmp_func(cc_ssa_func* func)
         if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR) {
             cc_ssa_token drop_tok = { 0 };
             size_t loc = cc_ssa_get_livetmp_location(func, lhs->data.tmpid) + 1;
-            /* Insert "DROP" token to aid codegen that the temporal is
-                now dead and should be dropped. */
-            memmove(&func->tokens[loc + 1], &func->tokens[loc],
-                sizeof(cc_ssa_token) * (func->n_tokens - loc + 1));
-            func->n_tokens++;
+            /* TODO: This code may write past the function tokens... */
+            func->tokens = cc_realloc_array(func->tokens, func->n_tokens + 2);
+            tok = &func->tokens[i];
+            ++func->n_tokens;
+            if (loc + 1 < func->n_tokens)
+                /* Insert "DROP" token to aid codegen that the temporal is
+                    now dead and should be dropped. */
+                memmove(&func->tokens[loc + 1], &func->tokens[loc],
+                    sizeof(cc_ssa_token) * (func->n_tokens - loc));
 
             drop_tok.type = SSA_TOKEN_DROP;
-            drop_tok.data.dropped = tok->data.unop.left;
+            drop_tok.data.dropped = *cc_ssa_get_lhs_param(tok);
             func->tokens[loc] = drop_tok;
         }
     }

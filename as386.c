@@ -289,31 +289,19 @@ static void cc_as386_gen_store_from(
             if (lhs->size == rhs->size) {
                 switch (lhs->size | rhs->size) {
                 case 1:
-                    fprintf(ctx->out, "\tmovb\t($_%s),($_%s)\n",
+                    fprintf(ctx->out, "\tmovb\t$_%s,($_%s)\n",
                         rhs->data.var_name, lhs->data.var_name);
                     break;
                 case 2:
-                    fprintf(ctx->out, "\tmovw\t($_%s),($_%s)\n",
+                    fprintf(ctx->out, "\tmovw\t$_%s,($_%s)\n",
                         rhs->data.var_name, lhs->data.var_name);
                     break;
                 case 4:
-                    fprintf(ctx->out, "\tmovl\t($_%s),($_%s)\n",
-                        rhs->data.var_name, lhs->data.var_name);
-                    break;
-                case 8:
-                    fprintf(ctx->out, "\tmovq\t($_%s),($_%s)\n",
+                    fprintf(ctx->out, "\tmovl\t$_%s,($_%s)\n",
                         rhs->data.var_name, lhs->data.var_name);
                     break;
                 default:
-                    fprintf(ctx->out, "\tpushl\t%%ecx\n");
-                    fprintf(ctx->out, "1:\n");
-                    fprintf(ctx->out, "\tmovl\t$%u,%%ecx\n",
-                        (unsigned char)lhs->size);
-                    fprintf(ctx->out, "\tmovb\t($_%s),($_%s)\n",
-                        rhs->data.var_name, lhs->data.var_name);
-                    fprintf(ctx->out, "\tloop\t1b\n");
-                    fprintf(ctx->out, "\tpopl\t%%ecx\n");
-                    break;
+                    abort();
                 }
             } else {
                 abort();
@@ -334,11 +322,6 @@ static void cc_as386_gen_store_from(
                     break;
                 case 4:
                     fprintf(ctx->out, "\tmovl\t%s,($_%s)\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                        lhs->data.var_name);
-                    break;
-                case 8:
-                    fprintf(ctx->out, "\tmovq\t%s,($_%s)\n",
                         reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
                         lhs->data.var_name);
                     break;
@@ -365,7 +348,66 @@ static void cc_as386_gen_load_from(
     if (cc_ssa_is_param_same(lhs, rhs))
         return;
 
-    abort();
+    switch (lhs->type) {
+    case SSA_PARAM_TMPVAR: {
+        switch (rhs->type) {
+        case SSA_PARAM_VARIABLE:
+            if (lhs->size == rhs->size) {
+                switch (lhs->size | rhs->size) {
+                case 1:
+                    fprintf(ctx->out, "\tmovb\t($_%s),%s\n",
+                        rhs->data.var_name,
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                case 2:
+                    fprintf(ctx->out, "\tmovw\t($_%s),%s\n",
+                        rhs->data.var_name,
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                case 4:
+                    fprintf(ctx->out, "\tmovl\t($_%s),%s\n",
+                        rhs->data.var_name,
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                default:
+                    abort();
+                }
+            } else {
+                abort();
+            }
+            break;
+        case SSA_PARAM_TMPVAR:
+            if (lhs->size == rhs->size) {
+                switch (lhs->size | rhs->size) {
+                case 1:
+                    fprintf(ctx->out, "\tmovb\t(%s),%s\n",
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                    break;
+                case 2:
+                    fprintf(ctx->out, "\tmovw\t(%s),%s\n",
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                    break;
+                case 4:
+                    fprintf(ctx->out, "\tmovl\t(%s),%s\n",
+                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                    break;
+                default:
+                    abort();
+                }
+            } else {
+                abort();
+            }
+            break;
+        default:
+            abort();
+        }
+    } break;
+    default:
+        abort();
+    }
 }
 
 static void cc_as386_gen_call_param(

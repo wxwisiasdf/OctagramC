@@ -378,7 +378,8 @@ bool cc_ceval_deduce_type_1(
     }
     case AST_NODE_CALL: {
         cc_ast_type tmp_type = { 0 };
-        if (!cc_ceval_deduce_type_1(ctx, node->data.call.call_expr, &tmp_type, as_func))
+        if (!cc_ceval_deduce_type_1(
+                ctx, node->data.call.call_expr, &tmp_type, as_func))
             return false;
         assert(tmp_type.mode == AST_TYPE_MODE_FUNCTION
             && tmp_type.data.func.return_type != NULL);
@@ -396,13 +397,16 @@ bool cc_ceval_deduce_type_1(
     case AST_NODE_BINOP:
         /* Assignments promote to their lvalue type */
         if (node->data.binop.op == AST_BINOP_ASSIGN)
-            return cc_ceval_deduce_type_1(ctx, node->data.binop.left, type, as_func);
+            return cc_ceval_deduce_type_1(
+                ctx, node->data.binop.left, type, as_func);
         /*cc_ceval_deduce_type_1(ctx, node->data.binop.right, type, as_func);*/
-        return cc_ceval_deduce_type_1(ctx, node->data.binop.left, type, as_func);
+        return cc_ceval_deduce_type_1(
+            ctx, node->data.binop.left, type, as_func);
     case AST_NODE_FIELD_ACCESS: {
         cc_ast_variable* field_var;
         cc_ast_type vtype = { 0 };
-        if (!cc_ceval_deduce_type_1(ctx, node->data.field_access.left, &vtype, as_func)) {
+        if (!cc_ceval_deduce_type_1(
+                ctx, node->data.field_access.left, &vtype, as_func)) {
             cc_diag_error(ctx, "Can't deduce type of left struct");
             goto error_handle;
         }
@@ -421,7 +425,8 @@ bool cc_ceval_deduce_type_1(
             *type = node->data.unop.cast;
             return true;
         } else if (node->data.unop.op == AST_UNOP_DEREF) {
-            if (!cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func))
+            if (!cc_ceval_deduce_type_1(
+                    ctx, node->data.unop.child, type, as_func))
                 return false;
             /* Dereference type */
             if (type->n_cv_qual == 0) {
@@ -431,7 +436,8 @@ bool cc_ceval_deduce_type_1(
             type->n_cv_qual--;
             return true;
         } else if (node->data.unop.op == AST_UNOP_REF) {
-            if (!cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func))
+            if (!cc_ceval_deduce_type_1(
+                    ctx, node->data.unop.child, type, as_func))
                 return false;
             /* Reference type */
             type->cv_qual[type->n_cv_qual++] = type->cv_qual[0];
@@ -441,12 +447,14 @@ bool cc_ceval_deduce_type_1(
             }
             return true;
         }
-        return cc_ceval_deduce_type_1(ctx, node->data.unop.child, type, as_func);
+        return cc_ceval_deduce_type_1(
+            ctx, node->data.unop.child, type, as_func);
     case AST_NODE_BLOCK:
         if (!node->data.block.n_children)
             return true;
         return cc_ceval_deduce_type_1(ctx,
-            &node->data.block.children[node->data.block.n_children - 1], type, as_func);
+            &node->data.block.children[node->data.block.n_children - 1], type,
+            as_func);
     default:
         abort();
     }
@@ -458,14 +466,6 @@ bool cc_ceval_deduce_type(
     cc_context* ctx, const cc_ast_node* node, cc_ast_type* type)
 {
     return cc_ceval_deduce_type_1(ctx, node, type, false);
-}
-
-/* Obtain the offset of the field in an structure of type type, where the
-   dot node is appearing on node. */
-size_t cc_ceval_get_field_offset(
-    cc_context* ctx, const cc_ast_type* type, const cc_ast_node* node)
-{
-    return 0;
 }
 
 bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)

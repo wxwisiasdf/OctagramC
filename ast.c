@@ -436,7 +436,8 @@ static cc_ast_node* cc_ast_create_generic(
     case AST_NODE_CALL:
         return cc_ast_create_call(ctx, parent);
     case AST_NODE_FIELD_ACCESS: {
-        cc_ast_node *node = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
+        cc_ast_node* node
+            = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
         node->data.field_access.left = cc_ast_create_block(ctx, node);
         return node;
     }
@@ -531,8 +532,10 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
         }
     } break;
     case AST_NODE_FIELD_ACCESS:
-        cc_ast_copy_node(ctx, &dest->data.field_access.left, src->data.field_access.left);
-        dest->data.field_access.field_name = cc_strdup(src->data.field_access.field_name);
+        cc_ast_copy_node(
+            ctx, dest->data.field_access.left, src->data.field_access.left);
+        dest->data.field_access.field_name
+            = cc_strdup(src->data.field_access.field_name);
         break;
     default:
         abort();
