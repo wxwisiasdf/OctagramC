@@ -16,7 +16,7 @@ static int body_print_lock = 0;
 
 unsigned short cc_ast_alloc_label_id(cc_context* ctx)
 {
-    if ((ctx->label_id + 1) >= USHRT_MAX)
+    if ((ctx->label_id + 1) >= UINT_MAX)
         cc_diag_warning(ctx, "Ran out of labels to assign");
     return ctx->label_id++;
 }

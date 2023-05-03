@@ -334,8 +334,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_COLON, "Expected ':'");
         cc_parse_statment(ctx, block_node);
         cc_ast_add_block_node(node, block_node);
-    }
         return true;
+    }
     case LEXER_TOKEN_default: {
         cc_ast_node* block_node = cc_ast_create_block(ctx, node);
         cc_lex_token_consume(ctx);
@@ -346,19 +346,19 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         block_node->data.block.is_default = true;
         block_node->ref_count++; /* Referenced by switch node */
         cc_ast_add_block_node(node, block_node);
-    }
         return true;
+    }
     case LEXER_TOKEN_if:
     case LEXER_TOKEN_switch: {
         cc_parse_selection_statment(ctx, node);
-    }
         return true;
+    }
     case LEXER_TOKEN_for:
     case LEXER_TOKEN_while:
     case LEXER_TOKEN_do: {
         cc_parse_iteration_statment(ctx, node);
-    }
         return true;
+    }
     case LEXER_TOKEN_continue: {
         cc_ast_node* continue_node;
         cc_lex_token_consume(ctx);

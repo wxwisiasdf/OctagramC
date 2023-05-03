@@ -51,7 +51,7 @@ typedef struct {
         cc_ssa_constant constant;
         const char* var_name; /* Name of parameter */
         unsigned short tmpid; /* Temporal Id of variable */
-        unsigned short label_id;
+        unsigned int label_id;
         struct {
             unsigned short tmpid;
             const char* literal;
@@ -138,7 +138,7 @@ typedef struct cc_ssa_token {
         cc_ssa_param dropped;
         cc_ssa_param jump_target;
         cc_ssa_param retval;
-        unsigned short label_id;
+        unsigned int label_id;
     } data;
 } cc_ssa_token;
 

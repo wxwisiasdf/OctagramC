@@ -189,7 +189,7 @@ typedef struct cc_ast_node {
     enum cc_ast_node_type type;
     struct cc_ast_node* parent;
     cc_diag_info info;
-    unsigned short label_id;
+    unsigned int label_id;
     unsigned short ref_count; /* Label ref_count */
     union {
         cc_ast_literal literal;
@@ -200,7 +200,7 @@ typedef struct cc_ast_node {
            the hard register itself. */
         unsigned short reg_num;
         unsigned short reg_group;
-        unsigned short jump_label_id; /* Label Id to jump to */
+        unsigned int jump_label_id; /* Label Id to jump to */
         char* string_literal;
         char* label_name;
         struct {
