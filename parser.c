@@ -223,10 +223,9 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
             cc_parse_statment(ctx, if_node->data.if_expr.tail_else);
         }
 
-        if (has_braces) {
             --ctx->if_depth;
+        if (has_braces)
             --ctx->if_w_braces_depth;
-        }
 
         cc_ast_add_block_node(node, if_node);
     }
