@@ -527,6 +527,10 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
                 &src->data.block.children[i]);
         }
     } break;
+    case AST_NODE_FIELD_ACCESS:
+        cc_ast_copy_node(ctx, &dest->data.field_access.left, src->data.field_access.left);
+        dest->data.field_access.field_name = cc_strdup(src->data.field_access.field_name);
+        break;
     default:
         abort();
     }
