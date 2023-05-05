@@ -290,7 +290,15 @@ error_handle:
 static bool cc_parse_compund_statment_potential_declarator(
     cc_context* ctx, cc_ast_node* node, bool expect_semicolon)
 {
-    const cc_lexer_token* ctok;
+    const cc_lexer_token *ctok;
+    /* Special handling case where there isn't anything to parse at all! */
+    if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
+    && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        if (expect_semicolon)
+            cc_lex_token_consume(ctx);
+        return true;
+    }
+
     /* First try interpreting as an expression, then if that
         does NOT work, fallback to the declarator */
     if (!cc_parse_expression(ctx, node)) {
