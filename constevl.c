@@ -455,6 +455,20 @@ bool cc_ceval_deduce_type_1(
         return cc_ceval_deduce_type_1(ctx,
             &node->data.block.children[node->data.block.n_children - 1], type,
             as_func);
+    case AST_NODE_IF:
+        /* Both elements "returned" by the if expression should be of the
+           same type. So we just have to test the block itself.
+           The condition is just for determining what value will be choosen
+           from the branching paths, the type of the value itself is what
+           we wish to obtain */
+        if (node->data.if_expr.block != NULL)
+            return cc_ceval_deduce_type_1(ctx, &node->data.if_expr.block, type,
+                as_func);
+        else if (node->data.if_expr.tail_else != NULL)
+            return cc_ceval_deduce_type_1(ctx, &node->data.if_expr.tail_else, type,
+                as_func);
+        else
+            abort();
     default:
         abort();
     }
