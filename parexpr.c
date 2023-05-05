@@ -603,14 +603,24 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
     case LEXER_TOKEN_ARROW: {
         cc_ast_node* accessor_node;
         cc_ast_type type = { 0 };
+        bool is_arrow = ctok->type == LEXER_TOKEN_ARROW;
 
         cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
 
         accessor_node = cc_ast_create_field_access(ctx, node, cc_strview(ctok->data));
-        expr_node->parent = accessor_node->data.field_access.left;
+        if (is_arrow) {
+            /* Arrow operator (implicit dereference) */
+            cc_ast_node* deref_node = cc_ast_create_unop_expr(ctx, accessor_node->data.field_access.left, AST_UNOP_DEREF);
+            expr_node->parent = deref_node->data.unop.child;
+            cc_ast_add_block_node(deref_node->data.unop.child, expr_node);
+            cc_ast_add_block_node(accessor_node->data.field_access.left, deref_node);
+        } else {
+            /* Dot operator (no dereference) */
+            expr_node->parent = accessor_node->data.field_access.left;
+            cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
+        }
         *parent_rerouted = true;
-        cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
         cc_ast_add_block_node(node, accessor_node);
 
         if (!cc_ceval_deduce_type(ctx, expr_node, &type))
