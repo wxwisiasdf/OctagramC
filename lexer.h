@@ -187,7 +187,18 @@ enum cc_lexer_token_type { LEXER_TOKEN_LIST, NUM_LEXER_TOKENS };
 
 typedef struct cc_lexer_token {
     enum cc_lexer_token_type type;
-    cc_string_key data; /* Extra data for string literals, char literals, etc */
+    struct {
+        cc_string_key text; /* Extra data for idents, string literals and char
+                               literals. */
+        struct {
+            bool is_float;
+            union {
+                unsigned long ul; /* Integer */
+                double d; /* Float */
+            } value;
+            char suffix[3]; /* Suffix letters for number */
+        } num;
+    } data;
     cc_diag_info info;
 } cc_lexer_token;
 

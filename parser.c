@@ -406,10 +406,10 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
     } break;
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (var == NULL)
             cc_ast_find_variable(
-                cc_get_cfunc_name(ctx), ctok->data, node->parent);
+                cc_get_cfunc_name(ctx), ctok->data.text, node->parent);
 
         if (var != NULL && (var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Variable reference OR call/assignment */
@@ -425,7 +425,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 cc_diag_warning(ctx, "Implicit function declaration");
 
                 ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
-                nvar.name = ctok->data;
+                nvar.name = ctok->data.text;
                 cc_swap_func_decl(&nvar.type);
                 nvar.storage = AST_STORAGE_EXTERN;
                 /* Variadic, basically meaning we have no fucking idea */

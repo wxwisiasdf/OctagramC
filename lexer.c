@@ -16,10 +16,9 @@ static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
 {
     switch (tok->type) {
     case LEXER_TOKEN_IDENT:
-    case LEXER_TOKEN_NUMBER:
     case LEXER_TOKEN_CHAR_LITERAL:
     case LEXER_TOKEN_STRING_LITERAL:
-        cc_strfree(tok->data);
+        cc_strfree(tok->data.text);
         break;
     default:
         break;
@@ -54,16 +53,19 @@ void cc_lex_print_token(const cc_lexer_token* tok)
 {
     switch (tok->type) {
     case LEXER_TOKEN_IDENT:
-        printf("i(%s)", cc_strview(tok->data));
-        return;
-    case LEXER_TOKEN_NUMBER:
-        printf("n(%s)", cc_strview(tok->data));
+        printf("i(%s)", cc_strview(tok->data.text));
         return;
     case LEXER_TOKEN_CHAR_LITERAL:
-        printf("\'%s\'", cc_strview(tok->data));
+        printf("\'%s\'", cc_strview(tok->data.text));
         return;
     case LEXER_TOKEN_STRING_LITERAL:
-        printf("\"%s\"", cc_strview(tok->data));
+        printf("\"%s\"", cc_strview(tok->data.text));
+        return;
+    case LEXER_TOKEN_NUMBER:
+        if(tok->data.num.is_float)
+            printf("n(%lf,%c,%c)", tok->data.num.value.d, tok->data.num.suffix[0], tok->data.num.suffix[1]);
+        else
+            printf("n(%lu,%c,%c)", tok->data.num.value.ul, tok->data.num.suffix[0], tok->data.num.suffix[1]);
         return;
     default:
         break;
@@ -91,21 +93,23 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
     return LEXER_TOKEN_NONE;
 }
 
-static const char* cc_lex_literal(cc_context* ctx, const char* p)
+static const char* cc_lex_literal(cc_context* ctx, cc_lexer_token* tok, const char* p)
 {
-    int base = 10;
+    unsigned char base = 10;
+    const char *start = p;
 
+    tok->data.num.is_float = false;
     if (*p == '0') {
         ++p;
-
         if (ISODIGIT(*p)) {
             base = 8;
+            start = p;
             goto octal_num;
         }
-
         switch (*p) {
         case '.':
             base = 10;
+            start = p;
             goto after_frac;
         case 'x': /* Hexadecimal */
         case 'h': /* Non-standard hex */
@@ -129,6 +133,7 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
         }
     }
 
+    start = p;
     switch (base) {
     case 16:
         for (; isxdigit(*p); ++p)
@@ -138,8 +143,10 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
         for (; isdigit(*p); ++p)
             ;
     after_frac:
-        if (*p == '.')
+        if (*p == '.') {
+            tok->data.num.is_float = true;
             ++p;
+        }
         for (; isdigit(*p); ++p)
             ;
         break;
@@ -156,9 +163,26 @@ static const char* cc_lex_literal(cc_context* ctx, const char* p)
         cc_diag_error(ctx, "Invalid numeric literal base %i", base);
         return NULL;
     }
+
+    if (tok->data.num.is_float)
+        tok->data.num.value.d = strtod(start, NULL);
+    else
+        tok->data.num.value.ul = strtoul(start, NULL, base);
+
     /* Literal specifiers */
-    for (; isalpha(*p); ++p)
-        ;
+    tok->data.num.suffix[0] = tok->data.num.suffix[1] = tok->data.num.suffix[2] = '\0';
+    if(isalpha(*p)) {
+        tok->data.num.suffix[0] = *p;
+        ++p;
+        if(isalpha(*p)) {
+            tok->data.num.suffix[1] = *p;
+            ++p;
+            if(isalpha(*p)) {
+                tok->data.num.suffix[2] = *p;
+                ++p;
+            }
+        }
+    }
     return p;
 }
 
@@ -212,22 +236,24 @@ static bool cc_parse_preprocessor(cc_context* ctx)
         && ctok->type == LEXER_TOKEN_HASHTAG) {
         cc_lex_token_consume(ctx);
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(cc_strview(ctok->data), "line")) {
+            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(cc_strview(ctok->data.text), "line")) {
             cc_lex_token_consume(ctx);
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_NUMBER) {
-                unsigned long int n_lines = strtoul(cc_strview(ctok->data), NULL, 10);
+                unsigned long int n_lines = ctok->data.num.value.ul;
+                assert(ctok->data.num.is_float == false);
                 cc_lex_token_consume(ctx);
 
                 if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                     && ctok->type == LEXER_TOKEN_STRING_LITERAL) {
-                    const char* filename = cc_strview(ctok->data);
+                    const char* filename = cc_strview(ctok->data.text);
                     unsigned char flags = 0;
                     cc_lex_token_consume(ctx);
 
                     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                         && ctok->type == LEXER_TOKEN_NUMBER) {
-                        flags |= 1 << (unsigned char)atoi(cc_strview(ctok->data));
+                        flags |= 1 << (unsigned char)ctok->data.num.value.ul;
+                        assert(ctok->data.num.is_float == false);
                         cc_lex_token_consume(ctx);
                     }
 
@@ -279,14 +305,13 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 const char* s;
             handle_literal:
                 s = ctx->cptr;
-                ctx->cptr = cc_lex_literal(ctx, ctx->cptr);
-                tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                ctx->cptr = cc_lex_literal(ctx, &tok, ctx->cptr);
                 tok.type = LEXER_TOKEN_NUMBER;
             } else if (ISSTARTIDENT(*ctx->cptr)) { /* Identifiers */
                 const char* s = ctx->cptr++;
                 for (; ISIDENT(*ctx->cptr); ++ctx->cptr)
                     /* ... */;
-                tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                tok.data.text = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = LEXER_TOKEN_IDENT;
             } else if (*ctx->cptr == '\"' || *ctx->cptr == '\'') {
                 cc_lexer_token* prev_tok = &ctx->tokens[ctx->n_tokens - 1];
@@ -295,11 +320,11 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 ctx->cptr = cc_lex_string(ctx, ctx->cptr, &s);
                 tok.type = ch == '\'' ? LEXER_TOKEN_CHAR_LITERAL
                                       : LEXER_TOKEN_STRING_LITERAL;
-                tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                tok.data.text = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 if (ctx->n_tokens > 0 && prev_tok->type == tok.type) {
-                    prev_tok->data = cc_strdupcat(cc_strview(prev_tok->data), cc_strview(tok.data));
-                    cc_strfree(prev_tok->data);
-                    cc_strfree(tok.data);
+                    prev_tok->data.text = cc_strdupcat(cc_strview(prev_tok->data.text), cc_strview(tok.data.text));
+                    cc_strfree(prev_tok->data.text);
+                    cc_strfree(tok.data.text);
                     ctx->cptr++; /* Skip closing quotes */
                     continue; /* Next token, do not add to tokenlist! */
                 }

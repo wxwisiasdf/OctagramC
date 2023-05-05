@@ -57,7 +57,7 @@ static bool cc_parse_type_attributes(
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        const char *attr = cc_strview(ctok->data);
+        const char *attr = cc_strview(ctok->data.text);
         cc_lex_token_consume(ctx);
         if (!strcmp(attr, "packed")) {
             type->data.shared->s_or_u.packed = true;
@@ -72,7 +72,7 @@ static bool cc_parse_type_attributes(
             type->max_alignment
                 = cc_parse_attribute_literal_param(ctx, node, type);
         } else {
-            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data);
+            cc_diag_warning(ctx, "Unknown attribute '%s'", ctok->data.text);
         }
     }
     return true;
@@ -122,7 +122,7 @@ bool cc_parse_struct_or_union_specifier(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_ast_type* s_or_u_type;
-        type->name = ctok->data;
+        type->name = ctok->data.text;
 
         s_or_u_type = cc_ast_find_type(type->name, node);
         if (s_or_u_type != NULL) {
@@ -243,7 +243,7 @@ static bool cc_parse_enum_specifier(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
-        type->name = ctok->data;
+        type->name = ctok->data.text;
     }
 
     /* Enum without brace means declaration of a variable OR forward
@@ -285,7 +285,7 @@ static bool cc_parse_enum_specifier(
         cc_ast_variable var = { 0 };
 
         cc_lex_token_consume(ctx);
-        member.name = ctok->data;
+        member.name = ctok->data.text;
         /* Assignment of enumerator value. */
         member.literal = seq_literal;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -453,7 +453,7 @@ static bool cc_parse_typedef_name(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         const cc_ast_variable* tpdef
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (tpdef == NULL || (tpdef->storage & AST_STORAGE_TYPEDEF) == 0)
             return false;
         cc_lex_token_consume(ctx);
@@ -674,7 +674,7 @@ static bool cc_parse_declaration_specifier_attributes(
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        const char *attr = cc_strview(ctok->data);
+        const char *attr = cc_strview(ctok->data.text);
         cc_lex_token_consume(ctx);
         if (!strcmp(attr, "noreturn")) {
             type->data.func.no_return = true;
@@ -800,7 +800,7 @@ bool cc_parse_declarator_braced_initializer(
         cc_lex_token_consume(ctx);
         /* {0} is a shorthand to zero-initialize an structure */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(cc_strview(ctok->data), "0")
+            && ctok->type == LEXER_TOKEN_NUMBER && (ctok->data.num.is_float == false && ctok->data.num.value.ul == 0)
             && (ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE) {
             cc_lex_token_consume(ctx);
@@ -892,18 +892,18 @@ bool cc_parse_declarator(
         break;
     case LEXER_TOKEN_IDENT: { /* <ident> <attr> */
         const cc_ast_variable* other_var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
+            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (other_var == NULL
             || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Not a typedef, so must be the identifier of this variable! */
             if (var->name) {
                 cc_diag_error(ctx,
                     "More than one identifier on declaration '%s' and '%s'",
-                    cc_strview(var->name), ctok->data);
+                    cc_strview(var->name), ctok->data.text);
                 cc_lex_token_consume(ctx);
                 goto error_handle;
             }
-            var->name = ctok->data;
+            var->name = ctok->data.text;
         } else {
             assert(other_var != NULL);
             assert((other_var->storage & AST_STORAGE_TYPEDEF) != 0);
