@@ -155,17 +155,18 @@ void cc_free(void* p)
     free(p);
 }
 
-#define STRING_HASH_SLOTS 1024
+#define STRING_HASH_SLOTS (0xFFFF * 32)
 static cc_string_key str_hash_slots[STRING_HASH_SLOTS] = {0};
 static char *str_pool = NULL;
 static size_t str_pool_size = 1;
 
-static unsigned short cc_hash_sdbm(const char *s, size_t n) {
-    const unsigned char *us = (const unsigned char *)s;
-    unsigned long hash = 0;
-    while(n--)
-        hash = *us++ + (hash << 6) + (hash << 16) - hash;
-    return hash % STRING_HASH_SLOTS;
+static unsigned int cc_hash_sdbm(const void *vkey, size_t len) {
+    const unsigned char *key = (const unsigned char *)vkey;
+    unsigned int hash = 0;
+    size_t i;
+    for (i = 0; i < len; ++i)
+        hash = key[i] + (hash << 6) + (hash << 16) - hash; /* fnv1 32-bit prime number */
+    return hash;
 }
 
 const char *cc_strview(cc_string_key key) {
@@ -175,30 +176,51 @@ const char *cc_strview(cc_string_key key) {
 
 cc_string_key cc_strndup(const char* s, size_t n)
 {
-    unsigned short hash;
+    unsigned int hash;
+
     assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
-    hash = cc_hash_sdbm(s, n);
+    /* If the string is a nil string, we can use the properties of our
+       string pool to our advantage, since the first two characters are
+       always zero, for alignment reasons. */
+    if (!n) {
+        /* Second character in the array will always be a '\0' */
+        return (cc_string_key)1;
+    }
 
-    if (str_hash_slots[hash] == 0) {
+    hash = cc_hash_sdbm(s, n) % STRING_HASH_SLOTS;
+    if (!str_hash_slots[hash]) {
         /* String hasn't been added to the string pool yet! */
         size_t start = str_pool_size;
-        str_pool_size += n + 1;
 #ifdef OCC_MEMSTATS
         g_alloc_ctx.is_string = true;
         g_alloc_ctx.total_strings += n + 1;
 #endif
+        str_pool_size += n + 1;
         str_pool = cc_realloc(str_pool, str_pool_size);
+        memcpy(&str_pool[start], s, n);
+        str_pool[start + n] = '\0';
 #ifdef OCC_MEMSTATS
         g_alloc_ctx.is_string = false;
 #endif
-        memcpy(&str_pool[start], s, n);
-        str_pool[start + n] = '\0';
         str_hash_slots[hash] = start;
-        return start;
+        assert(start < USHRT_MAX);
+        return (cc_string_key)start;
     }
-    assert(!strncmp(&str_pool[str_hash_slots[hash]], s, n));
-    return str_hash_slots[hash];
+    if(!strncmp(cc_strview(str_hash_slots[hash]), s, n))
+        ;
+    else {
+        size_t i;
+        size_t n_strings = 0;
+        for(i = 2; i < str_pool_size;) {
+            printf("%s,", cc_strview(i));
+            i += strlen(cc_strview(i)) + 1;
+            ++n_strings;
+        }
+        printf("\nStringCount=%u,Bytes=%u\n", (unsigned int)n_strings, (unsigned int)i);
+        abort();
+    }
+    return (cc_string_key)str_hash_slots[hash];
 }
 
 cc_string_key cc_strdup(const char* s)
