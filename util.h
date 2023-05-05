@@ -14,17 +14,24 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
+typedef unsigned int cc_string_key;
+
 void cc_alloc_init(bool track);
 void cc_alloc_deinit(void);
 void* cc_malloc(size_t size);
 void* cc_zalloc(size_t size);
 void* cc_realloc(void* p, size_t size);
 void cc_free(void* p);
-char* cc_strndup(const char* s, size_t n);
-char* cc_strdupcat(const char* s1, const char* s2);
-char* cc_strdup(const char* s);
-void cc_strfree(char* s);
+const char *cc_strview(cc_string_key key);
+cc_string_key cc_strndup(const char* s, size_t n);
+cc_string_key cc_strdupcat(const char* s1, const char* s2);
+cc_string_key cc_strdup(const char* s);
+void cc_strfree(cc_string_key s);
 #define cc_realloc_array(arr, n) cc_realloc(arr, sizeof(*(arr)) * (n))
+
+#ifdef OCC_TRACE_TIME
+/* TODO: Timers */
+#endif
 
 typedef unsigned char cc_alnum_char;
 

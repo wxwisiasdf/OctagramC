@@ -49,12 +49,12 @@ typedef struct {
     unsigned short version;
     union {
         cc_ssa_constant constant;
-        const char* var_name; /* Name of parameter */
+        cc_string_key var_name; /* Name of parameter */
         unsigned short tmpid; /* Temporal Id of variable */
         unsigned int label_id;
         struct {
             unsigned short tmpid;
-            const char* literal;
+            cc_string_key literal;
         } string;
     } data;
 } cc_ssa_param;

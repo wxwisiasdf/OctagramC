@@ -504,8 +504,8 @@ static void cc_lint_call_node(
                     "Passing argument to %i '%s'; implicitly "
                     "converting to a pointer",
                     i + 1,
-                    param->type.name == NULL ? "<anonymous>"
-                                             : param->type.name);
+                    param->type.name ? cc_strview(param->type.name)
+                    : "<anonymous>");
             } else if (param->type.n_cv_qual != call_param_type.n_cv_qual)
                 cc_diag_warning(ctx,
                     "Difference in pointer depth in "
@@ -607,7 +607,7 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
         cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
 
-        accessor_node = cc_ast_create_field_access(ctx, node, ctok->data);
+        accessor_node = cc_ast_create_field_access(ctx, node, cc_strview(ctok->data));
         expr_node->parent = accessor_node->data.field_access.left;
         *parent_rerouted = true;
         cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
@@ -620,7 +620,7 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
                     &type, accessor_node->data.field_access.field_name)
                 == NULL)
                 cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
-                    accessor_node->data.field_access.field_name, type.name);
+                    accessor_node->data.field_access.field_name, cc_strview(type.name));
         }
         return true;
     }
@@ -796,17 +796,17 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     switch (ctok->type) {
     case LEXER_TOKEN_NUMBER:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, cc_strview(ctok->data));
         break;
     case LEXER_TOKEN_CHAR_LITERAL:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal_from_str(ctx, node, ctok->data);
+        expr_node = cc_ast_create_literal_from_str(ctx, node, cc_strview(ctok->data));
         break;
     case LEXER_TOKEN_IDENT: {
         const cc_ast_variable* var
             = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data, node);
         if (var == NULL) {
-            cc_diag_error(ctx, "Couldn't find variable '%s'", ctok->data);
+            cc_diag_error(ctx, "Couldn't find variable '%s'", cc_strview(ctok->data));
             cc_lex_token_consume(ctx);
             goto error_handle;
         }
@@ -815,14 +815,14 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     } break;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_string_literal(ctx, node, ctok->data);
+        expr_node = cc_ast_create_string_literal(ctx, node, cc_strview(ctok->data));
         break;
     case LEXER_TOKEN___func__:
         cc_lex_token_consume(ctx);
         if (ctx->ast_current_func == NULL)
             cc_diag_warning(ctx, "__func__ used outside of a function");
         expr_node = cc_ast_create_string_literal(ctx, node,
-            cc_get_cfunc_name(ctx) != NULL ? cc_get_cfunc_name(ctx) : "");
+            cc_get_cfunc_name(ctx) ? cc_strview(cc_get_cfunc_name(ctx)) : "");
         break;
     case LEXER_TOKEN_LPAREN: {
         if (ctx->parsing_sizeof) {

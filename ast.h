@@ -76,7 +76,7 @@ typedef struct cc_ast_literal {
 } cc_ast_literal;
 
 typedef struct cc_ast_enum_member {
-    char* name;
+    cc_string_key name;
     cc_ast_literal literal;
 } cc_ast_enum_member;
 
@@ -93,7 +93,7 @@ typedef union cc_ast_shared_type {
 } cc_ast_shared_type;
 
 typedef struct cc_ast_type {
-    char* name; /* Name is optional for some types */
+    cc_string_key name; /* Name is optional for some types */
     enum cc_ast_type_mode mode;
     unsigned short min_alignment;
     unsigned short max_alignment;
@@ -126,7 +126,7 @@ typedef struct cc_ast_type {
 } cc_ast_type;
 
 typedef struct cc_ast_variable {
-    char* name;
+    cc_string_key name;
     struct cc_ast_node* body; /* For functions. */
     struct cc_ast_node* initializer; /* Initializer for constexpr and such. */
     enum cc_ast_storage storage;
@@ -202,10 +202,10 @@ typedef struct cc_ast_node {
         unsigned short reg_num;
         unsigned short reg_group;
         unsigned int jump_label_id; /* Label Id to jump to */
-        char* string_literal;
-        char* label_name;
+        cc_string_key string_literal;
+        cc_string_key label_name;
         struct {
-            char* name;
+            cc_string_key name;
             unsigned short version; /* Used by SSA */
             bool is_temporal : 1;
         } var;
@@ -251,7 +251,7 @@ typedef struct cc_ast_node {
         } switch_expr;
         struct {
             struct cc_ast_node* left;
-            const char* field_name;
+            cc_string_key field_name;
         } field_access;
         struct cc_ast_node* return_expr; /* Return value */
     } data;
@@ -293,9 +293,9 @@ void cc_ast_destroy_type(cc_ast_type* type, bool managed);
 void cc_ast_destroy_var(cc_ast_variable* var, bool managed);
 void cc_ast_destroy_node(cc_ast_node* node, bool managed);
 cc_ast_variable* cc_ast_find_variable(
-    const char* fn_name, const char* name, const cc_ast_node* node);
-cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node);
-cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node);
+    cc_string_key fn_name, cc_string_key name, const cc_ast_node* node);
+cc_ast_node* cc_ast_find_label(cc_string_key name, const cc_ast_node* node);
+cc_ast_type* cc_ast_find_type(cc_string_key name, cc_ast_node* node);
 void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
     const cc_ast_node* restrict src);
 void cc_ast_copy_type(
@@ -311,6 +311,6 @@ cc_ast_node* cc_ast_find_label_id(
     cc_context* ctx, cc_ast_node* node, unsigned short id);
 void cc_ast_print(const cc_ast_node* node);
 cc_ast_variable* cc_ast_get_field_of(
-    const cc_ast_type* type, const char* field);
+    const cc_ast_type* type, cc_string_key field);
 
 #endif

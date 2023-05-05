@@ -155,76 +155,81 @@ void cc_free(void* p)
     free(p);
 }
 
-char* cc_strndup(const char* s, size_t n)
+#define STRING_HASH_SLOTS 1024
+static cc_string_key str_hash_slots[STRING_HASH_SLOTS] = {0};
+static char *str_pool = NULL;
+static size_t str_pool_size = 1;
+
+static unsigned short cc_hash_sdbm(const char *s, size_t n) {
+    const unsigned char *us = (const unsigned char *)s;
+    unsigned long hash = 0;
+    while(n--)
+        hash = *us++ + (hash << 6) + (hash << 16) - hash;
+    return hash % STRING_HASH_SLOTS;
+}
+
+const char *cc_strview(cc_string_key key) {
+    assert((size_t)key < str_pool_size);
+    return &str_pool[key];
+}
+
+cc_string_key cc_strndup(const char* s, size_t n)
 {
-    char* ns;
+    unsigned short hash;
     assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
+    hash = cc_hash_sdbm(s, n);
 
+    if (str_hash_slots[hash] == 0) {
+        /* String hasn't been added to the string pool yet! */
+        size_t start = str_pool_size;
+        str_pool_size += n + 1;
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = true;
-    g_alloc_ctx.total_strings += n + 1;
+        g_alloc_ctx.is_string = true;
+        g_alloc_ctx.total_strings += n + 1;
 #endif
-    ns = cc_malloc(n + 1);
+        str_pool = cc_realloc(str_pool, str_pool_size);
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = false;
+        g_alloc_ctx.is_string = false;
 #endif
-
-    memcpy(ns, s, n);
-    ns[n] = '\0';
-    return ns;
+        memcpy(&str_pool[start], s, n);
+        str_pool[start + n] = '\0';
+        str_hash_slots[hash] = start;
+        return start;
+    }
+    assert(!strncmp(&str_pool[str_hash_slots[hash]], s, n));
+    return str_hash_slots[hash];
 }
 
-char* cc_strdup(const char* s)
+cc_string_key cc_strdup(const char* s)
 {
-    size_t len;
-    char* ns;
-
-    assert(s != NULL);
-    len = strlen(s);
-
-#ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = true;
-    g_alloc_ctx.total_strings += len + 1;
-#endif
-    ns = cc_malloc(len + 1);
-#ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = false;
-#endif
-
-    memcpy(ns, s, len);
-    ns[len] = '\0';
-    return ns;
+    return cc_strndup(s, strlen(s));
 }
 
-char* cc_strdupcat(const char* s1, const char* s2)
+cc_string_key cc_strdupcat(const char* s1, const char* s2)
 {
-    size_t n = strlen(s1) + strlen(s2) + 1;
-    char* ns;
-    assert(s1 != NULL && s2 != NULL);
-
-#ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = true;
-    g_alloc_ctx.total_strings += n + 1;
-#endif
-    ns = cc_malloc(n + 1);
-    memcpy(ns, s1, strlen(s1));
-    memcpy(ns + strlen(s1), s2, strlen(s2));
-    ns[n] = '\0';
-#ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = false;
-#endif
-    return ns;
+    size_t len[2] = { strlen(s1), strlen(s2) };
+    char *s = malloc(len[0] + len[1] + 1);
+    cc_string_key key;
+    memcpy(s, s1, len[0]);
+    memcpy(s + len[0], s2, len[1]);
+    s[len[0] + len[1]] = '\0';
+    key = cc_strdup(s);
+    free(s);
+    return key;
 }
 
-void cc_strfree(char* s)
+void cc_strfree(cc_string_key s)
 {
-    if (s == NULL)
+    if (!s)
         return;
+    /* Do nothing... */
+/*
 #ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     cc_alloc_remove(s);
     g_alloc_ctx.is_string = false;
 #endif
     free(s);
+*/
 }

@@ -30,7 +30,7 @@ unsigned short cc_ceval_literal_to_ushort(
 }
 
 typedef struct cc_ceval_io {
-    const char* name; /* View of name, non-owning */
+    cc_string_key name; /* View of name, non-owning */
     cc_ast_literal literal;
 } cc_ceval_io;
 
@@ -132,7 +132,7 @@ static cc_ast_literal cc_ceval_eval_1(
         const cc_ast_variable* var;
         size_t i;
         for (i = 0; i < *n_list; i++)
-            if (!strcmp((*list)[i].name, node->data.var.name))
+            if ((*list)[i].name == node->data.var.name)
                 return (*list)[i].literal;
         var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);

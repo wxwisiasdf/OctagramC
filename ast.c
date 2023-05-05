@@ -28,9 +28,7 @@ cc_ast_node* cc_ast_create_any(
     node->parent = parent;
     node->type = type;
     node->label_id = cc_ast_alloc_label_id(ctx);
-
-    node->info = ctx->tokens[ctx->c_token].info;
-    node->info.filename = cc_strdup(ctx->tokens[ctx->c_token].info.filename);
+    cc_diag_copy(&node->info, &ctx->tokens[ctx->c_token].info);
     return node;
 }
 
@@ -95,7 +93,7 @@ cc_ast_node* cc_ast_create_var_ref(
     cc_context* ctx, cc_ast_node* parent, const cc_ast_variable* var)
 {
     cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_VARIABLE);
-    node->data.var.name = cc_strdup(var->name);
+    node->data.var.name = var->name;
     return node;
 }
 
@@ -198,11 +196,11 @@ void cc_ast_add_block_type(cc_ast_node* node, const cc_ast_type* type)
     size_t i;
     assert(node != NULL && node->type == AST_NODE_BLOCK);
     assert(type->mode != AST_TYPE_MODE_NONE);
-    assert(type->name != NULL);
+    assert(type->name);
 
     for (i = 0; i < node->data.block.n_types; i++) {
         cc_ast_type* btype = &node->data.block.types[i];
-        if (!strcmp(btype->name, type->name)) {
+        if (btype->name == type->name) {
             assert(btype->mode == type->mode);
             if (btype->mode == AST_TYPE_MODE_ENUM
                 || btype->mode == AST_TYPE_MODE_STRUCT
@@ -236,11 +234,12 @@ void cc_ast_add_or_replace_block_variable(
 {
     size_t i;
     assert(node->type == AST_NODE_BLOCK);
-    assert(var->name != NULL);
+    assert(var->name);
 
     for (i = 0; i < node->data.block.n_vars; i++) {
         cc_ast_variable* bvar = &node->data.block.vars[i];
-        if (!strcmp(bvar->name, var->name)) {
+        assert(bvar->name);
+        if (bvar->name == var->name) {
             *bvar = *var;
             return;
         }
@@ -302,7 +301,7 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
     assert(node->parent != node && node->ref_count == 0);
     switch (node->type) {
     case AST_NODE_STRING_LITERAL:
-        cc_free(node->data.string_literal);
+        cc_strfree(node->data.string_literal);
         break;
     case AST_NODE_BINOP:
         cc_ast_destroy_node(node->data.binop.left, true);
@@ -339,8 +338,8 @@ void cc_ast_destroy_node(cc_ast_node* node, bool managed)
 }
 
 /* TODO: This finding algorithm is fucking cursed, we need something better! */
-static cc_ast_variable* cc_ast_find_variable_1(
-    const char* fn_name, const char* name, const cc_ast_node* node)
+cc_ast_variable* cc_ast_find_variable(
+    cc_string_key fn_name, cc_string_key name, const cc_ast_node* node)
 {
     if (node == NULL)
         return NULL;
@@ -349,35 +348,26 @@ static cc_ast_variable* cc_ast_find_variable_1(
         size_t i;
         for (i = 0; i < node->data.block.n_vars; i++) {
             cc_ast_variable* var = &node->data.block.vars[i];
-            if (var->name != NULL && !strcmp(var->name, name))
+            if (var->name == name)
                 return var;
 
             /* Check parameters for functions but only the current function
                we're checking against. */
-            if (fn_name != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION
-                && !strcmp(var->name, fn_name)) {
+            if (fn_name && var->type.mode == AST_TYPE_MODE_FUNCTION
+                && var->name == fn_name) {
                 size_t j;
                 for (j = 0; j < var->type.data.func.n_params; j++) {
                     cc_ast_variable* param = &var->type.data.func.params[j];
-                    /* Unnamed parameters are supported and valid */
-                    if (param->name == NULL)
-                        continue;
-
-                    if (!strcmp(param->name, name))
+                    if (param->name == name)
                         return param;
                 }
             }
         }
     }
-    return cc_ast_find_variable_1(fn_name, name, node->parent);
-}
-cc_ast_variable* cc_ast_find_variable(
-    const char* fn_name, const char* name, const cc_ast_node* node)
-{
-    return cc_ast_find_variable_1(fn_name, name, node);
+    return cc_ast_find_variable(fn_name, name, node->parent);
 }
 
-cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
+cc_ast_node* cc_ast_find_label(cc_string_key name, const cc_ast_node* node)
 {
     if (node == NULL)
         return NULL;
@@ -410,7 +400,7 @@ cc_ast_node* cc_ast_find_label(const char* name, const cc_ast_node* node)
     return cc_ast_find_label(name, node->parent);
 }
 
-cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node)
+cc_ast_type* cc_ast_find_type(cc_string_key name, cc_ast_node* node)
 {
     if (node == NULL)
         return NULL;
@@ -418,7 +408,7 @@ cc_ast_type* cc_ast_find_type(const char* name, cc_ast_node* node)
         size_t i;
         for (i = 0; i < node->data.block.n_types; i++) {
             cc_ast_type* type = &node->data.block.types[i];
-            if (!strcmp(type->name, name))
+            if (type->name == name)
                 return type;
         }
     }
@@ -475,13 +465,13 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
     /* Label-Id is unique to every node regardless of copying */
     switch (src->type) {
     case AST_NODE_VARIABLE:
-        dest->data.var.name = cc_strdup(src->data.var.name);
+        dest->data.var.name = src->data.var.name;
         break;
     case AST_NODE_LITERAL:
         dest->data.literal = src->data.literal;
         break;
     case AST_NODE_STRING_LITERAL:
-        dest->data.string_literal = cc_strdup(src->data.string_literal);
+        dest->data.string_literal = src->data.string_literal;
         break;
     case AST_NODE_BINOP:
         dest->data.binop.op = src->data.binop.op;
@@ -535,7 +525,7 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
         cc_ast_copy_node(
             ctx, dest->data.field_access.left, src->data.field_access.left);
         dest->data.field_access.field_name
-            = cc_strdup(src->data.field_access.field_name);
+            = src->data.field_access.field_name;
         break;
     default:
         abort();
@@ -553,9 +543,7 @@ void cc_ast_copy_type(
     dest->n_cv_qual = src->n_cv_qual;
     memcpy(dest->cv_qual, src->cv_qual, sizeof(src->cv_qual));
 
-    if (src->name != NULL)
-        dest->name = cc_strdup(src->name);
-
+    dest->name = src->name;
     if (src->mode == AST_TYPE_MODE_FUNCTION) {
         /* Make copies of things */
         size_t i;
@@ -568,9 +556,9 @@ void cc_ast_copy_type(
         for (i = 0; i < dest->data.func.n_params; i++) {
             cc_ast_copy_type(&dest->data.func.params[i].type,
                 &src->data.func.params[i].type);
-            if (src->data.func.params[i].name != NULL)
+            if (src->data.func.params[i].name)
                 dest->data.func.params[i].name
-                    = cc_strdup(src->data.func.params[i].name);
+                    = src->data.func.params[i].name;
         }
         dest->data.func.variadic = src->data.func.variadic;
 
@@ -602,13 +590,13 @@ void cc_ast_add_type_member(
         = *src;
 }
 
-cc_ast_variable* cc_ast_get_field_of(const cc_ast_type* type, const char* field)
+cc_ast_variable* cc_ast_get_field_of(const cc_ast_type* type, cc_string_key field)
 {
     size_t i;
     assert(type->mode == AST_TYPE_MODE_STRUCT
         || type->mode == AST_TYPE_MODE_UNION);
     for (i = 0; i < type->data.shared->s_or_u.n_members; i++)
-        if (!strcmp(type->data.shared->s_or_u.members[i].name, field))
+        if (type->data.shared->s_or_u.members[i].name == field)
             return &type->data.shared->s_or_u.members[i];
     return NULL;
 }
@@ -836,19 +824,19 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
     }
 }
 
-static void cc_ast_print_var(const cc_ast_variable* var, const char* name)
+static void cc_ast_print_var(const cc_ast_variable* var, cc_string_key name)
 {
     size_t i;
     if (var == NULL) {
-        if (name == NULL)
-            printf("<var (null)>");
+        if (name)
+            printf("<var %s (unscoped)>", cc_strview(name));
         else
-            printf("<var %s (unscoped)>", name);
+            printf("<var (null)>");
         return;
     }
 
     ++body_print_lock;
-    printf("<var %s ", var->name);
+    printf("<var %s ", cc_strview(var->name));
 
     switch (var->type.mode) {
     case AST_TYPE_MODE_FUNCTION:
@@ -895,7 +883,7 @@ static void cc_ast_print_var(const cc_ast_variable* var, const char* name)
         printf(")");*/
         printf("(");
         for (i = 0; i < var->type.data.func.n_params; ++i)
-            cc_ast_print_var(&var->type.data.func.params[i], NULL);
+            cc_ast_print_var(&var->type.data.func.params[i], 0);
         if (var->type.data.func.variadic)
             printf("<...>");
         printf(")");
@@ -932,11 +920,11 @@ void cc_ast_print(const cc_ast_node* node)
 
         for (i = 0; i < node->data.block.n_types; i++) {
             const cc_ast_type* type = &node->data.block.types[i];
-            printf("type %s;\n", type->name);
+            printf("type %s;\n", cc_strview(type->name));
         }
 
         for (i = 0; i < node->data.block.n_vars; i++)
-            cc_ast_print_var(&node->data.block.vars[i], NULL);
+            cc_ast_print_var(&node->data.block.vars[i], 0);
 
         for (i = 0; i < node->data.block.n_children; i++) {
             cc_ast_print(&node->data.block.children[i]);
@@ -987,7 +975,7 @@ void cc_ast_print(const cc_ast_node* node)
         printf("}>");
         break;
     case AST_NODE_STRING_LITERAL:
-        printf("<string-literal %s>", node->data.string_literal);
+        printf("<string-literal %s>", cc_strview(node->data.string_literal));
         break;
     case AST_NODE_UNOP:
         printf("<unop ");
@@ -1027,13 +1015,13 @@ void cc_ast_print(const cc_ast_node* node)
         printf(">");
         break;
     case AST_NODE_VARIABLE:
-        cc_ast_print_var(cc_ast_find_variable(NULL, node->data.var.name, node),
+        cc_ast_print_var(cc_ast_find_variable(0, node->data.var.name, node),
             node->data.var.name);
         break;
     case AST_NODE_FIELD_ACCESS:
         printf("<field-access(");
         cc_ast_print(node->data.field_access.left);
-        printf(")%s>", node->data.field_access.field_name);
+        printf(")%s>", cc_strview(node->data.field_access.field_name));
         break;
     default:
         printf("<?{%i}>", node->type);

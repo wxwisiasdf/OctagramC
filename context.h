@@ -1,6 +1,7 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H 1
 
+#include "util.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -83,11 +84,11 @@ typedef struct cc_context {
     unsigned int (*get_alignof)(
         struct cc_context* ctx, const struct cc_ast_type* type);
     unsigned int (*get_offsetof)(struct cc_context* ctx,
-        const struct cc_ast_type* type, const char* field);
+        const struct cc_ast_type* type, cc_string_key field);
     unsigned short min_stack_alignment;
 } cc_context;
 
-const char* cc_get_cfunc_name(const cc_context* ctx);
+cc_string_key cc_get_cfunc_name(const cc_context* ctx);
 const char* cc_get_anon_name(cc_context* ctx);
 
 #endif

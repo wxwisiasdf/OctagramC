@@ -22,10 +22,10 @@ static void cc_ssa_print_param(const cc_ssa_param* param)
         break;
     case SSA_PARAM_STRING_LITERAL:
         printf("string_%u_\"%s\"", param->data.string.tmpid,
-            param->data.string.literal);
+            cc_strview(param->data.string.literal));
         break;
     case SSA_PARAM_VARIABLE:
-        printf("var_%s", param->data.var_name);
+        printf("var_%s", cc_strview(param->data.var_name));
         break;
     case SSA_PARAM_TMPVAR:
         printf("tmp_%i", param->data.tmpid);
@@ -194,7 +194,7 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
 static void cc_ssa_print_func(const cc_ssa_func* func)
 {
     size_t i;
-    printf("fn %s {\n", func->ast_var->name);
+    printf("fn %s {\n", cc_strview(func->ast_var->name));
     for (i = 0; i < func->n_tokens; i++)
         cc_ssa_print_token(&func->tokens[i]);
     printf("}\n");
@@ -260,7 +260,7 @@ static cc_ssa_param cc_ssa_variable_to_param(
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_VARIABLE;
     tmp.storage = cc_ssa_ast_storage_to_ssa(var->storage);
-    tmp.data.var_name = cc_strdup(var->name);
+    tmp.data.var_name = var->name;
     tmp.is_signed = false;
     tmp.size = ctx->get_sizeof(ctx, &var->type);
     tmp.version = 0;
@@ -366,8 +366,7 @@ static void cc_ssa_process_binop(
         tok.type = SSA_TOKEN_ASSIGN;
         tok.data.unop.left = lhs_psize ? lhs_param : rhs_param;
         tok.data.unop.right = tmp_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         memset(&tok, 0, sizeof(tok));
 
@@ -387,8 +386,7 @@ static void cc_ssa_process_binop(
         tok.data.binop.left = parith_param;                                    \
         tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
         tok.data.binop.extra = tmp_param;                                      \
-        tok.info = node->info;                                                 \
-        tok.info.filename = cc_strdup(node->info.filename);                    \
+        cc_diag_copy(&tok.info, &node->info);                    \
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
         memset(&tok, 0, sizeof(tok));                                          \
     } while (0)
@@ -429,8 +427,7 @@ static void cc_ssa_process_binop(
             tok.type = SSA_TOKEN_STORE_FROM;
             tok.data.unop.left = lhs_param;
             tok.data.unop.right = rhs_param;
-            tok.info = node->info;
-            tok.info.filename = cc_strdup(node->info.filename);
+            cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
             return;
         }
@@ -480,8 +477,7 @@ static void cc_ssa_process_binop(
     tok.data.binop.left = param;
     tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
     tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -534,8 +530,7 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
         assert(ctx->ssa_current_func != NULL);
         tok.type = SSA_TOKEN_ALLOCA;
         tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
 
         /* Non-VLA, non-array, so it's simple af */
         if (var->type.n_cv_qual == 0) {
@@ -625,8 +620,7 @@ static void cc_ssa_process_call(
             tok.data.call.params, tok.data.call.n_params + 1);
         tok.data.call.params[tok.data.call.n_params++] = call_arg_param;
     }
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -667,21 +661,18 @@ static void cc_ssa_process_if(
 
     if_label_tok.type = SSA_TOKEN_LABEL;
     if_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
-    if_label_tok.info = node->info;
-    if_label_tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&if_label_tok.info, &node->info);
 
     else_label_tok.type = SSA_TOKEN_LABEL;
     else_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
-    else_label_tok.info = node->info;
-    else_label_tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&else_label_tok.info, &node->info);
 
     /* Tail else is null, we will have to synthetize a label after this if */
     tok.data.branch.t_branch
         = cc_ssa_label_param(ctx, if_label_tok.data.label_id);
     tok.data.branch.f_branch
         = cc_ssa_label_param(ctx, else_label_tok.data.label_id);
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 
     cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
@@ -697,8 +688,7 @@ static void cc_ssa_process_jump(
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_JUMP;
     tok.data.jump_target = cc_ssa_label_param(ctx, node->data.jump_label_id);
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -710,9 +700,7 @@ static void cc_ssa_process_literal(
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;
     tok.data.unop.right = literal_param;
-    tok.info = node->info;
-    tok.info.filename
-        = tok.info.filename == NULL ? NULL : cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -729,8 +717,7 @@ static void cc_ssa_process_return(
 
     tok.type = SSA_TOKEN_RET;
     tok.data.retval = retval;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -755,8 +742,7 @@ static void cc_ssa_process_string_literal(
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;
     tok.data.unop.right = literal_param;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -776,8 +762,7 @@ static void cc_ssa_process_unop(
         tok.type = SSA_TOKEN_ZERO_EXT;
         tok.data.unop.left = param;
         tok.data.unop.right = child_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
     case AST_UNOP_DEREF:
@@ -786,8 +771,7 @@ static void cc_ssa_process_unop(
         tok.type = SSA_TOKEN_LOAD_FROM;
         tok.data.unop.left = param;
         tok.data.unop.right = child_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         break;
     case AST_UNOP_POSTINC:
@@ -805,8 +789,7 @@ static void cc_ssa_process_unop(
         tok.data.binop.left = param;
         tok.data.binop.right = child_param;
         tok.data.binop.extra = one_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
     default:
@@ -845,8 +828,7 @@ static void cc_ssa_process_field_access(
         tok.data.binop.left = param;
         tok.data.binop.right = left_param;
         tok.data.binop.extra = size_param;
-        tok.info = node->info;
-        tok.info.filename = cc_strdup(node->info.filename);
+        cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     }
 }
@@ -865,8 +847,7 @@ static void cc_ssa_process_variable(
     tok.type = SSA_TOKEN_LOAD_FROM;
     tok.data.unop.left = param;
     tok.data.unop.right = var_param;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -875,8 +856,7 @@ static void cc_ssa_process_label(cc_context* ctx, const cc_ast_node* node)
     cc_ssa_token tok = { 0 };
     tok.type = SSA_TOKEN_LABEL;
     tok.data.label_id = node->label_id;
-    tok.info = node->info;
-    tok.info.filename = cc_strdup(node->info.filename);
+    cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
@@ -1081,7 +1061,7 @@ bool cc_ssa_is_param_same(
     if (p1->type != p2->type)
         return false;
     if (p1->type == SSA_PARAM_VARIABLE && p2->type == SSA_PARAM_VARIABLE)
-        return strcmp(p1->data.var_name, p2->data.var_name) == 0;
+        return p1->data.var_name == p2->data.var_name;
     if (p1->type == SSA_PARAM_LABEL && p2->type == SSA_PARAM_LABEL)
         return p1->data.label_id == p2->data.label_id;
     return p1->size == p2->size;

@@ -166,7 +166,7 @@ static unsigned int cc_mf370_get_sizeof(
 }
 
 static unsigned int cc_mf370_get_offsetof(
-    cc_context* ctx, const cc_ast_type* type, const char* field)
+    cc_context* ctx, const cc_ast_type* type, cc_string_key field)
 {
     size_t upper_lim = 0;
     size_t i;
@@ -179,7 +179,7 @@ static unsigned int cc_mf370_get_offsetof(
     for (i = 0; i < type->data.shared->s_or_u.n_members; i++) {
         size_t count
             = ctx->get_sizeof(ctx, &type->data.shared->s_or_u.members[i].type);
-        if (!strcmp(type->data.shared->s_or_u.members[i].name, field))
+        if (type->data.shared->s_or_u.members[i].name == field)
             return upper_lim;
         upper_lim = count > upper_lim ? count : upper_lim;
     }
@@ -223,7 +223,7 @@ static void cc_mf370_gen_assign(
             break;
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tLA\t%s,=A(%s)\n", reg_names[val_regno],
-                cc_mf370_logical_label(rhs->data.var_name));
+                cc_mf370_logical_label(cc_strview(rhs->data.var_name)));
             fprintf(ctx->out, "\tL\tR0,(%s)\n", reg_names[val_regno]);
             break;
         case SSA_PARAM_TMPVAR:
@@ -235,7 +235,7 @@ static void cc_mf370_gen_assign(
 
         ptr_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 2);
         fprintf(ctx->out, "\tLA\t%s,=A(%s)\n", reg_names[ptr_regno],
-            cc_mf370_logical_label(lhs->data.var_name));
+            cc_mf370_logical_label(cc_strview(lhs->data.var_name)));
         fprintf(ctx->out, "\tST\t%s,(%s)\n", reg_names[val_regno],
             reg_names[ptr_regno]);
         cc_mf370_regfree(ctx, ptr_regno);
@@ -250,7 +250,7 @@ static void cc_mf370_gen_assign(
             break;
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tLA\tR0,=A(%s)\n",
-                cc_mf370_logical_label(rhs->data.var_name));
+                cc_mf370_logical_label(cc_strview(rhs->data.var_name)));
             fprintf(ctx->out, "\tL\tR0,(R0)\n");
             break;
         case SSA_PARAM_TMPVAR:
@@ -271,7 +271,7 @@ static void cc_mf370_gen_call_param(
     switch (param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(ctx->out, "\tLA\tR1,=A(%s)\n",
-            cc_mf370_logical_label(param->data.var_name));
+            cc_mf370_logical_label(cc_strview(param->data.var_name)));
         fprintf(ctx->out, "\tL\tR0,(R1)\n");
         fprintf(ctx->out, "\tST\tR0,%u(R13)\n", offset);
         break;
@@ -407,7 +407,7 @@ static void cc_mf370_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
 
 void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
 {
-    const char* name = func->ast_var->name;
+    const char* name = cc_strview(func->ast_var->name);
     cc_mf370_context* actx;
     size_t i;
 

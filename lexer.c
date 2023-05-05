@@ -54,16 +54,16 @@ void cc_lex_print_token(const cc_lexer_token* tok)
 {
     switch (tok->type) {
     case LEXER_TOKEN_IDENT:
-        printf("%s", tok->data);
+        printf("i(%s)", cc_strview(tok->data));
         return;
     case LEXER_TOKEN_NUMBER:
-        printf("%s", tok->data);
+        printf("n(%s)", cc_strview(tok->data));
         return;
     case LEXER_TOKEN_CHAR_LITERAL:
-        printf("\'%s\'", tok->data);
+        printf("\'%s\'", cc_strview(tok->data));
         return;
     case LEXER_TOKEN_STRING_LITERAL:
-        printf("\"%s\"", tok->data);
+        printf("\"%s\"", cc_strview(tok->data));
         return;
     default:
         break;
@@ -212,32 +212,32 @@ static bool cc_parse_preprocessor(cc_context* ctx)
         && ctok->type == LEXER_TOKEN_HASHTAG) {
         cc_lex_token_consume(ctx);
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(ctok->data, "line")) {
+            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(cc_strview(ctok->data), "line")) {
             cc_lex_token_consume(ctx);
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_NUMBER) {
-                unsigned long int n_lines = strtoul(ctok->data, NULL, 10);
+                unsigned long int n_lines = strtoul(cc_strview(ctok->data), NULL, 10);
                 cc_lex_token_consume(ctx);
 
                 if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                     && ctok->type == LEXER_TOKEN_STRING_LITERAL) {
-                    const char* filename = ctok->data;
+                    const char* filename = cc_strview(ctok->data);
                     unsigned char flags = 0;
                     cc_lex_token_consume(ctx);
 
                     while ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                         && ctok->type == LEXER_TOKEN_NUMBER) {
-                        flags |= 1 << (unsigned char)atoi(ctok->data);
+                        flags |= 1 << (unsigned char)atoi(cc_strview(ctok->data));
                         cc_lex_token_consume(ctx);
                     }
 
                     if ((flags & (1 << 1)) != 0) { /* New file */
-                        cc_diag_info info;
+                        cc_diag_info info = { 0 };
                         info.filename = cc_strdup(filename);
                         info.line = n_lines;
                         cc_diag_add_info(ctx, info);
                     } else if ((flags & (1 << 2)) != 0) { /* Return to file */
-                        cc_diag_info info;
+                        cc_diag_info info = { 0 };
                         info.filename = cc_strdup(filename);
                         info.line = n_lines;
                         cc_diag_add_info(ctx, info);
@@ -297,10 +297,9 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                                       : LEXER_TOKEN_STRING_LITERAL;
                 tok.data = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 if (ctx->n_tokens > 0 && prev_tok->type == tok.type) {
-                    char* ns = cc_strdupcat(prev_tok->data, tok.data);
+                    prev_tok->data = cc_strdupcat(cc_strview(prev_tok->data), cc_strview(tok.data));
                     cc_strfree(prev_tok->data);
                     cc_strfree(tok.data);
-                    prev_tok->data = ns;
                     ctx->cptr++; /* Skip closing quotes */
                     continue; /* Next token, do not add to tokenlist! */
                 }
@@ -314,7 +313,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
         }
 
         tok.info.filename = cc_strdup(ctx->n_diag_infos
-                ? ctx->diag_infos[ctx->n_diag_infos - 1].filename
+                ? cc_strview(ctx->diag_infos[ctx->n_diag_infos - 1].filename)
                 : "<unknown>");
         tok.info.column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf);
         tok.info.line = ctx->n_diag_infos

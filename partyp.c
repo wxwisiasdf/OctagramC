@@ -57,17 +57,18 @@ static bool cc_parse_type_attributes(
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
+        const char *attr = cc_strview(ctok->data);
         cc_lex_token_consume(ctx);
-        if (!strcmp(ctok->data, "packed")) {
+        if (!strcmp(attr, "packed")) {
             type->data.shared->s_or_u.packed = true;
-        } else if (!strcmp(ctok->data, "aligned")
-            || !strcmp(ctok->data, "alignment")
-            || !strcmp(ctok->data, "align")) {
+        } else if (!strcmp(attr, "aligned")
+            || !strcmp(attr, "alignment")
+            || !strcmp(attr, "align")) {
             type->min_alignment
                 = cc_parse_attribute_literal_param(ctx, node, type);
-        } else if (!strcmp(ctok->data, "max_align")
-            || !strcmp(ctok->data, "max_alignment")
-            || !strcmp(ctok->data, "max_aligned")) {
+        } else if (!strcmp(attr, "max_align")
+            || !strcmp(attr, "max_alignment")
+            || !strcmp(attr, "max_aligned")) {
             type->max_alignment
                 = cc_parse_attribute_literal_param(ctx, node, type);
         } else {
@@ -121,7 +122,7 @@ bool cc_parse_struct_or_union_specifier(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_ast_type* s_or_u_type;
-        type->name = cc_strdup(ctok->data);
+        type->name = ctok->data;
 
         s_or_u_type = cc_ast_find_type(type->name, node);
         if (s_or_u_type != NULL) {
@@ -144,7 +145,7 @@ bool cc_parse_struct_or_union_specifier(
         }
         if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL
             || ctok->type != LEXER_TOKEN_LBRACE) {
-            if (type->name == NULL) {
+            if (!type->name) {
                 cc_diag_error(ctx, "Forward declaration of anonymous %s",
                     type->mode == AST_TYPE_MODE_STRUCT ? "struct" : "union");
                 goto error_handle;
@@ -217,7 +218,7 @@ empty_memberlist:
 
     /* We will add structs that are not anonymous into the current defined
        types list so we can use them later as required. */
-    if (type->name != NULL)
+    if (type->name)
         cc_ast_add_block_type(node, type);
     return true;
 error_handle:
@@ -242,7 +243,7 @@ static bool cc_parse_enum_specifier(
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
         cc_lex_token_consume(ctx);
-        type->name = cc_strdup(ctok->data);
+        type->name = ctok->data;
     }
 
     /* Enum without brace means declaration of a variable OR forward
@@ -251,13 +252,13 @@ static bool cc_parse_enum_specifier(
         || ctok->type != LEXER_TOKEN_LBRACE) {
         cc_ast_type* enum_type = cc_ast_find_type(type->name, node);
         if (enum_type != NULL) { /* We're using an already existing type? */
-            if (type->name != NULL) {
+            if (type->name) {
                 cc_strfree(type->name);
-                type->name = NULL;
+                type->name = 0;
             }
             cc_ast_copy_type(type, enum_type);
             if (enum_type->mode != AST_TYPE_MODE_ENUM) {
-                cc_diag_error(ctx, "%s isn't a valid enum", enum_type->name);
+                cc_diag_error(ctx, "'%s' isn't a valid enum", cc_strview(enum_type->name));
                 type->mode = AST_TYPE_MODE_ENUM;
             }
         } else { /* Not an existing type, forward declaration... */
@@ -284,7 +285,7 @@ static bool cc_parse_enum_specifier(
         cc_ast_variable var = { 0 };
 
         cc_lex_token_consume(ctx);
-        member.name = cc_strdup(ctok->data);
+        member.name = ctok->data;
         /* Assignment of enumerator value. */
         member.literal = seq_literal;
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
@@ -324,7 +325,7 @@ static bool cc_parse_enum_specifier(
         var.type.mode = AST_TYPE_MODE_INT;
         /* Override type specification and enable constexpr evaluation */
         var.storage = AST_STORAGE_CONSTEXPR;
-        var.name = cc_strdup(member.name);
+        var.name = member.name;
         var.initializer = cc_ast_create_literal(ctx, node, member.literal);
         cc_ast_add_or_replace_block_variable(node, &var);
 
@@ -360,8 +361,8 @@ static bool cc_parse_enum_specifier(
                     sizeof(cc_ast_literal))) {
                 cc_diag_error(ctx,
                     "Enumerator elements '%s' and '%s' with same value",
-                    type->data.shared->enumer.elems[i].name,
-                    type->data.shared->enumer.elems[j].name);
+                    cc_strview(type->data.shared->enumer.elems[i].name),
+                    cc_strview(type->data.shared->enumer.elems[j].name));
                 CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
                 goto error_handle;
             }
@@ -370,7 +371,7 @@ static bool cc_parse_enum_specifier(
 empty_memberlist:
     CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RBRACE, "Expected '}'");
     /* We will add non-anonymous enums. */
-    if (type->name != NULL) /* Non-anonymous enum */
+    if (type->name) /* Non-anonymous enum */
         cc_ast_add_block_type(node, type);
     return true;
 error_handle:
@@ -673,19 +674,20 @@ static bool cc_parse_declaration_specifier_attributes(
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
+        const char *attr = cc_strview(ctok->data);
         cc_lex_token_consume(ctx);
-        if (!strcmp(ctok->data, "noreturn")) {
+        if (!strcmp(attr, "noreturn")) {
             type->data.func.no_return = true;
-        } else if (!strcmp(ctok->data, "nodiscard")) {
+        } else if (!strcmp(attr, "nodiscard")) {
             type->data.func.no_discard = true;
-        } else if (!strcmp(ctok->data, "deprecated")) {
+        } else if (!strcmp(attr, "deprecated")) {
             type->data.func.deprecated = true;
-        } else if (!strcmp(ctok->data, "variadic") || !strcmp(ctok->data, "var")
-            || !strcmp(ctok->data, "variable")) {
+        } else if (!strcmp(attr, "variadic") || !strcmp(attr, "var")
+            || !strcmp(attr, "variable")) {
             type->data.func.variadic = true;
-        } else if (!strcmp(ctok->data, "naked")) {
+        } else if (!strcmp(attr, "naked")) {
             type->data.func.naked = true;
-        } else if (!strcmp(ctok->data, "irq")) {
+        } else if (!strcmp(attr, "irq")) {
             type->data.func.irq = true;
         } else {
             cc_parse_type_attributes(ctx, node, type);
@@ -798,7 +800,7 @@ bool cc_parse_declarator_braced_initializer(
         cc_lex_token_consume(ctx);
         /* {0} is a shorthand to zero-initialize an structure */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(ctok->data, "0")
+            && ctok->type == LEXER_TOKEN_NUMBER && !strcmp(cc_strview(ctok->data), "0")
             && (ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE) {
             cc_lex_token_consume(ctx);
@@ -894,14 +896,14 @@ bool cc_parse_declarator(
         if (other_var == NULL
             || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Not a typedef, so must be the identifier of this variable! */
-            if (var->name != NULL) {
+            if (var->name) {
                 cc_diag_error(ctx,
-                    "More than one identifier on declaration (%s and %s)",
-                    var->name, ctok->data);
+                    "More than one identifier on declaration '%s' and '%s'",
+                    cc_strview(var->name), ctok->data);
                 cc_lex_token_consume(ctx);
                 goto error_handle;
             }
-            var->name = cc_strdup(ctok->data);
+            var->name = ctok->data;
         } else {
             assert(other_var != NULL);
             assert((other_var->storage & AST_STORAGE_TYPEDEF) != 0);
@@ -933,7 +935,7 @@ ignore_missing_ident:
 
         /* Check if this function is part of the libc declaration */
         for (i = 0; i < ARRAY_SIZE(libc_names); ++i)
-            if (!strcmp(libc_names[i], var->name)) {
+            if (!strcmp(libc_names[i], cc_strview(var->name))) {
                 var->type.data.func.builtin_libc = true;
                 break;
             }
@@ -973,16 +975,15 @@ ignore_missing_ident:
                         var->type.data.func.n_params + 1);
                 param = &var->type.data.func
                              .params[var->type.data.func.n_params++];
-                param->name = NULL;
+                param->name = 0;
                 param->storage = AST_STORAGE_AUTO; /* Auto storage... */
-                if (virtual_param_var.name != NULL)
-                    param->name = cc_strdup(virtual_param_var.name);
+                if (virtual_param_var.name)
+                    param->name = virtual_param_var.name;
                 cc_ast_copy_type(&param->type, &virtual_param_var.type);
-
-                /* Clear virtual parameter name */
+                /* Clear virtual parameter */
                 cc_ast_destroy_var(&virtual_param_var, false);
                 memset(&virtual_param_var, 0, sizeof(virtual_param_var));
-
+                /* Comma means another parameter follows... */
                 if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                     && ctok->type == LEXER_TOKEN_COMMA) {
                     cc_lex_token_consume(ctx);

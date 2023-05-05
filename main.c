@@ -42,13 +42,13 @@
 #include "mf370.c"
 #endif
 
-const char* cc_get_cfunc_name(const cc_context* ctx)
+cc_string_key cc_get_cfunc_name(const cc_context* ctx)
 {
     if (ctx->ssa_current_func != NULL)
         return ctx->ssa_current_func->ast_var->name;
     if (ctx->ast_current_func != NULL)
         return ctx->ast_current_func->name;
-    return NULL;
+    return 0;
 }
 
 const char* cc_get_anon_name(cc_context* ctx)

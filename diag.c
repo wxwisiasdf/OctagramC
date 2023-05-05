@@ -24,10 +24,10 @@ static void cc_diag_print_diag(
     FILE* fp;
     fprintf(stderr,
         "%s: " ANSI_COLOUR(96) "%s" ANSI_COLOUR(0) ":%u: ", severity,
-        info.filename, info.line);
+        cc_strview(info.filename), info.line);
     vfprintf(stderr, fmt, args);
 
-    fp = fopen(info.filename, "rt");
+    fp = fopen(cc_strview(info.filename), "rt");
     if (fp != NULL) {
         char tmpbuf[80];
         unsigned short line = 0;
@@ -100,7 +100,7 @@ void cc_diag_warning(cc_context* ctx, const char* fmt, ...)
 
 void cc_diag_add_info(cc_context* ctx, cc_diag_info info)
 {
-    assert(info.filename != NULL);
+    assert(info.filename);
     ctx->diag_infos = cc_realloc_array(ctx->diag_infos, ctx->n_diag_infos + 1);
     ctx->diag_infos[ctx->n_diag_infos++] = info;
 }
@@ -122,7 +122,7 @@ void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
     size_t i;
     for (i = 0; i < ctx->n_diag_infos; i++) {
         cc_diag_info* info = &ctx->diag_infos[i];
-        if (!strcmp(info->filename, new_info.filename)) {
+        if (info->filename == new_info.filename) {
             size_t j;
 
             info->line = new_info.line;
@@ -138,4 +138,10 @@ void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
         }
     }
     cc_diag_add_info(ctx, new_info);
+}
+
+void cc_diag_copy(cc_diag_info* dest, const cc_diag_info* src) {
+    dest->filename = src->filename;
+    dest->line = src->line;
+    dest->column = src->column;
 }

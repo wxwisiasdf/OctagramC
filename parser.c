@@ -223,7 +223,7 @@ static bool cc_parse_selection_statment(cc_context* ctx, cc_ast_node* node)
             cc_parse_statment(ctx, if_node->data.if_expr.tail_else);
         }
 
-            --ctx->if_depth;
+        --ctx->if_depth;
         if (has_braces)
             --ctx->if_w_braces_depth;
 
@@ -297,7 +297,7 @@ static bool cc_parse_compund_statment_potential_declarator(
         cc_ast_variable nvar = { 0 };
         if (!cc_parse_declarator_list(ctx, node, &nvar))
             goto error_handle;
-        if (nvar.name == NULL) {
+        if (!nvar.name) {
             cc_diag_error(ctx, "Anonymous variable declared");
             cc_ast_destroy_var(&nvar, false);
             goto error_handle;
@@ -318,6 +318,21 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) == NULL)
         return false;
+
+    /* Labelled statments... */
+    if (ctok->type == LEXER_TOKEN_IDENT
+        && (ctok = cc_lex_token_peek(ctx, 1)) != NULL
+        && ctok->type == LEXER_TOKEN_COLON) {
+        /* Obtain label identifier */
+        ctok = cc_lex_token_peek(ctx, 0);
+        cc_lex_token_consume(ctx); /* Ident */
+        cc_lex_token_consume(ctx); /* Colon */
+        assert(ctok->type == LEXER_TOKEN_IDENT);
+        return true;
+    } else {
+        /* Reposition ctok */
+        ctok = cc_lex_token_peek(ctx, 0);
+    }
 
     switch (ctok->type) {
     case LEXER_TOKEN_RBRACE: /* TODO: Why does } make this break??? */
@@ -358,6 +373,10 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         cc_parse_iteration_statment(ctx, node);
         return true;
     }
+    case LEXER_TOKEN_goto: {
+        cc_lex_token_consume(ctx);
+        CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected 'ident'");
+    } break;
     case LEXER_TOKEN_continue: {
         cc_ast_node* continue_node;
         cc_lex_token_consume(ctx);
@@ -406,7 +425,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 cc_diag_warning(ctx, "Implicit function declaration");
 
                 ctok = cc_lex_token_peek(ctx, 0); /* Identifier */
-                nvar.name = cc_strdup(ctok->data);
+                nvar.name = ctok->data;
                 cc_swap_func_decl(&nvar.type);
                 nvar.storage = AST_STORAGE_EXTERN;
                 /* Variadic, basically meaning we have no fucking idea */
@@ -449,13 +468,14 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     /* Declaration specifiers */
     cc_parse_declarator_list(ctx, node, &var);
     if (!ctx->is_libc_decl && !var.type.data.func.builtin_libc) {
-    if (var.name != NULL) {
-        if (var.name[0] == '_' && isupper(var.name[1])
-            && !(var.storage & AST_STORAGE_EXTERN)) {
-            cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
-        } else if (var.name[0] == '_' && var.name[1] == '_'
-            && !(var.storage & AST_STORAGE_EXTERN)) {
-            cc_diag_warning(ctx, "Reserved identifier '%s'", var.name);
+        if (var.name) {
+            const char *name = cc_strview(var.name);
+            if (name[0] == '_' && isupper(name[1])
+                && !(var.storage & AST_STORAGE_EXTERN)) {
+                cc_diag_warning(ctx, "Reserved identifier '%s'", name);
+            } else if (name[0] == '_' && name[1] == '_'
+                && !(var.storage & AST_STORAGE_EXTERN)) {
+                cc_diag_warning(ctx, "Reserved identifier '%s'", name);
             }
         }
     }
@@ -479,7 +499,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             } else if ((var.storage & AST_STORAGE_EXTERN) != 0) {
                 /* All functions that are not prototypes are treated as a variable. */
                 cc_diag_warning(ctx,
-                    "Function '%s' declared extern but defined here", var.name);
+                    "Function '%s' declared extern but defined here", cc_strview(var.name));
                 var.storage &= ~AST_STORAGE_EXTERN;
                 var.storage |= AST_STORAGE_GLOBAL;
             }
@@ -508,16 +528,16 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
         }
     }
 
-    if (var.name == NULL) {
-        if (var.type.name == NULL) {
+    if (!var.name) {
+        if (!var.type.name) {
             if (var.type.mode == AST_TYPE_MODE_ENUM) {
                 /* An anonymous enumerator might be undesirable for a variety
                    of reasons, however this isn't an error, so we can continue
                    normal execution. */
                 cc_diag_warning(ctx, "Anonymous enum");
-                if (var.name == NULL)
+                if (!var.name)
                     var.name = cc_strdup(cc_get_anon_name(ctx));
-                if (var.type.name == NULL)
+                if (!var.type.name)
                     var.type.name = cc_strdup(cc_get_anon_name(ctx));
             } else {
                 cc_diag_error(
