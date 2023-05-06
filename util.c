@@ -19,13 +19,13 @@ static struct cc_alloc_context {
 
     size_t total_normal;
     size_t total_strings;
-} g_alloc_ctx;
+} alloc_ctx;
 #endif
 
 void cc_alloc_init(bool track)
 {
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.active = track;
+    alloc_ctx.active = track;
 #endif
     atexit(cc_alloc_deinit);
 }
@@ -37,58 +37,60 @@ void cc_alloc_deinit(void)
     size_t total_string = 0;
     size_t n_strings = 0;
     size_t i;
-    for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
-        total += g_alloc_ctx.ptrs[i].size;
-        if (g_alloc_ctx.ptrs[i].is_string) {
-            total_string += g_alloc_ctx.ptrs[i].size;
+    for (i = 0; i < alloc_ctx.n_ptrs; i++) {
+        total += alloc_ctx.ptrs[i].size;
+        if (alloc_ctx.ptrs[i].is_string) {
+            total_string += alloc_ctx.ptrs[i].size;
             n_strings++;
         }
     }
     printf("Final used memory: %.2f KB (%u bytes accross %u objects)\n",
         (float)total / 1000.f, (unsigned int)total,
-        (unsigned int)g_alloc_ctx.n_ptrs);
+        (unsigned int)alloc_ctx.n_ptrs);
     printf("%.2f%% was used for strings: %.2f KB (%u bytes accross %u "
            "strings)\n",
         100.f * ((float)total_string / (float)total), total_string / 1000.f,
         (unsigned int)total_string, (unsigned int)n_strings);
     printf("Total: %.2f KB (%.2f KB for strings)\n",
-        (float)g_alloc_ctx.total_normal / 1000.f,
-        g_alloc_ctx.total_strings / 1000.f);
+        (float)alloc_ctx.total_normal / 1000.f,
+        alloc_ctx.total_strings / 1000.f);
 
-    for (i = 0; i < g_alloc_ctx.n_ptrs; i++)
-        free(g_alloc_ctx.ptrs[i].p);
-    free(g_alloc_ctx.ptrs);
-    g_alloc_ctx.ptrs = NULL;
-    g_alloc_ctx.n_ptrs = 0;
+    for (i = 0; i < alloc_ctx.n_ptrs; i++)
+        free(alloc_ctx.ptrs[i].p);
+    free(alloc_ctx.ptrs);
+    alloc_ctx.ptrs = NULL;
+    alloc_ctx.n_ptrs = 0;
 #endif
 }
 
 #ifdef OCC_MEMSTATS
 static void cc_alloc_add(void* p, size_t size)
 {
-    if (!g_alloc_ctx.active)
+    if (!alloc_ctx.active)
         return;
-    g_alloc_ctx.total_normal += size;
-    g_alloc_ctx.ptrs = realloc(
-        g_alloc_ctx.ptrs, sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs + 1));
-    g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].p = p;
-    g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].size = size;
-    g_alloc_ctx.ptrs[g_alloc_ctx.n_ptrs].is_string = g_alloc_ctx.is_string;
-    ++g_alloc_ctx.n_ptrs;
+    alloc_ctx.total_normal += size;
+    alloc_ctx.ptrs = realloc(
+        alloc_ctx.ptrs, sizeof(*alloc_ctx.ptrs) * (alloc_ctx.n_ptrs + 1));
+    if (alloc_ctx.ptr == NULL)
+        cc_abort(__FILE__, __LINE__);
+    alloc_ctx.ptrs[alloc_ctx.n_ptrs].p = p;
+    alloc_ctx.ptrs[alloc_ctx.n_ptrs].size = size;
+    alloc_ctx.ptrs[alloc_ctx.n_ptrs].is_string = alloc_ctx.is_string;
+    ++alloc_ctx.n_ptrs;
 }
 
 static void cc_alloc_remove(void* p)
 {
     size_t i;
-    if (!g_alloc_ctx.active)
+    if (!alloc_ctx.active)
         return;
-    for (i = 0; i < g_alloc_ctx.n_ptrs; i++) {
-        if (g_alloc_ctx.ptrs[i].p == p) {
-            assert(g_alloc_ctx.ptrs[i].is_string == g_alloc_ctx.is_string);
-            if (i + 1 < g_alloc_ctx.n_ptrs)
-                memmove(&g_alloc_ctx.ptrs[i], &g_alloc_ctx.ptrs[i + 1],
-                    sizeof(*g_alloc_ctx.ptrs) * (g_alloc_ctx.n_ptrs - i - 1));
-            g_alloc_ctx.n_ptrs--;
+    for (i = 0; i < alloc_ctx.n_ptrs; i++) {
+        if (alloc_ctx.ptrs[i].p == p) {
+            assert(alloc_ctx.ptrs[i].is_string == alloc_ctx.is_string);
+            if (i + 1 < alloc_ctx.n_ptrs)
+                memmove(&alloc_ctx.ptrs[i], &alloc_ctx.ptrs[i + 1],
+                    sizeof(*alloc_ctx.ptrs) * (alloc_ctx.n_ptrs - i - 1));
+            alloc_ctx.n_ptrs--;
             return;
         }
     }
@@ -100,10 +102,8 @@ void* cc_malloc(size_t size)
 #ifdef OCC_MEMSTATS
     void* p = malloc(size);
     cc_alloc_add(p, size);
-    if (p == NULL) {
-        fprintf(stderr, "Out of memory");
-        cc_alloc_deinit();
-    }
+    if (p == NULL)
+        cc_abort(__FILE__, __LINE__);
     return p;
 #else
     return malloc(size);
@@ -115,14 +115,15 @@ void* cc_zalloc(size_t size)
 #ifdef OCC_MEMSTATS
     void* p = malloc(size);
     cc_alloc_add(p, size);
-    if (p == NULL) {
-        fprintf(stderr, "Out of memory");
-        cc_alloc_deinit();
-    }
+    if (p == NULL)
+        cc_abort(__FILE__, __LINE__);
     memset(p, 0, size);
     return p;
 #else
-    return calloc(size, 1);
+    void *p = calloc(size, 1);
+    if (p == NULL)
+        cc_abort(__FILE__, __LINE__);
+    return p;
 #endif
 }
 
@@ -130,18 +131,25 @@ void* cc_realloc(void* p, size_t size)
 {
 #ifdef OCC_MEMSTATS
     void* np;
-    if (p == NULL)
-        return cc_malloc(size);
+    if (p == NULL) {
+        np = cc_malloc(size);
+        if (np == NULL)
+            cc_abort(__FILE__, __LINE__);
+        return np;
+    }
+
     cc_alloc_remove(p);
     np = realloc(p, size);
+    if (np == NULL)
+        cc_abort(__FILE__, __LINE__);
+
     cc_alloc_add(np, size);
-    if (np == NULL) {
-        fprintf(stderr, "Out of memory");
-        cc_alloc_deinit();
-    }
     return np;
 #else
-    return realloc(p, size);
+    void* np = realloc(p, size);
+    if (np == NULL)
+        cc_abort(__FILE__, __LINE__);
+    return np;
 #endif
 }
 
@@ -189,15 +197,15 @@ cc_string_key cc_strndup(const char* s, size_t n)
 
     /* String hasn't been added to the string pool yet! */
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = true;
-    g_alloc_ctx.total_strings += n + 1;
+    alloc_ctx.is_string = true;
+    alloc_ctx.total_strings += n + 1;
 #endif
     str_pool_size += n + 1;
     str_pool = cc_realloc(str_pool, str_pool_size);
     memcpy(&str_pool[start], s, n);
     str_pool[start + n] = '\0';
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = false;
+    alloc_ctx.is_string = false;
 #endif
     assert(start < USHRT_MAX);
     return (cc_string_key)start;
@@ -210,6 +218,10 @@ cc_string_key cc_strdupcat(const char* s1, const char* s2)
     size_t len[2] = { strlen(s1), strlen(s2) };
     char* s = malloc(len[0] + len[1] + 1);
     cc_string_key key;
+
+    if (s == NULL)
+        cc_abort(__FILE__, __LINE__);
+
     memcpy(s, s1, len[0]);
     memcpy(s + len[0], s2, len[1]);
     s[len[0] + len[1]] = '\0';
@@ -225,9 +237,9 @@ void cc_strfree(cc_string_key s)
     /* Do nothing... */
     /*
 #ifdef OCC_MEMSTATS
-    g_alloc_ctx.is_string = true;
+    alloc_ctx.is_string = true;
     cc_alloc_remove(s);
-    g_alloc_ctx.is_string = false;
+    alloc_ctx.is_string = false;
 #endif
     free(s);
 */
