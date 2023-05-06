@@ -760,6 +760,68 @@ static void cc_ssa_process_string_literal(
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
 
+/* Post/prefix Increment/Decrement */
+static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
+    cc_ssa_param param, const cc_ast_type* child_type, bool is_inc, bool is_pre)
+{
+    cc_ssa_param one_param;
+    cc_ssa_param child_param;
+    cc_ast_literal one_literal = { 0 };
+    cc_ssa_token tok = { 0 };
+
+    one_literal.is_signed = one_literal.is_float = false;
+    one_literal.value.u = 1;
+    one_param = cc_ssa_literal_to_param(&one_literal);
+
+    child_param = cc_ssa_tempvar_param(ctx, child_type);
+    cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+    if (is_pre) {
+        /* First, add/sub a one from the children, then store it onto the
+           higher parameter, and then store the value of the parameter
+           onto the children. */
+    tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
+    tok.data.binop.left = param;
+    tok.data.binop.right = child_param;
+    tok.data.binop.extra = one_param;
+    cc_diag_copy(&tok.info, &node->info);
+    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+        memset(&tok, 0, sizeof(tok));
+        tok.type = SSA_TOKEN_STORE_FROM;
+        tok.data.unop.left = child_param;
+        tok.data.unop.right = param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } else {
+        /* First obtain the value from the children parameter and store it
+           onto the parameter. */
+        cc_ssa_param tmp_param;
+
+        tmp_param = cc_ssa_tempvar_param(ctx, child_type);
+
+        tok.type = SSA_TOKEN_LOAD_FROM;
+        tok.data.unop.left = param;
+        tok.data.unop.right = child_param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+        memset(&tok, 0, sizeof(tok));
+        tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
+        tok.data.binop.left = tmp_param;
+        tok.data.binop.right = child_param;
+        tok.data.binop.extra = one_param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+        memset(&tok, 0, sizeof(tok));
+        tok.type = SSA_TOKEN_STORE_FROM;
+        tok.data.unop.left = child_param;
+        tok.data.unop.right = tmp_param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    }
+}
+
 static void cc_ssa_process_unop(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
@@ -789,22 +851,14 @@ static void cc_ssa_process_unop(
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         break;
     case AST_UNOP_POSTINC:
-    case AST_UNOP_POSTDEC: {
-        cc_ssa_param one_param;
-        cc_ast_literal one_literal = { 0 };
-        one_literal.is_signed = one_literal.is_float = false;
-        one_literal.value.u = 1;
-        one_param = cc_ssa_literal_to_param(&one_literal);
-
-        child_param = cc_ssa_tempvar_param(ctx, &child_type);
-        cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-        tok.type = node->data.unop.op == AST_UNOP_POSTINC ? SSA_TOKEN_ADD
-                                                          : SSA_TOKEN_SUB;
-        tok.data.binop.left = param;
-        tok.data.binop.right = child_param;
-        tok.data.binop.extra = one_param;
-        cc_diag_copy(&tok.info, &node->info);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    case AST_UNOP_POSTDEC:
+    case AST_UNOP_PREINC:
+    case AST_UNOP_PREDEC: {
+        bool is_inc = node->data.unop.op == AST_UNOP_POSTINC
+                || node->data.unop.op == AST_UNOP_PREINC;
+        bool is_pre = node->data.unop.op == AST_UNOP_PREINC
+                || node->data.unop.op == AST_UNOP_PREDEC;
+        cc_ssa_process_unop_ppid(ctx, node, param, &child_type, is_inc, is_pre);
     } break;
     default:
         cc_abort(__FILE__, __LINE__);

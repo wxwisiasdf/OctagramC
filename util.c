@@ -232,17 +232,7 @@ cc_string_key cc_strdupcat(const char* s1, const char* s2)
 
 void cc_strfree(cc_string_key s)
 {
-    if (!s)
-        return;
-    /* Do nothing... */
-    /*
-#ifdef OCC_MEMSTATS
-    alloc_ctx.is_string = true;
-    cc_alloc_remove(s);
-    alloc_ctx.is_string = false;
-#endif
-    free(s);
-*/
+    /* ... Nothing is done! */
 }
 
 void cc_abort_1(const char *filename, size_t line)
