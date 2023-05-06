@@ -325,9 +325,6 @@ static void cc_ssa_process_binop(
     cc_ast_type rhs_type = { 0 };
     cc_ssa_param lhs_param;
     cc_ssa_param rhs_param;
-    cc_ssa_param parith_param = { 0 };
-    unsigned int lhs_psize = 0;
-    unsigned int rhs_psize = 0;
 
     if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &lhs_type))
         abort();
@@ -335,6 +332,13 @@ static void cc_ssa_process_binop(
     if (!cc_ceval_deduce_type(ctx, node->data.binop.right, &rhs_type))
         abort();
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
+
+    if (node->data.binop.op == AST_BINOP_ADD
+    && node->data.binop.op == AST_BINOP_SUB) {
+        unsigned int lhs_psize = 0;
+        unsigned int rhs_psize = 0;
+        cc_ssa_param parith_param;
+        cc_ssa_param tmp_param;
 
     /* Pointer with pointer arithmethic is illegal */
     if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
@@ -354,8 +358,10 @@ static void cc_ssa_process_binop(
         }
     }
 
-    if (lhs_psize > 0 || rhs_psize > 0) {
-        cc_ssa_param tmp_param
+        if (!lhs_psize && !rhs_psize)
+            goto non_pointer;
+
+        tmp_param
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);
 
         cc_ssa_from_ast(
@@ -369,8 +375,6 @@ static void cc_ssa_process_binop(
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         memset(&tok, 0, sizeof(tok));
-
-        switch (node->data.binop.op) {
 #define HANDLE_POINTER_ARITH()                                                 \
     do {                                                                       \
         cc_ast_literal sizeof_lit;                                             \
@@ -386,24 +390,32 @@ static void cc_ssa_process_binop(
         tok.data.binop.left = parith_param;                                    \
         tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
         tok.data.binop.extra = tmp_param;                                      \
-        cc_diag_copy(&tok.info, &node->info);                    \
+        cc_diag_copy(&tok.info, &node->info);                                  \
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
         memset(&tok, 0, sizeof(tok));                                          \
     } while (0)
-        case AST_BINOP_ADD:
+        if (node->data.binop.op == AST_BINOP_ADD) {
             HANDLE_POINTER_ARITH();
             tok.type = SSA_TOKEN_ADD;
-            break;
-        case AST_BINOP_SUB:
+        } else if (node->data.binop.op == AST_BINOP_SUB) {
             HANDLE_POINTER_ARITH();
             tok.type = SSA_TOKEN_SUB;
-            break;
-        default:
+        } else {
             abort();
         }
 #undef HANDLE_POINTER_ARITH
         assert(parith_param.type != SSA_PARAM_NONE);
+
+        /* Pointer arithmethic with other pointers isn't allowed */
+        assert((lhs_psize != 0 && rhs_psize == 0)
+            || (lhs_psize == 0 && rhs_psize != 0)
+            || (lhs_psize == 0 && rhs_psize == 0));
+
+        tok.data.binop.left = param;
+        tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
+        tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     } else {
+non_pointer:
         cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
         cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
 
@@ -419,6 +431,9 @@ static void cc_ssa_process_binop(
             break;
         case AST_BINOP_DIV:
             tok.type = SSA_TOKEN_DIV;
+            break;
+        case AST_BINOP_MOD:
+            tok.type = SSA_TOKEN_MOD;
             break;
         case AST_BINOP_ASSIGN: {
             /* Generate a sequence of tokens so we store the data onto lhs */
@@ -467,16 +482,10 @@ static void cc_ssa_process_binop(
         default:
             abort();
         }
-        assert(lhs_psize == 0 && rhs_psize == 0);
-    }
-    /* Pointer arithmethic with other pointers isn't allowed */
-    assert((lhs_psize != 0 && rhs_psize == 0)
-        || (lhs_psize == 0 && rhs_psize != 0)
-        || (lhs_psize == 0 && rhs_psize == 0));
-
     tok.data.binop.left = param;
-    tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
-    tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
+        tok.data.binop.right = lhs_param;
+        tok.data.binop.extra = rhs_param;
+    }
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
