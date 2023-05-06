@@ -86,8 +86,6 @@ enum cc_ssa_token_type {
     /* Unary op */
     SSA_TOKEN_NOT,
     SSA_TOKEN_ASSIGN,
-    SSA_TOKEN_ZERO_EXT,
-    SSA_TOKEN_SIGN_EXT,
     /* Special nodes */
     SSA_TOKEN_LABEL,
     SSA_TOKEN_CALL,

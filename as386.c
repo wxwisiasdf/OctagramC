@@ -106,7 +106,8 @@ static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx, unsigned int tmpid)
     }
     regno = cc_as386_regspill(ctx);
     actx->r_mapping[regno][actx->r_spills[regno]] = tmpid;
-    fprintf(ctx->out, "\tpushl\t%s\n", reg32_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+    fprintf(ctx->out, "\tpushl\t%s\n",
+        reg32_names[cc_as386_get_tmpreg(ctx, tmpid)]);
     return regno;
 }
 
@@ -935,8 +936,6 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_ZERO_EXT:
-        case SSA_TOKEN_SIGN_EXT:
         case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
             cc_as386_colstring_param(ctx, &tok->data.unop.left);

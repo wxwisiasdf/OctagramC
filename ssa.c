@@ -147,17 +147,11 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
     case SSA_TOKEN_RSHIFT:
         cc_ssa_print_token_binop(tok, "rshift");
         break;
-    case SSA_TOKEN_SIGN_EXT:
-        cc_ssa_print_token_unop(tok, "sign_ext");
-        break;
     case SSA_TOKEN_SUB:
         cc_ssa_print_token_binop(tok, "sub");
         break;
     case SSA_TOKEN_XOR:
         cc_ssa_print_token_binop(tok, "xor");
-        break;
-    case SSA_TOKEN_ZERO_EXT:
-        cc_ssa_print_token_unop(tok, "zero_ext");
         break;
     case SSA_TOKEN_GT:
         cc_ssa_print_token_binop(tok, "gt");
@@ -832,7 +826,7 @@ static void cc_ssa_process_unop(
     case AST_UNOP_CAST: {
         cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-        tok.type = SSA_TOKEN_ZERO_EXT;
+        tok.type = SSA_TOKEN_ASSIGN;
         tok.data.unop.left = param;
         tok.data.unop.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
@@ -1076,8 +1070,6 @@ static void cc_ssa_tmpassign_func(
             cc_ssa_token* tok = &func->tokens[j];
             switch (tok->type) {
             case SSA_TOKEN_ASSIGN:
-            case SSA_TOKEN_ZERO_EXT:
-            case SSA_TOKEN_SIGN_EXT:
             case SSA_TOKEN_LOAD_FROM:
             case SSA_TOKEN_STORE_FROM:
                 cc_ssa_tmpassign_unop(
@@ -1282,8 +1274,6 @@ static void cc_ssa_labmerge_func_1(
         cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_ZERO_EXT:
-        case SSA_TOKEN_SIGN_EXT:
         case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
             cc_ssa_labmerge_unop(label_id, new_label_id, tok);
@@ -1367,8 +1357,6 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
 {
     switch (tok->type) {
     case SSA_TOKEN_ASSIGN:
-    case SSA_TOKEN_ZERO_EXT:
-    case SSA_TOKEN_SIGN_EXT:
     case SSA_TOKEN_LOAD_FROM:
     case SSA_TOKEN_STORE_FROM:
         return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
@@ -1475,8 +1463,6 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
 {
     switch (tok->type) {
     case SSA_TOKEN_ASSIGN:
-    case SSA_TOKEN_ZERO_EXT:
-    case SSA_TOKEN_SIGN_EXT:
     case SSA_TOKEN_LOAD_FROM:
     case SSA_TOKEN_STORE_FROM:
         return &tok->data.unop.left;
