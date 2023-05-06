@@ -120,7 +120,7 @@ void* cc_zalloc(size_t size)
     memset(p, 0, size);
     return p;
 #else
-    void *p = calloc(size, 1);
+    void* p = calloc(size, 1);
     if (p == NULL)
         cc_abort(__FILE__, __LINE__);
     return p;
@@ -231,15 +231,12 @@ cc_string_key cc_strdupcat(const char* s1, const char* s2)
     return key;
 }
 
-void cc_strfree(cc_string_key s)
-{
-    /* ... Nothing is done! */
-}
+void cc_strfree(cc_string_key s) { /* ... Nothing is done! */ }
 
-void cc_abort_1(const char *filename, size_t line)
+void cc_abort_1(const char* filename, size_t line)
 {
     fprintf(stderr, "Program aborted! :(\n");
-    fprintf(stderr, "File: %s - Line: %u\n", filename,  (unsigned int) line);
+    fprintf(stderr, "File: %s - Line: %u\n", filename, (unsigned int)line);
 #ifdef __WIN32__
     exit(EXIT_FAILURE); /* Do this so windows doesn't improperly detect rc */
 #endif
