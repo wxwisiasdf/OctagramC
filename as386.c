@@ -85,10 +85,10 @@ static enum cc_as386_reg cc_as386_regspill(cc_context* ctx)
             continue;
         if (actx->r_spills[regno] <= actx->r_spills[least_regno])
             least_regno = regno;
-        }
+    }
     ++actx->r_spills[least_regno];
     return least_regno;
-    }
+}
 
 static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx, unsigned int tmpid)
 {
@@ -181,7 +181,7 @@ static unsigned int cc_as386_get_sizeof(
     size_t sizeof_ptr = 4;
     if (type->n_cv_qual > 0) /* Pointer types */
         return sizeof_ptr;
-    
+
     /* Variadic list is a pointer */
     if (type->mode == AST_TYPE_MODE_VA_LIST)
         return sizeof_ptr;
@@ -272,9 +272,9 @@ static void cc_as386_gen_assign(cc_context* restrict ctx,
         case SSA_PARAM_CONSTANT:
             fprintf(ctx->out, "\tmov%s\t$%lu,%s\n",
                 cc_as386_get_suffix_by_size(lhs->size),
-                        rhs->data.constant.value.u,
+                rhs->data.constant.value.u,
                 lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-                    if (rhs->data.constant.is_negative)
+            if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\timul%s\t$-1,%s\n",
                     cc_as386_get_suffix_by_size(lhs->size),
                     lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
@@ -326,13 +326,13 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
             fprintf(ctx->out, "\tmov%s\t$_%s,($_%s)\n",
                 cc_as386_get_suffix_by_size(lhs->size),
                 cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
-                    break;
+            break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmov%s\t%s,($_%s)\n",
                 cc_as386_get_suffix_by_size(lhs->size),
                 rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                        cc_strview(lhs->data.var_name));
-                    break;
+                cc_strview(lhs->data.var_name));
+            break;
         default:
             cc_abort(__FILE__, __LINE__);
         }
@@ -357,7 +357,7 @@ static void cc_as386_gen_load_from(cc_context* restrict ctx,
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tmov%s\t($_%s),%s\n",
                 cc_as386_get_suffix_by_size(rhs->size),
-                        cc_strview(rhs->data.var_name),
+                cc_strview(rhs->data.var_name),
                 lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         case SSA_PARAM_TMPVAR:
@@ -489,7 +489,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
     switch (on_true_param->type) {
     case SSA_PARAM_VARIABLE:
         fprintf(
-            ctx->out, "\tje\t_%s\n", cc_strview(on_true_param->data.var_name));
+            ctx->out, "\tje\t$_%s\n", cc_strview(on_true_param->data.var_name));
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tje\t%s\n",
@@ -514,6 +514,27 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_PARAM_LABEL:
         fprintf(ctx->out, "\tjmp\tL%i\n", on_false_param->data.label_id);
+        break;
+    default:
+        cc_abort(__FILE__, __LINE__);
+    }
+}
+
+static void cc_as386_process_jump(cc_context* ctx, const cc_ssa_token* tok)
+{
+    assert(tok->type == SSA_TOKEN_JUMP);
+    switch (tok->data.jump_target.type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(
+            ctx->out, "\tljmp\t$_%s\n", cc_strview(tok->data.jump_target.data.var_name));
+        break;
+    case SSA_PARAM_TMPVAR: {
+        const char **lhs_reg_names = cc_as386_get_regset_by_size(tok->data.jump_target.size);
+        fprintf(ctx->out, "\tljmp\t%s\n",
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tok->data.jump_target.data.tmpid)]);
+    } break;
+    case SSA_PARAM_LABEL:
+        fprintf(ctx->out, "\tljmp\tL%i\n", tok->data.jump_target.data.label_id);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -652,6 +673,9 @@ static void cc_as386_process_token(
         cc_as386_regfree_tmpid(ctx, tok->data.dropped_tmpid);
         break;
     case SSA_TOKEN_ALLOCA:
+        break;
+    case SSA_TOKEN_JUMP:
+        cc_as386_process_jump(ctx, tok);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
