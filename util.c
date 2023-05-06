@@ -200,6 +200,7 @@ cc_string_key cc_strndup(const char* s, size_t n)
     alloc_ctx.is_string = true;
     alloc_ctx.total_strings += n + 1;
 #endif
+    assert(str_pool_size == start);
     str_pool_size += n + 1;
     str_pool = cc_realloc(str_pool, str_pool_size);
     memcpy(&str_pool[start], s, n);
