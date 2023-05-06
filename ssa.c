@@ -621,11 +621,11 @@ static void cc_ssa_process_call(
     tok.type = SSA_TOKEN_CALL;
     tok.data.call.left = param;
     tok.data.call.right = call_retval_param;
-    for (i = 0; i < node->data.call.n_params; i++) {
+    for (i = 0; i < node->data.call.n_params; ++i) {
         cc_ast_type call_arg_type = { 0 };
         cc_ssa_param call_arg_param;
         if (!cc_ceval_deduce_type(
-                ctx, node->data.call.call_expr, &call_arg_type))
+                ctx, &node->data.call.params[i], &call_arg_type))
             cc_abort(__FILE__, __LINE__);
         call_arg_param = cc_ssa_tempvar_param(ctx, &call_arg_type);
         cc_ssa_from_ast(ctx, &node->data.call.params[i], call_arg_param);
