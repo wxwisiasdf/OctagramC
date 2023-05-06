@@ -155,10 +155,11 @@ void cc_free(void* p)
     free(p);
 }
 
-static char *str_pool = NULL;
+static char* str_pool = NULL;
 static size_t str_pool_size = 1;
 
-const char *cc_strview(cc_string_key key) {
+const char* cc_strview(cc_string_key key)
+{
     assert((size_t)key < str_pool_size);
     return &str_pool[key];
 }
@@ -170,7 +171,7 @@ cc_string_key cc_strndup(const char* s, size_t n)
 
     assert(s != NULL);
     n = n > strlen(s) ? strlen(s) : n; /* Limit to strlen */
-    
+
     /* If the string is a nil string, we can use the properties of our
        string pool to our advantage, since the first two characters are
        always zero, for alignment reasons. */
@@ -179,7 +180,7 @@ cc_string_key cc_strndup(const char* s, size_t n)
         return (cc_string_key)1;
     }
 
-    for(i = 2; i < str_pool_size;) {
+    for (i = 2; i < str_pool_size;) {
         size_t len = strlen(cc_strview(i));
         if (len == n && !memcmp(s, cc_strview(i), len))
             return (cc_string_key)i;
@@ -202,15 +203,12 @@ cc_string_key cc_strndup(const char* s, size_t n)
     return (cc_string_key)start;
 }
 
-cc_string_key cc_strdup(const char* s)
-{
-    return cc_strndup(s, strlen(s));
-}
+cc_string_key cc_strdup(const char* s) { return cc_strndup(s, strlen(s)); }
 
 cc_string_key cc_strdupcat(const char* s1, const char* s2)
 {
     size_t len[2] = { strlen(s1), strlen(s2) };
-    char *s = malloc(len[0] + len[1] + 1);
+    char* s = malloc(len[0] + len[1] + 1);
     cc_string_key key;
     memcpy(s, s1, len[0]);
     memcpy(s + len[0], s2, len[1]);
@@ -225,7 +223,7 @@ void cc_strfree(cc_string_key s)
     if (!s)
         return;
     /* Do nothing... */
-/*
+    /*
 #ifdef OCC_MEMSTATS
     g_alloc_ctx.is_string = true;
     cc_alloc_remove(s);

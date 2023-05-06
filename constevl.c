@@ -137,7 +137,9 @@ static cc_ast_literal cc_ceval_eval_1(
         var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
         if ((var->storage & AST_STORAGE_CONSTEXPR) == 0) {
-            cc_diag_warning(ctx, "Non-constexpr variable '%s' used in constexpr", cc_strview(var->name));
+            cc_diag_warning(ctx,
+                "Non-constexpr variable '%s' used in constexpr",
+                cc_strview(var->name));
             goto error_handle;
         }
         if (var != NULL && var->initializer != NULL)
@@ -462,11 +464,11 @@ bool cc_ceval_deduce_type_1(
            from the branching paths, the type of the value itself is what
            we wish to obtain */
         if (node->data.if_expr.block != NULL)
-            return cc_ceval_deduce_type_1(ctx, node->data.if_expr.block, type,
-                as_func);
+            return cc_ceval_deduce_type_1(
+                ctx, node->data.if_expr.block, type, as_func);
         else if (node->data.if_expr.tail_else != NULL)
-            return cc_ceval_deduce_type_1(ctx, node->data.if_expr.tail_else, type,
-                as_func);
+            return cc_ceval_deduce_type_1(
+                ctx, node->data.if_expr.tail_else, type, as_func);
         else
             abort();
     default:
@@ -515,7 +517,7 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
         /* Function may have side effects... */
         if (var->body == NULL)
             return false;
-        
+
         ctx->ast_current_func = var;
         r = cc_ceval_is_const(ctx, var->body);
         ctx->ast_current_func = old_fn;

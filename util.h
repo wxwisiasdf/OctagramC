@@ -22,7 +22,7 @@ void* cc_malloc(size_t size);
 void* cc_zalloc(size_t size);
 void* cc_realloc(void* p, size_t size);
 void cc_free(void* p);
-const char *cc_strview(cc_string_key key);
+const char* cc_strview(cc_string_key key);
 cc_string_key cc_strndup(const char* s, size_t n);
 cc_string_key cc_strdupcat(const char* s1, const char* s2);
 cc_string_key cc_strdup(const char* s);

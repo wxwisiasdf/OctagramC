@@ -524,8 +524,7 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
     case AST_NODE_FIELD_ACCESS:
         cc_ast_copy_node(
             ctx, dest->data.field_access.left, src->data.field_access.left);
-        dest->data.field_access.field_name
-            = src->data.field_access.field_name;
+        dest->data.field_access.field_name = src->data.field_access.field_name;
         break;
     default:
         abort();
@@ -557,8 +556,7 @@ void cc_ast_copy_type(
             cc_ast_copy_type(&dest->data.func.params[i].type,
                 &src->data.func.params[i].type);
             if (src->data.func.params[i].name)
-                dest->data.func.params[i].name
-                    = src->data.func.params[i].name;
+                dest->data.func.params[i].name = src->data.func.params[i].name;
         }
         dest->data.func.variadic = src->data.func.variadic;
 
@@ -590,7 +588,8 @@ void cc_ast_add_type_member(
         = *src;
 }
 
-cc_ast_variable* cc_ast_get_field_of(const cc_ast_type* type, cc_string_key field)
+cc_ast_variable* cc_ast_get_field_of(
+    const cc_ast_type* type, cc_string_key field)
 {
     size_t i;
     assert(type->mode == AST_TYPE_MODE_STRUCT

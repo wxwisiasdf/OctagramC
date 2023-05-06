@@ -62,10 +62,12 @@ void cc_lex_print_token(const cc_lexer_token* tok)
         printf("\"%s\"", cc_strview(tok->data.text));
         return;
     case LEXER_TOKEN_NUMBER:
-        if(tok->data.num.is_float)
-            printf("n(%lf,%c,%c)", tok->data.num.value.d, tok->data.num.suffix[0], tok->data.num.suffix[1]);
+        if (tok->data.num.is_float)
+            printf("n(%lf,%c,%c)", tok->data.num.value.d,
+                tok->data.num.suffix[0], tok->data.num.suffix[1]);
         else
-            printf("n(%lu,%c,%c)", tok->data.num.value.ul, tok->data.num.suffix[0], tok->data.num.suffix[1]);
+            printf("n(%lu,%c,%c)", tok->data.num.value.ul,
+                tok->data.num.suffix[0], tok->data.num.suffix[1]);
         return;
     default:
         break;
@@ -93,10 +95,11 @@ static enum cc_lexer_token_type cc_lex_match_token(cc_context* ctx)
     return LEXER_TOKEN_NONE;
 }
 
-static const char* cc_lex_literal(cc_context* ctx, cc_lexer_token* tok, const char* p)
+static const char* cc_lex_literal(
+    cc_context* ctx, cc_lexer_token* tok, const char* p)
 {
     unsigned char base = 10;
-    const char *start = p;
+    const char* start = p;
 
     tok->data.num.is_float = false;
     if (*p == '0') {
@@ -170,14 +173,15 @@ static const char* cc_lex_literal(cc_context* ctx, cc_lexer_token* tok, const ch
         tok->data.num.value.ul = strtoul(start, NULL, base);
 
     /* Literal specifiers */
-    tok->data.num.suffix[0] = tok->data.num.suffix[1] = tok->data.num.suffix[2] = '\0';
-    if(isalpha(*p)) {
+    tok->data.num.suffix[0] = tok->data.num.suffix[1] = tok->data.num.suffix[2]
+        = '\0';
+    if (isalpha(*p)) {
         tok->data.num.suffix[0] = *p;
         ++p;
-        if(isalpha(*p)) {
+        if (isalpha(*p)) {
             tok->data.num.suffix[1] = *p;
             ++p;
-            if(isalpha(*p)) {
+            if (isalpha(*p)) {
                 tok->data.num.suffix[2] = *p;
                 ++p;
             }
@@ -236,7 +240,8 @@ static bool cc_parse_preprocessor(cc_context* ctx)
         && ctok->type == LEXER_TOKEN_HASHTAG) {
         cc_lex_token_consume(ctx);
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_IDENT && !strcmp(cc_strview(ctok->data.text), "line")) {
+            && ctok->type == LEXER_TOKEN_IDENT
+            && !strcmp(cc_strview(ctok->data.text), "line")) {
             cc_lex_token_consume(ctx);
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_NUMBER) {
@@ -311,7 +316,8 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 const char* s = ctx->cptr++;
                 for (; ISIDENT(*ctx->cptr); ++ctx->cptr)
                     /* ... */;
-                tok.data.text = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                tok.data.text
+                    = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 tok.type = LEXER_TOKEN_IDENT;
             } else if (*ctx->cptr == '\"' || *ctx->cptr == '\'') {
                 cc_lexer_token* prev_tok = &ctx->tokens[ctx->n_tokens - 1];
@@ -320,9 +326,12 @@ static void cc_lex_line(cc_context* ctx, const char* line)
                 ctx->cptr = cc_lex_string(ctx, ctx->cptr, &s);
                 tok.type = ch == '\'' ? LEXER_TOKEN_CHAR_LITERAL
                                       : LEXER_TOKEN_STRING_LITERAL;
-                tok.data.text = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
+                tok.data.text
+                    = cc_strndup(s, (ptrdiff_t)ctx->cptr - (ptrdiff_t)s);
                 if (ctx->n_tokens > 0 && prev_tok->type == tok.type) {
-                    prev_tok->data.text = cc_strdupcat(cc_strview(prev_tok->data.text), cc_strview(tok.data.text));
+                    prev_tok->data.text
+                        = cc_strdupcat(cc_strview(prev_tok->data.text),
+                            cc_strview(tok.data.text));
                     cc_strfree(prev_tok->data.text);
                     cc_strfree(tok.data.text);
                     ctx->cptr++; /* Skip closing quotes */

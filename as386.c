@@ -133,6 +133,10 @@ static unsigned int cc_as386_get_sizeof(
     size_t sizeof_ptr = 4;
     if (type->n_cv_qual > 0) /* Pointer types */
         return sizeof_ptr;
+    
+    /* Variadic list is a pointer */
+    if (type->mode == AST_TYPE_MODE_VA_LIST)
+        return sizeof_ptr;
 
     switch (type->mode) {
     case AST_TYPE_MODE_VOID:
@@ -226,8 +230,8 @@ static void cc_as386_gen_assign(
                 fprintf(ctx->out, "\tmull\t$-1,%s\n", reg_names[val_regno]);
             break;
         case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmovl\t$_%s,%s\n", cc_strview(rhs->data.var_name),
-                reg_names[val_regno]);
+            fprintf(ctx->out, "\tmovl\t$_%s,%s\n",
+                cc_strview(rhs->data.var_name), reg_names[val_regno]);
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%s,%s\n",
@@ -258,7 +262,8 @@ static void cc_as386_gen_assign(
                     reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmovl\t$_%s,%s\n", cc_strview(rhs->data.var_name),
+            fprintf(ctx->out, "\tmovl\t$_%s,%s\n",
+                cc_strview(rhs->data.var_name),
                 reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         case SSA_PARAM_TMPVAR:
@@ -290,15 +295,18 @@ static void cc_as386_gen_store_from(
                 switch (lhs->size | rhs->size) {
                 case 1:
                     fprintf(ctx->out, "\tmovb\t$_%s,($_%s)\n",
-                        cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
+                        cc_strview(rhs->data.var_name),
+                        cc_strview(lhs->data.var_name));
                     break;
                 case 2:
                     fprintf(ctx->out, "\tmovw\t$_%s,($_%s)\n",
-                        cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
+                        cc_strview(rhs->data.var_name),
+                        cc_strview(lhs->data.var_name));
                     break;
                 case 4:
                     fprintf(ctx->out, "\tmovl\t$_%s,($_%s)\n",
-                        cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
+                        cc_strview(rhs->data.var_name),
+                        cc_strview(lhs->data.var_name));
                     break;
                 default:
                     abort();
@@ -422,7 +430,8 @@ static void cc_as386_gen_call_param(
             param->data.constant.value.u, offset);
         break;
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tmovl\t$_%s,%%edi\n", cc_strview(param->data.var_name));
+        fprintf(
+            ctx->out, "\tmovl\t$_%s,%%edi\n", cc_strview(param->data.var_name));
         fprintf(ctx->out, "\tmovl\t%%edi,%u(%%esp)\n", offset);
         break;
     case SSA_PARAM_TMPVAR:
@@ -466,7 +475,8 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     }
     switch (call_param->type) {
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tcall\t_%s\n", cc_strview(call_param->data.var_name));
+        fprintf(
+            ctx->out, "\tcall\t_%s\n", cc_strview(call_param->data.var_name));
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tcall\t%s\n",
@@ -513,7 +523,8 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
     on_true_param = &tok->data.branch.t_branch;
     switch (on_true_param->type) {
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tje\t_%s\n", cc_strview(on_true_param->data.var_name));
+        fprintf(
+            ctx->out, "\tje\t_%s\n", cc_strview(on_true_param->data.var_name));
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tje\t%s\n",
@@ -529,7 +540,8 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
     on_false_param = &tok->data.branch.f_branch;
     switch (on_false_param->type) {
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tjmp\t$_%s\n", cc_strview(on_false_param->data.var_name));
+        fprintf(ctx->out, "\tjmp\t$_%s\n",
+            cc_strview(on_false_param->data.var_name));
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tjmp\t%s\n",
@@ -574,6 +586,9 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_TOKEN_DIV:
         insn_name = "div";
+        break;
+    case SSA_TOKEN_MOD:
+        insn_name = "mod";
         break;
     case SSA_TOKEN_OR:
         insn_name = "or";
@@ -711,7 +726,8 @@ static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
         if ((lhs->storage & SSA_STORAGE_EXTERN) == 0
             && (lhs->storage & SSA_STORAGE_STACK) == 0) {
             if ((lhs->storage & SSA_STORAGE_GLOBAL) != 0)
-                fprintf(ctx->out, ".globl\t_%s\n", cc_strview(lhs->data.var_name));
+                fprintf(
+                    ctx->out, ".globl\t_%s\n", cc_strview(lhs->data.var_name));
             fprintf(ctx->out, "_%s:\n", cc_strview(lhs->data.var_name));
             assert(size->data.constant.is_float == false);
             fprintf(ctx->out, "\t.space\t%lu\n", size->data.constant.value.u);

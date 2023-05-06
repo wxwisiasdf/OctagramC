@@ -505,7 +505,7 @@ static void cc_lint_call_node(
                     "converting to a pointer",
                     i + 1,
                     param->type.name ? cc_strview(param->type.name)
-                    : "<anonymous>");
+                                     : "<anonymous>");
             } else if (param->type.n_cv_qual != call_param_type.n_cv_qual)
                 cc_diag_warning(ctx,
                     "Difference in pointer depth in "
@@ -608,17 +608,21 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
         cc_lex_token_consume(ctx);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_IDENT, "Expected identifier");
 
-        accessor_node = cc_ast_create_field_access(ctx, node, cc_strview(ctok->data.text));
+        accessor_node = cc_ast_create_field_access(
+            ctx, node, cc_strview(ctok->data.text));
         if (is_arrow) {
             /* Arrow operator (implicit dereference) */
-            cc_ast_node* deref_node = cc_ast_create_unop_expr(ctx, accessor_node->data.field_access.left, AST_UNOP_DEREF);
+            cc_ast_node* deref_node = cc_ast_create_unop_expr(
+                ctx, accessor_node->data.field_access.left, AST_UNOP_DEREF);
             expr_node->parent = deref_node->data.unop.child;
             cc_ast_add_block_node(deref_node->data.unop.child, expr_node);
-            cc_ast_add_block_node(accessor_node->data.field_access.left, deref_node);
+            cc_ast_add_block_node(
+                accessor_node->data.field_access.left, deref_node);
         } else {
             /* Dot operator (no dereference) */
             expr_node->parent = accessor_node->data.field_access.left;
-            cc_ast_add_block_node(accessor_node->data.field_access.left, expr_node);
+            cc_ast_add_block_node(
+                accessor_node->data.field_access.left, expr_node);
         }
         *parent_rerouted = true;
         cc_ast_add_block_node(node, accessor_node);
@@ -630,7 +634,8 @@ static bool cc_parse_postfix_operator_1(cc_context* ctx, cc_ast_node* node,
                     &type, accessor_node->data.field_access.field_name)
                 == NULL)
                 cc_diag_error(ctx, "Accessing field '%s' not part of type '%s'",
-                    accessor_node->data.field_access.field_name, cc_strview(type.name));
+                    accessor_node->data.field_access.field_name,
+                    cc_strview(type.name));
         }
         return true;
     }
@@ -807,11 +812,12 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     case LEXER_TOKEN_NUMBER: {
         cc_ast_node* literal_node;
         cc_ast_literal* literal;
-        cc_ast_type *cast_type;
+        cc_ast_type* cast_type;
 
         expr_node = cc_ast_create_unop_expr(ctx, node, AST_UNOP_CAST);
         cast_type = &expr_node->data.unop.cast;
-        literal_node = cc_ast_create_any(ctx, expr_node->data.unop.child, AST_NODE_LITERAL);
+        literal_node = cc_ast_create_any(
+            ctx, expr_node->data.unop.child, AST_NODE_LITERAL);
         literal = &literal_node->data.literal;
         /* Literal itself... */
         literal->is_float = ctok->data.num.is_float;
@@ -824,7 +830,8 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
         cc_ast_add_block_node(expr_node->data.unop.child, literal_node);
 
         /* Wrap around a tiny cast node with a type deduced from suffix */
-        cast_type->mode = ctok->data.num.is_float ? AST_TYPE_MODE_FLOAT : AST_TYPE_MODE_INT;
+        cast_type->mode
+            = ctok->data.num.is_float ? AST_TYPE_MODE_FLOAT : AST_TYPE_MODE_INT;
         switch (ctok->data.num.suffix[0]) {
         case '\0':
             break;
@@ -871,13 +878,15 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     } break;
     case LEXER_TOKEN_CHAR_LITERAL:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_literal_from_str(ctx, node, cc_strview(ctok->data.text));
+        expr_node = cc_ast_create_literal_from_str(
+            ctx, node, cc_strview(ctok->data.text));
         break;
     case LEXER_TOKEN_IDENT: {
-        const cc_ast_variable* var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
+        const cc_ast_variable* var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (var == NULL) {
-            cc_diag_error(ctx, "Couldn't find variable '%s'", cc_strview(ctok->data.text));
+            cc_diag_error(ctx, "Couldn't find variable '%s'",
+                cc_strview(ctok->data.text));
             cc_lex_token_consume(ctx);
             goto error_handle;
         }
@@ -886,7 +895,8 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
     } break;
     case LEXER_TOKEN_STRING_LITERAL:
         cc_lex_token_consume(ctx);
-        expr_node = cc_ast_create_string_literal(ctx, node, cc_strview(ctok->data.text));
+        expr_node = cc_ast_create_string_literal(
+            ctx, node, cc_strview(ctok->data.text));
         break;
     case LEXER_TOKEN___func__:
         cc_lex_token_consume(ctx);

@@ -57,17 +57,15 @@ static bool cc_parse_type_attributes(
     const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        const char *attr = cc_strview(ctok->data.text);
+        const char* attr = cc_strview(ctok->data.text);
         cc_lex_token_consume(ctx);
         if (!strcmp(attr, "packed")) {
             type->data.shared->s_or_u.packed = true;
-        } else if (!strcmp(attr, "aligned")
-            || !strcmp(attr, "alignment")
+        } else if (!strcmp(attr, "aligned") || !strcmp(attr, "alignment")
             || !strcmp(attr, "align")) {
             type->min_alignment
                 = cc_parse_attribute_literal_param(ctx, node, type);
-        } else if (!strcmp(attr, "max_align")
-            || !strcmp(attr, "max_alignment")
+        } else if (!strcmp(attr, "max_align") || !strcmp(attr, "max_alignment")
             || !strcmp(attr, "max_aligned")) {
             type->max_alignment
                 = cc_parse_attribute_literal_param(ctx, node, type);
@@ -258,7 +256,8 @@ static bool cc_parse_enum_specifier(
             }
             cc_ast_copy_type(type, enum_type);
             if (enum_type->mode != AST_TYPE_MODE_ENUM) {
-                cc_diag_error(ctx, "'%s' isn't a valid enum", cc_strview(enum_type->name));
+                cc_diag_error(ctx, "'%s' isn't a valid enum",
+                    cc_strview(enum_type->name));
                 type->mode = AST_TYPE_MODE_ENUM;
             }
         } else { /* Not an existing type, forward declaration... */
@@ -452,8 +451,8 @@ static bool cc_parse_typedef_name(
     const cc_lexer_token* ctok;
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        const cc_ast_variable* tpdef
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
+        const cc_ast_variable* tpdef = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (tpdef == NULL || (tpdef->storage & AST_STORAGE_TYPEDEF) == 0)
             return false;
         cc_lex_token_consume(ctx);
@@ -674,7 +673,7 @@ static bool cc_parse_declaration_specifier_attributes(
 
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_IDENT) {
-        const char *attr = cc_strview(ctok->data.text);
+        const char* attr = cc_strview(ctok->data.text);
         cc_lex_token_consume(ctx);
         if (!strcmp(attr, "noreturn")) {
             type->data.func.no_return = true;
@@ -800,7 +799,9 @@ bool cc_parse_declarator_braced_initializer(
         cc_lex_token_consume(ctx);
         /* {0} is a shorthand to zero-initialize an structure */
         if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-            && ctok->type == LEXER_TOKEN_NUMBER && (ctok->data.num.is_float == false && ctok->data.num.value.ul == 0)
+            && ctok->type == LEXER_TOKEN_NUMBER
+            && (ctok->data.num.is_float == false
+                && ctok->data.num.value.ul == 0)
             && (ctok = cc_lex_token_peek(ctx, 0)) != NULL
             && ctok->type == LEXER_TOKEN_RBRACE) {
             cc_lex_token_consume(ctx);
@@ -891,8 +892,8 @@ bool cc_parse_declarator(
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
         break;
     case LEXER_TOKEN_IDENT: { /* <ident> <attr> */
-        const cc_ast_variable* other_var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
+        const cc_ast_variable* other_var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (other_var == NULL
             || (other_var->storage & AST_STORAGE_TYPEDEF) == 0) {
             /* Not a typedef, so must be the identifier of this variable! */

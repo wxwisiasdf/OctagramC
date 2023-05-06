@@ -140,7 +140,8 @@ void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
     cc_diag_add_info(ctx, new_info);
 }
 
-void cc_diag_copy(cc_diag_info* dest, const cc_diag_info* src) {
+void cc_diag_copy(cc_diag_info* dest, const cc_diag_info* src)
+{
     dest->filename = src->filename;
     dest->line = src->line;
     dest->column = src->column;

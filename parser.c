@@ -290,10 +290,10 @@ error_handle:
 static bool cc_parse_compund_statment_potential_declarator(
     cc_context* ctx, cc_ast_node* node, bool expect_semicolon)
 {
-    const cc_lexer_token *ctok;
+    const cc_lexer_token* ctok;
     /* Special handling case where there isn't anything to parse at all! */
     if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
-    && ctok->type == LEXER_TOKEN_SEMICOLON) {
+        && ctok->type == LEXER_TOKEN_SEMICOLON) {
         if (expect_semicolon)
             cc_lex_token_consume(ctx);
         return true;
@@ -413,8 +413,8 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
         cc_ast_add_block_node(node, ret_node);
     } break;
     case LEXER_TOKEN_IDENT: {
-        const cc_ast_variable* var
-            = cc_ast_find_variable(cc_get_cfunc_name(ctx), ctok->data.text, node);
+        const cc_ast_variable* var = cc_ast_find_variable(
+            cc_get_cfunc_name(ctx), ctok->data.text, node);
         if (var == NULL)
             cc_ast_find_variable(
                 cc_get_cfunc_name(ctx), ctok->data.text, node->parent);
@@ -477,7 +477,7 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
     cc_parse_declarator_list(ctx, node, &var);
     if (!ctx->is_libc_decl && !var.type.data.func.builtin_libc) {
         if (var.name) {
-            const char *name = cc_strview(var.name);
+            const char* name = cc_strview(var.name);
             if (name[0] == '_' && isupper(name[1])
                 && !(var.storage & AST_STORAGE_EXTERN)) {
                 cc_diag_warning(ctx, "Reserved identifier '%s'", name);
@@ -507,7 +507,8 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
             } else if ((var.storage & AST_STORAGE_EXTERN) != 0) {
                 /* All functions that are not prototypes are treated as a variable. */
                 cc_diag_warning(ctx,
-                    "Function '%s' declared extern but defined here", cc_strview(var.name));
+                    "Function '%s' declared extern but defined here",
+                    cc_strview(var.name));
                 var.storage &= ~AST_STORAGE_EXTERN;
                 var.storage |= AST_STORAGE_GLOBAL;
             }
