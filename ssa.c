@@ -292,7 +292,7 @@ cc_ssa_param cc_ssa_tempvar_param_1(
     cc_ssa_param tmp = { 0 };
     tmp.type = SSA_PARAM_TMPVAR;
     tmp.storage = SSA_STORAGE_STACK;
-    tmp.data.tmpid = ctx->tmpid++;
+    tmp.data.tmpid = cc_ssa_get_unique_tmpid(ctx);
     tmp.is_signed = is_signed;
     tmp.size = size;
     tmp.version = 0;
@@ -1057,19 +1057,23 @@ static void cc_ssa_tmpassign_ret(
    i32 var a = i32 var a
    i32 0 = i32 0
    i32 var a = i32 var a + i32 0 */
-static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
+static void cc_ssa_tmpassign_func(char* visited, const cc_ssa_func* func)
 {
     size_t i;
     for (i = 0; i < func->n_tokens; i++) {
         cc_ssa_token* vtok = &func->tokens[i];
-        unsigned short tmpid;
+        const cc_ssa_param* vlhs = cc_ssa_get_lhs_param(vtok);
         size_t j;
 
-        if (vtok->type != SSA_TOKEN_ASSIGN
-            || vtok->data.unop.left.type != SSA_PARAM_TMPVAR)
+        if (vtok->type != SSA_TOKEN_ASSIGN || vlhs->type != SSA_PARAM_TMPVAR)
             continue;
 
-        tmpid = vtok->data.unop.left.data.tmpid;
+        if ((visited[vlhs->data.tmpid / CHAR_BIT])
+            & (1 << (vlhs->data.tmpid % CHAR_BIT)))
+            continue;
+        visited[vlhs->data.tmpid / CHAR_BIT] |= 1
+            << (vlhs->data.tmpid % CHAR_BIT);
+
         for (j = 0; j < func->n_tokens; j++) {
             cc_ssa_token* tok = &func->tokens[j];
             switch (tok->type) {
@@ -1078,7 +1082,8 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_SIGN_EXT:
             case SSA_TOKEN_LOAD_FROM:
             case SSA_TOKEN_STORE_FROM:
-                cc_ssa_tmpassign_unop(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_unop(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ADD:
             case SSA_TOKEN_SUB:
@@ -1097,22 +1102,28 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_LSHIFT:
             case SSA_TOKEN_RSHIFT:
             case SSA_TOKEN_MOD:
-                cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_binop(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_CALL:
-                cc_ssa_tmpassign_call(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_call(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_ALLOCA:
-                cc_ssa_tmpassign_alloca(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_alloca(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_JUMP:
-                cc_ssa_tmpassign_jump(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_jump(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_BRANCH:
-                cc_ssa_tmpassign_branch(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_branch(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_RET:
-                cc_ssa_tmpassign_ret(tmpid, vtok->data.unop.right, tok);
+                cc_ssa_tmpassign_ret(
+                    vlhs->data.tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_LABEL:
                 /* No operation */
@@ -1409,7 +1420,7 @@ static size_t cc_ssa_get_livetmp_location(cc_ssa_func* func, unsigned int tmpid)
 }
 /* Adds livetmp markers to a function - those are just like normal
    tokens, except they serve as codegen aid rather than codegen instructions. */
-static void cc_ssa_livetmp_func(cc_ssa_func* func)
+static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
 {
     size_t i;
     for (i = 0; i < func->n_tokens; ++i) {
@@ -1417,7 +1428,15 @@ static void cc_ssa_livetmp_func(cc_ssa_func* func)
         const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
         if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR) {
             cc_ssa_token drop_tok = { 0 };
-            size_t loc = cc_ssa_get_livetmp_location(func, lhs->data.tmpid) + 1;
+            size_t loc;
+            if ((visited[lhs->data.tmpid / CHAR_BIT])
+                & (1 << (lhs->data.tmpid % CHAR_BIT)))
+                continue;
+            visited[lhs->data.tmpid / CHAR_BIT] |= 1
+                << (lhs->data.tmpid % CHAR_BIT);
+
+            loc = cc_ssa_get_livetmp_location(func, lhs->data.tmpid) + 1;
+
             /* TODO: This code may write past the function tokens... */
             func->tokens = cc_realloc_array(func->tokens, func->n_tokens + 2);
             tok = &func->tokens[i];
@@ -1482,19 +1501,29 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
     return NULL;
 }
 
-static void cc_ssa_colour_func(cc_ssa_func* func)
+static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
 {
-    cc_ssa_tmpassign_func(func);
+    /* Make a bit array for each visited node... */
+    size_t visited_len = (ctx->tmpid + 1) / CHAR_BIT;
+    char* visited = cc_malloc(visited_len);
+
+    memset(visited, '\0', visited_len);
+    cc_ssa_tmpassign_func(visited, func);
+    memset(visited, '\0', visited_len);
     cc_ssa_remove_assign_func(func);
+    memset(visited, '\0', visited_len);
     cc_ssa_labmerge_func(func);
-    cc_ssa_livetmp_func(func);
+    memset(visited, '\0', visited_len);
+    cc_ssa_livetmp_func(visited, func);
+
+    cc_free(visited);
 }
 
 static void cc_ssa_colour(cc_context* ctx)
 {
     size_t i;
     for (i = 0; i < ctx->n_ssa_funcs; i++)
-        cc_ssa_colour_func(&ctx->ssa_funcs[i]);
+        cc_ssa_colour_func(ctx, &ctx->ssa_funcs[i]);
 }
 
 static cc_ast_variable cc_ssa_create_func_var(const char* name)
