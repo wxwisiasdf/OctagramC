@@ -710,10 +710,9 @@ static void cc_ssa_process_literal(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
-    cc_ssa_param literal_param = cc_ssa_literal_to_param(&node->data.literal);
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.unop.left = param;
-    tok.data.unop.right = literal_param;
+    tok.data.unop.right = cc_ssa_literal_to_param(&node->data.literal);
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
@@ -739,12 +738,11 @@ static void cc_ssa_process_string_literal(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
-    cc_ast_type string_type;
+    /* A const char* */
+    cc_ast_type string_type = cc_ceval_get_string_type(ctx);
     cc_ssa_param literal_param;
     assert(node->type == AST_NODE_STRING_LITERAL);
 
-    /* const char* */
-    string_type = cc_ceval_get_string_type(ctx);
     literal_param.type = SSA_PARAM_STRING_LITERAL;
     literal_param.size = ctx->get_sizeof(ctx, &string_type);
     literal_param.is_signed = false;
@@ -827,13 +825,12 @@ static void cc_ssa_process_unop(
 {
     cc_ssa_token tok = { 0 };
     cc_ast_type child_type = { 0 };
-    cc_ssa_param child_param = { 0 };
     if (!cc_ceval_deduce_type(ctx, node->data.unop.child, &child_type))
         cc_abort(__FILE__, __LINE__);
 
     switch (node->data.unop.op) {
     case AST_UNOP_CAST: {
-        child_param = cc_ssa_tempvar_param(ctx, &child_type);
+        cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
         tok.type = SSA_TOKEN_ZERO_EXT;
         tok.data.unop.left = param;
@@ -841,15 +838,15 @@ static void cc_ssa_process_unop(
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
-    case AST_UNOP_DEREF:
-        child_param = cc_ssa_tempvar_param(ctx, &child_type);
+    case AST_UNOP_DEREF: {
+        cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
         tok.type = SSA_TOKEN_LOAD_FROM;
         tok.data.unop.left = param;
         tok.data.unop.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        break;
+    } break;
     case AST_UNOP_POSTINC:
     case AST_UNOP_POSTDEC:
     case AST_UNOP_PREINC:
@@ -1057,10 +1054,10 @@ static void cc_ssa_tmpassign_ret(
    i32 var a = i32 var a
    i32 0 = i32 0
    i32 var a = i32 var a + i32 0 */
-static void cc_ssa_tmpassign_func(char* visited, const cc_ssa_func* func)
+static void cc_ssa_tmpassign_func(char* restrict visited, cc_ssa_func* restrict func)
 {
     size_t i;
-    for (i = 0; i < func->n_tokens; i++) {
+    for (i = 0; i < func->n_tokens; ++i) {
         cc_ssa_token* vtok = &func->tokens[i];
         const cc_ssa_param* vlhs = cc_ssa_get_lhs_param(vtok);
         size_t j;
@@ -1074,7 +1071,7 @@ static void cc_ssa_tmpassign_func(char* visited, const cc_ssa_func* func)
         visited[vlhs->data.tmpid / CHAR_BIT] |= 1
             << (vlhs->data.tmpid % CHAR_BIT);
 
-        for (j = 0; j < func->n_tokens; j++) {
+        for (j = i + 1; j < func->n_tokens; ++j) {
             cc_ssa_token* tok = &func->tokens[j];
             switch (tok->type) {
             case SSA_TOKEN_ASSIGN:
@@ -1132,6 +1129,12 @@ static void cc_ssa_tmpassign_func(char* visited, const cc_ssa_func* func)
                 cc_abort(__FILE__, __LINE__);
             }
         }
+        /* Remove the assignment token as we've tmpassigned every instance
+           of this temporal away. */
+        memmove(&func->tokens[i], &func->tokens[i + 1],
+            sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+        func->n_tokens--;
+        i--;
     }
 }
 
@@ -1140,11 +1143,23 @@ bool cc_ssa_is_param_same(
 {
     if (p1->type != p2->type)
         return false;
-    if (p1->type == SSA_PARAM_VARIABLE && p2->type == SSA_PARAM_VARIABLE)
+    assert(p1->type == p2->type);
+    switch (p1->type) {
+    case SSA_PARAM_VARIABLE:
         return p1->data.var_name == p2->data.var_name;
-    if (p1->type == SSA_PARAM_LABEL && p2->type == SSA_PARAM_LABEL)
+    case SSA_PARAM_LABEL:
         return p1->data.label_id == p2->data.label_id;
-    return p1->size == p2->size;
+    case SSA_PARAM_TMPVAR:
+        return p1->data.tmpid == p2->data.tmpid;
+    case SSA_PARAM_CONSTANT:
+        return p1->data.constant.is_float == p2->data.constant.is_float
+            && p1->data.constant.is_negative == p2->data.constant.is_negative
+            && (p1->data.constant.is_float ?
+                p1->data.constant.value.u == p2->data.constant.value.u
+                : p1->data.constant.value.d == p2->data.constant.value.d);
+    default:
+        return false;/*p1->size == p2->size;*/
+    }
 }
 
 /* Removes redundant assignments - or assignments which would otherwise
