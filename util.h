@@ -29,6 +29,7 @@ cc_string_key cc_strdup(const char* s);
 void cc_strfree(cc_string_key s);
 #define cc_realloc_array(arr, n) cc_realloc(arr, sizeof(*(arr)) * (n))
 void cc_abort_1(const char* filename, size_t line);
+
 #define cc_abort(filename, line)                                               \
     do {                                                                       \
         cc_abort_1(filename, line);                                            \

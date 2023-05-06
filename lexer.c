@@ -44,8 +44,7 @@ static char* cc_lex_get_logical_line(cc_context* ctx, char** buf, size_t* total)
             cc_diag_increment_linenum(ctx);
             return p;
         } else if ((len > 1 && p[end - 2] == '\\' && p[end - 1] == '\n')
-            || (len > 0 && p[end - 1] == '\\')) 
-        {
+            || (len > 0 && p[end - 1] == '\\')) {
             if (p[end - 1] == '\n')
                 p[end--] = '\0';
             cc_diag_increment_linenum(ctx);
