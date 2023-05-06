@@ -35,10 +35,13 @@ typedef struct cc_context {
     bool is_default_signed; /* Default signedness of integers */
     bool parsing_sizeof; /* "Are we inside a sizeof parameter?" */
     struct cc_ast_type* sizeof_type; /* Type obtained from within sizeof */
+    size_t
+        alloc_reserve_factor; /* How many pre-reserved bytes for each buffer? */
 
     /* Lexer */
     struct cc_lexer_token* tokens;
     size_t n_tokens;
+    size_t n_alloc_tokens;
     size_t c_token; /* Current token index */
     const char* cbuf; /* Current logical line buffer */
     const char* cptr; /* Line pointer for diagnostics */

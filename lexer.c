@@ -52,7 +52,7 @@ static char* cc_lex_get_logical_line(cc_context* ctx, char** buf, size_t* total)
 
         if (end >= *total) {
         expand_buffer:
-            *total = end + 1024;
+            *total = end + ctx->alloc_reserve_factor;
             p = *buf = cc_realloc(*buf, *total + 1);
         }
     }
@@ -363,7 +363,12 @@ static void cc_lex_line(cc_context* ctx, const char* line)
         tok.info.line = ctx->n_diag_infos
             ? ctx->diag_infos[ctx->n_diag_infos - 1].line
             : 1;
-        ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_tokens + 1);
+
+        if (ctx->n_tokens + 1 >= ctx->n_alloc_tokens) {
+            ctx->n_alloc_tokens = ctx->n_tokens
+                + (ctx->alloc_reserve_factor / sizeof(cc_lexer_token));
+            ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_alloc_tokens);
+        }
         ctx->tokens[ctx->n_tokens++] = tok;
     }
 
@@ -380,7 +385,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
 
 int cc_lex_top(cc_context* ctx)
 {
-    size_t total = 1024;
+    size_t total = ctx->alloc_reserve_factor;
     char* line = cc_malloc(total + 1);
     ctx->stage = STAGE_LEXER;
     /* To avoid many relocations, reuse the same buffer over and over
@@ -388,6 +393,9 @@ int cc_lex_top(cc_context* ctx)
     while (cc_lex_get_logical_line(ctx, &line, &total) != NULL)
         cc_lex_line(ctx, line);
     cc_free(line);
+
+    /* Shrink tokens array to fit */
+    ctx->tokens = cc_realloc_array(ctx->tokens, ctx->n_tokens);
     ctx->c_token = 0;
     return 0;
 }

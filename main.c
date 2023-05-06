@@ -70,6 +70,8 @@ int main(int argc, char** argv)
     cc_context ctx = { 0 };
     int i;
 
+    ctx.alloc_reserve_factor = 1024;
+
     cc_alloc_init(true);
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-o")) {

@@ -302,7 +302,10 @@ cc_ssa_param cc_ssa_tempvar_param(
 static void cc_ssa_push_token(
     cc_context* ctx, cc_ssa_func* func, cc_ssa_token tok)
 {
-    func->tokens = cc_realloc_array(func->tokens, func->n_tokens + 1);
+    if (func->n_tokens + 1 >= func->n_alloc_tokens) {
+        func->n_alloc_tokens = func->n_tokens + ctx->alloc_reserve_factor / sizeof(cc_ssa_token);
+        func->tokens = cc_realloc_array(func->tokens, func->n_alloc_tokens);
+    }
     func->tokens[func->n_tokens++] = tok;
     ctx->ssa_current_tok = &func->tokens[func->n_tokens - 1];
 }
@@ -327,29 +330,29 @@ static void cc_ssa_process_binop(
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
 
     if (node->data.binop.op == AST_BINOP_ADD
-    && node->data.binop.op == AST_BINOP_SUB) {
+        && node->data.binop.op == AST_BINOP_SUB) {
         unsigned int lhs_psize = 0;
         unsigned int rhs_psize = 0;
         cc_ssa_param parith_param;
         cc_ssa_param tmp_param;
 
-    /* Pointer with pointer arithmethic is illegal */
-    if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
+        /* Pointer with pointer arithmethic is illegal */
+        if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
             cc_abort(__FILE__, __LINE__);
-    else if (lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
-        /* Obtain sizes from types iff they are pointers (to properly perform
-        pointer arithmethic). */
-        if (lhs_type.n_cv_qual > 0) {
-            --lhs_type.n_cv_qual;
-            lhs_psize = ctx->get_sizeof(ctx, &lhs_type);
-            ++lhs_type.n_cv_qual;
+        else if (lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
+            /* Obtain sizes from types iff they are pointers (to properly perform
+            pointer arithmethic). */
+            if (lhs_type.n_cv_qual > 0) {
+                --lhs_type.n_cv_qual;
+                lhs_psize = ctx->get_sizeof(ctx, &lhs_type);
+                ++lhs_type.n_cv_qual;
+            }
+            if (rhs_type.n_cv_qual > 0) {
+                --rhs_type.n_cv_qual;
+                rhs_psize = ctx->get_sizeof(ctx, &rhs_type);
+                ++rhs_type.n_cv_qual;
+            }
         }
-        if (rhs_type.n_cv_qual > 0) {
-            --rhs_type.n_cv_qual;
-            rhs_psize = ctx->get_sizeof(ctx, &rhs_type);
-            ++rhs_type.n_cv_qual;
-        }
-    }
 
         if (!lhs_psize && !rhs_psize)
             goto non_pointer;
@@ -408,7 +411,7 @@ static void cc_ssa_process_binop(
         tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
         tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     } else {
-non_pointer:
+    non_pointer:
         cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
         cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
 
@@ -480,7 +483,7 @@ non_pointer:
         default:
             cc_abort(__FILE__, __LINE__);
         }
-    tok.data.binop.left = param;
+        tok.data.binop.left = param;
         tok.data.binop.right = lhs_param;
         tok.data.binop.extra = rhs_param;
     }
@@ -526,6 +529,9 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
                 cc_ssa_add_dummy_ret(ctx, ctx->ssa_current_func);
             }
         }
+
+        /* Shrink array of tokens for this function */
+        func.tokens = cc_realloc_array(func.tokens, func.n_tokens + 1);
 
         ctx->func_has_return = old_func_has_return;
         ctx->ssa_current_func = old_current_ssa_func;
@@ -770,12 +776,12 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
         /* First, add/sub a one from the children, then store it onto the
            higher parameter, and then store the value of the parameter
            onto the children. */
-    tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
-    tok.data.binop.left = param;
-    tok.data.binop.right = child_param;
-    tok.data.binop.extra = one_param;
-    cc_diag_copy(&tok.info, &node->info);
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
+        tok.data.binop.left = param;
+        tok.data.binop.right = child_param;
+        tok.data.binop.extra = one_param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 
         memset(&tok, 0, sizeof(tok));
         tok.type = SSA_TOKEN_STORE_FROM;
@@ -845,10 +851,22 @@ static void cc_ssa_process_unop(
     case AST_UNOP_PREINC:
     case AST_UNOP_PREDEC: {
         bool is_inc = node->data.unop.op == AST_UNOP_POSTINC
-                || node->data.unop.op == AST_UNOP_PREINC;
+            || node->data.unop.op == AST_UNOP_PREINC;
         bool is_pre = node->data.unop.op == AST_UNOP_PREINC
-                || node->data.unop.op == AST_UNOP_PREDEC;
+            || node->data.unop.op == AST_UNOP_PREDEC;
         cc_ssa_process_unop_ppid(ctx, node, param, &child_type, is_inc, is_pre);
+    } break;
+    case AST_UNOP_NOT:
+    case AST_UNOP_REF:
+    case AST_UNOP_COND_NOT: {
+        /* TODO: Refs */
+        cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
+        cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+        tok.type = SSA_TOKEN_LOAD_FROM;
+        tok.data.unop.left = param;
+        tok.data.unop.right = child_param;
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -1148,7 +1166,7 @@ bool cc_ssa_is_param_same(
             && p1->data.constant.is_negative == p2->data.constant.is_negative
             && (p1->data.constant.is_float
                     ? p1->data.constant.value.u == p2->data.constant.value.u
-                : p1->data.constant.value.d == p2->data.constant.value.d);
+                    : p1->data.constant.value.d == p2->data.constant.value.d);
     default:
         return false; /*p1->size == p2->size;*/
     }
@@ -1557,10 +1575,10 @@ void cc_ssa_top(cc_context* ctx)
     ctx->ssa_current_func = NULL;
 
     if (ctx->print_ssa)
-    cc_ssa_print(ctx);
+        cc_ssa_print(ctx);
 
     cc_ssa_colour(ctx);
 
     if (ctx->print_ssa)
-    cc_ssa_print(ctx);
+        cc_ssa_print(ctx);
 }

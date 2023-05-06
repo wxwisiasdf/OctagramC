@@ -144,6 +144,7 @@ typedef struct cc_ssa_func {
     const struct cc_ast_variable* ast_var;
     cc_ssa_token* tokens;
     size_t n_tokens;
+    size_t n_alloc_tokens;
     /* String literal pools */
     const char** strings;
     size_t n_strings;
