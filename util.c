@@ -237,4 +237,7 @@ void cc_abort_1(const char *filename, size_t line)
 {
     fprintf(stderr, "Program aborted! :(\n");
     fprintf(stderr, "File: %s - Line: %u\n", filename,  (unsigned int) line);
+#ifdef __WIN32__
+    exit(EXIT_FAILURE); /* Do this so windows doesn't improperly detect rc */
+#endif
 }
