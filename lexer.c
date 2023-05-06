@@ -44,10 +44,12 @@ static char* cc_lex_get_logical_line(cc_context* ctx, char** buf, size_t* total)
             cc_diag_increment_linenum(ctx);
             return p;
         } else if ((len > 1 && p[end - 2] == '\\' && p[end - 1] == '\n')
-            || (len > 0 && p[end - 1] == '\\'))
+            || (len > 0 && p[end - 1] == '\\')) 
+        {
             if (p[end - 1] == '\n')
                 p[end--] = '\0';
             cc_diag_increment_linenum(ctx);
+        }
 
         if (end >= *total) {
         expand_buffer:
@@ -274,12 +276,12 @@ static bool cc_parse_preprocessor(cc_context* ctx)
                     if ((flags & (1 << 1)) != 0) { /* New file */
                         cc_diag_info info = { 0 };
                         info.filename = cc_strdup(filename);
-                        info.line = n_lines;
+                        info.line = n_lines - 1;
                         cc_diag_add_info(ctx, info);
                     } else if ((flags & (1 << 2)) != 0) { /* Return to file */
                         cc_diag_info info = { 0 };
                         info.filename = cc_strdup(filename);
-                        info.line = n_lines;
+                        info.line = n_lines - 1;
                         cc_diag_add_info(ctx, info);
                     }
                 }
