@@ -172,8 +172,7 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         cc_ssa_print_token_binop(tok, "neq");
         break;
     case SSA_TOKEN_DROP:
-        printf("drop ");
-        cc_ssa_print_param(&tok->data.dropped);
+        printf("drop tmp_%u", (unsigned int)tok->data.dropped_tmpid);
         break;
     case SSA_TOKEN_JUMP:
         printf("jump ");
@@ -1444,6 +1443,7 @@ static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
             /* TODO: This code may write past the function tokens... */
             func->tokens = cc_realloc_array(func->tokens, func->n_tokens + 2);
             tok = &func->tokens[i];
+            lhs = cc_ssa_get_lhs_param(tok);
             ++func->n_tokens;
             if (loc + 1 < func->n_tokens)
                 /* Insert "DROP" token to aid codegen that the temporal is
@@ -1451,8 +1451,9 @@ static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
                 memmove(&func->tokens[loc + 1], &func->tokens[loc],
                     sizeof(cc_ssa_token) * (func->n_tokens - loc));
 
+            assert(lhs->type == SSA_PARAM_TMPVAR);
             drop_tok.type = SSA_TOKEN_DROP;
-            drop_tok.data.dropped = *cc_ssa_get_lhs_param(tok);
+            drop_tok.data.dropped_tmpid = lhs->data.tmpid;
             func->tokens[loc] = drop_tok;
         }
     }

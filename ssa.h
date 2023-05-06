@@ -133,7 +133,7 @@ typedef struct cc_ssa_token {
             cc_ssa_param t_branch;
             cc_ssa_param f_branch;
         } branch;
-        cc_ssa_param dropped;
+        unsigned short dropped_tmpid;
         cc_ssa_param jump_target;
         cc_ssa_param retval;
         unsigned int label_id;
