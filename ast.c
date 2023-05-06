@@ -142,7 +142,7 @@ cc_ast_node* cc_ast_create_literal_from_str(
             base = 16;
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
         literal->value.u = strtoul(&s[2], NULL, base);
         literal->is_signed = ctx->is_default_signed;
@@ -527,7 +527,7 @@ void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
         dest->data.field_access.field_name = src->data.field_access.field_name;
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -819,7 +819,7 @@ static const char* cc_ast_get_binop_op_name(enum cc_ast_binop_type op)
     case AST_BINOP_XOR:
         return "^";
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 

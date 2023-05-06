@@ -187,7 +187,7 @@ void cc_optimizer_expr_condense(
     case AST_NODE_VARIABLE:
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 

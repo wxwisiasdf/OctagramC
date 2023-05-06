@@ -37,7 +37,7 @@ static void cc_ssa_print_param(const cc_ssa_param* param)
         printf("L_%u", param->data.label_id);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -186,7 +186,7 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         cc_ssa_print_param(&tok->data.jump_target);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     printf("\n");
 }
@@ -327,10 +327,10 @@ static void cc_ssa_process_binop(
     cc_ssa_param rhs_param;
 
     if (!cc_ceval_deduce_type(ctx, node->data.binop.left, &lhs_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     lhs_param = cc_ssa_tempvar_param(ctx, &lhs_type);
     if (!cc_ceval_deduce_type(ctx, node->data.binop.right, &rhs_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
 
     if (node->data.binop.op == AST_BINOP_ADD
@@ -342,7 +342,7 @@ static void cc_ssa_process_binop(
 
     /* Pointer with pointer arithmethic is illegal */
     if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
-        abort();
+            cc_abort(__FILE__, __LINE__);
     else if (lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
         /* Obtain sizes from types iff they are pointers (to properly perform
         pointer arithmethic). */
@@ -401,7 +401,7 @@ static void cc_ssa_process_binop(
             HANDLE_POINTER_ARITH();
             tok.type = SSA_TOKEN_SUB;
         } else {
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
 #undef HANDLE_POINTER_ARITH
         assert(parith_param.type != SSA_PARAM_NONE);
@@ -479,8 +479,13 @@ non_pointer:
         case AST_BINOP_XOR:
             tok.type = SSA_TOKEN_XOR;
             break;
+        case AST_BINOP_COND_AND:
+        case AST_BINOP_COND_OR:
+            /* TODO: Conditionals */
+            tok.type = SSA_TOKEN_XOR;
+            break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     tok.data.binop.left = param;
         tok.data.binop.right = lhs_param;
@@ -609,7 +614,7 @@ static void cc_ssa_process_call(
 
     if (!cc_ceval_deduce_type(
             ctx, node->data.call.call_expr, &call_retval_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     call_retval_param = cc_ssa_tempvar_param(ctx, &call_retval_type);
     cc_ssa_from_ast(ctx, node->data.call.call_expr, call_retval_param);
 
@@ -621,7 +626,7 @@ static void cc_ssa_process_call(
         cc_ssa_param call_arg_param;
         if (!cc_ceval_deduce_type(
                 ctx, node->data.call.call_expr, &call_arg_type))
-            abort();
+            cc_abort(__FILE__, __LINE__);
         call_arg_param = cc_ssa_tempvar_param(ctx, &call_arg_type);
         cc_ssa_from_ast(ctx, &node->data.call.params[i], call_arg_param);
 
@@ -640,7 +645,7 @@ static void cc_ssa_process_switch(
     cc_ssa_param control_param;
     if (!cc_ceval_deduce_type(
             ctx, node->data.switch_expr.control, &control_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     control_param = cc_ssa_tempvar_param(ctx, &control_type);
     cc_ssa_from_ast(ctx, node->data.switch_expr.control, control_param);
     cc_ssa_from_ast(ctx, node->data.switch_expr.block, param);
@@ -656,7 +661,7 @@ static void cc_ssa_process_if(
     cc_ssa_token else_label_tok = { 0 };
 
     if (!cc_ceval_deduce_type(ctx, node->data.if_expr.cond, &cond_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     cond_param = cc_ssa_tempvar_param(ctx, &cond_type);
     cc_ssa_from_ast(ctx, node->data.if_expr.cond, cond_param);
 
@@ -762,7 +767,7 @@ static void cc_ssa_process_unop(
     cc_ast_type child_type = { 0 };
     cc_ssa_param child_param = { 0 };
     if (!cc_ceval_deduce_type(ctx, node->data.unop.child, &child_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
 
     switch (node->data.unop.op) {
     case AST_UNOP_CAST: {
@@ -802,7 +807,7 @@ static void cc_ssa_process_unop(
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -815,7 +820,7 @@ static void cc_ssa_process_field_access(
     cc_ast_variable* field_var;
     size_t field_offset;
     if (!cc_ceval_deduce_type(ctx, node->data.field_access.left, &left_type))
-        abort();
+        cc_abort(__FILE__, __LINE__);
     left_param = cc_ssa_tempvar_param(ctx, &left_type);
     cc_ssa_from_ast(ctx, node->data.field_access.left, left_param);
 
@@ -918,7 +923,7 @@ static void cc_ssa_from_ast(
         cc_ssa_process_field_access(ctx, node, param);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -1059,7 +1064,7 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
                 /* No operation */
                 break;
             default:
-                abort();
+                cc_abort(__FILE__, __LINE__);
             }
         }
     }
@@ -1240,7 +1245,7 @@ static void cc_ssa_labmerge_func_1(
             /* No operation */
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     }
 }
@@ -1334,7 +1339,7 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
         /* Codegen aids - ignored */
         return false;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     return false;
 }
@@ -1418,7 +1423,7 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
         /* Codegen aids - ignored */
         return NULL;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     return NULL;
 }

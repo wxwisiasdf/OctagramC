@@ -297,7 +297,7 @@ bool cc_parse_assignment_expression(
                 cc_ast_add_block_node(assign_node->data.binop.right,
                     cc_ast_create_field_ref(
                         ctx, assign_node->data.binop.right, ctok->data.text));*
-                abort();
+                cc_abort(__FILE__, __LINE__);
             } else*/
             cc_parse_assignment_expression(
                 ctx, assign_node->data.binop.right, NULL);
@@ -863,7 +863,7 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
                 cast_type->mode = AST_TYPE_MODE_DOUBLE;
                 break;
             default:
-                abort(); /* TODO: Other suffixes */
+                cc_abort(__FILE__, __LINE__); /* TODO: Other suffixes */
             }
             break;
         case 'f':
@@ -871,7 +871,7 @@ static bool cc_parse_primary_expression(cc_context* ctx, cc_ast_node* node)
             cast_type->mode = AST_TYPE_MODE_FLOAT;
             break;
         default:
-            abort(); /* TODO: Other suffixes */
+            cc_abort(__FILE__, __LINE__); /* TODO: Other suffixes */
         }
 
         cc_lex_token_consume(ctx);

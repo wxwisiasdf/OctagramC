@@ -232,3 +232,9 @@ void cc_strfree(cc_string_key s)
     free(s);
 */
 }
+
+void cc_abort_1(const char *filename, size_t line)
+{
+    fprintf(stderr, "Program aborted! :(\n");
+    fprintf(stderr, "File: %s - Line: %u\n", filename,  (unsigned int) line);
+}

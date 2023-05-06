@@ -63,7 +63,7 @@ static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx)
             return (enum cc_as386_reg)i;
         }
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static enum cc_as386_reg cc_as386_regalloc_tmp(
@@ -81,7 +81,7 @@ static enum cc_as386_reg cc_as386_regalloc_tmp(
             return (enum cc_as386_reg)i;
         }
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static void cc_as386_regfree(cc_context* ctx, enum cc_as386_reg regno)
@@ -103,7 +103,7 @@ static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
             return;
         }
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static enum cc_as386_reg cc_as386_get_tmpreg(
@@ -118,7 +118,7 @@ static enum cc_as386_reg cc_as386_get_tmpreg(
         if (actx->regs[i] && actx->reg_mapping[i] == tmpid)
             return i;
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static unsigned int cc_as386_get_alignof(
@@ -208,7 +208,7 @@ static unsigned int cc_as386_get_offsetof(
             return upper_lim;
         upper_lim = count > upper_lim ? count : upper_lim;
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static void cc_as386_gen_assign(
@@ -243,7 +243,7 @@ static void cc_as386_gen_assign(
                 reg_names[val_regno]);
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
         fprintf(ctx->out, "\tmovl\t$%s,_%s\n", reg_names[val_regno],
             cc_strview(lhs->data.var_name));
@@ -272,11 +272,11 @@ static void cc_as386_gen_assign(
                 reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -309,10 +309,10 @@ static void cc_as386_gen_store_from(
                         cc_strview(lhs->data.var_name));
                     break;
                 default:
-                    abort();
+                    cc_abort(__FILE__, __LINE__);
                 }
             } else {
-                abort();
+                cc_abort(__FILE__, __LINE__);
             }
             break;
         case SSA_PARAM_TMPVAR:
@@ -334,18 +334,18 @@ static void cc_as386_gen_store_from(
                         cc_strview(lhs->data.var_name));
                     break;
                 default:
-                    abort();
+                    cc_abort(__FILE__, __LINE__);
                 }
             } else {
-                abort();
+                cc_abort(__FILE__, __LINE__);
             }
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     } break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -378,10 +378,10 @@ static void cc_as386_gen_load_from(
                         reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
                     break;
                 default:
-                    abort();
+                    cc_abort(__FILE__, __LINE__);
                 }
             } else {
-                abort();
+                cc_abort(__FILE__, __LINE__);
             }
             break;
         case SSA_PARAM_TMPVAR:
@@ -403,18 +403,18 @@ static void cc_as386_gen_load_from(
                         reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
                     break;
                 default:
-                    abort();
+                    cc_abort(__FILE__, __LINE__);
                 }
             } else {
-                abort();
+                cc_abort(__FILE__, __LINE__);
             }
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     } break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -445,7 +445,7 @@ static void cc_as386_gen_call_param(
             reg_names[cc_as386_get_tmpreg(ctx, tmp.data.tmpid)], offset);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     cc_as386_regfree_tmpid(ctx, tmp.data.tmpid);
 }
@@ -483,7 +483,7 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
             reg_names[cc_as386_get_tmpreg(ctx, call_param->data.tmpid)]);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     if (stack_size)
         fprintf(ctx->out, "\taddl\t$%u,%%esp\n", stack_size);
@@ -510,7 +510,7 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         /* Discard result of call... */
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -534,7 +534,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         fprintf(ctx->out, "\tje\tL%i\n", on_true_param->data.label_id);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 
     on_false_param = &tok->data.branch.f_branch;
@@ -551,7 +551,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         fprintf(ctx->out, "\tjmp\tL%i\n", on_false_param->data.label_id);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -622,7 +622,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     }
         goto end;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     fprintf(ctx->out, "\t%sl\t%s,%s\n", insn_name,
         reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)],
@@ -690,7 +690,7 @@ static void cc_as386_process_token(
     case SSA_TOKEN_ALLOCA:
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -846,7 +846,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_DROP:
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     }
 }

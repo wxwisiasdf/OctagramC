@@ -66,7 +66,7 @@ static enum cc_mf370_reg cc_mf370_regalloc(cc_context* ctx, unsigned int tmpid)
             return (enum cc_mf370_reg)i;
         }
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static void cc_mf370_regfree(cc_context* ctx, enum cc_mf370_reg regno)
@@ -88,7 +88,7 @@ static void cc_mf370_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
             return;
         }
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static enum cc_mf370_reg cc_mf370_get_tmpreg(
@@ -103,7 +103,7 @@ static enum cc_mf370_reg cc_mf370_get_tmpreg(
         if (actx->regs[i] && actx->reg_mapping[i] == tmpid)
             return i;
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static unsigned int cc_mf370_get_alignof(
@@ -183,7 +183,7 @@ static unsigned int cc_mf370_get_offsetof(
             return upper_lim;
         upper_lim = count > upper_lim ? count : upper_lim;
     }
-    abort();
+    cc_abort(__FILE__, __LINE__);
 }
 
 static const char* cc_mf370_logical_label(const char* name)
@@ -230,7 +230,7 @@ static void cc_mf370_gen_assign(
             fprintf(ctx->out, "\tLR\tR0,%s\n", reg_names[val_regno]);
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
 
         ptr_regno = cc_mf370_regalloc(ctx, USHRT_MAX - 2);
@@ -257,11 +257,11 @@ static void cc_mf370_gen_assign(
             fprintf(ctx->out, "\tLR\tR0,R0\n");
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -283,7 +283,7 @@ static void cc_mf370_gen_call_param(
         fprintf(ctx->out, "\tST\tR1,%u(R13)\n", offset);
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -337,7 +337,7 @@ static void cc_mf370_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         insn_name = "N";
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 
     fprintf(ctx->out, "\t%sR\tR0,R0\n", insn_name);
@@ -371,7 +371,7 @@ static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_ALLOCA:
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 }
 
@@ -466,7 +466,7 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
             /* No operation */
             break;
         default:
-            abort();
+            cc_abort(__FILE__, __LINE__);
         }
     }
 

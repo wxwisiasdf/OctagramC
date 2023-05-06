@@ -87,7 +87,7 @@ void cc_diag_error(cc_context* ctx, const char* fmt, ...)
     ctx->error_cnt++;
 
     if (ctx->error_cnt > 3)
-        abort();
+        cc_abort(__FILE__, __LINE__);
 }
 
 void cc_diag_warning(cc_context* ctx, const char* fmt, ...)

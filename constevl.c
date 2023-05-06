@@ -336,7 +336,7 @@ static unsigned int cc_ceval_get_rank(const cc_ast_type* type)
     case AST_TYPE_MODE_BOOL:
         return 4;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     return 0;
 }
@@ -470,9 +470,9 @@ bool cc_ceval_deduce_type_1(
             return cc_ceval_deduce_type_1(
                 ctx, node->data.if_expr.tail_else, type, as_func);
         else
-            abort();
+            cc_abort(__FILE__, __LINE__);
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 error_handle:
     return false;
@@ -548,7 +548,7 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
             && cc_ceval_is_const(ctx, node->data.field_access.left);
     }
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
     return false;
 }

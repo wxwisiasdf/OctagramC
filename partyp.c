@@ -26,7 +26,7 @@ static const char* libc_names[140 + 3] = { "clearerr", "fclose", "feof",
     "vsprintf", "memchr", "memcmp", "memcpy", "memmove", "memset", "strcat",
     "strchr", "strcmp", "strcoll", "strcpy", "strcspn", "strerror", "strlen",
     "strncat", "strncmp", "strncpy", "strpbrk", "strrchr", "strspn", "strstr",
-    "strtok", "strxfrm", "abort", "abs", "atexit", "atof", "atoi", "atol",
+    "strtok", "strxfrm", "cc_abort", "abs", "atexit", "atof", "atoi", "atol",
     "bsearch", "calloc", "div", "exit", "free", "getenv", "labs", "ldiv",
     "malloc", "mblen", "mbstowcs", "mbtowc", "qsort", "rand", "realloc",
     "srand", "strtod", "strtol", "strtoul", "system", "wcstombs", "wctomb",
@@ -112,7 +112,7 @@ bool cc_parse_struct_or_union_specifier(
         type->mode = AST_TYPE_MODE_UNION;
         break;
     default:
-        abort();
+        cc_abort(__FILE__, __LINE__);
     }
 
     while (cc_parse_struct_or_union_attributes(ctx, node, type))
