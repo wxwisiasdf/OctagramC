@@ -35,7 +35,7 @@ static const char* reg16_names[AS386_NUM_REGS]
 static const char* reg8h_names[AS386_NUM_REGS]
     = { "%ah", "%bh", "%ch", "%dh", NULL, NULL, NULL, NULL };
 static const char* reg8l_names[AS386_NUM_REGS]
-    = { "%al", "%bl", "%cl", "%dl", NULL, NULL, NULL, NULL };
+    = { "%al", "%bl", "%cl", "%dl", "%sil", "%dil", "%bpl", "%spl" };
 
 typedef struct cc_as386_context {
     bool r_used[AS386_NUM_REGS]; /* Is the register currently being used? */
