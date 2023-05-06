@@ -27,13 +27,20 @@ enum cc_as386_reg {
     AS386_NUM_REGS
 };
 
-static const char* reg_names[AS386_NUM_REGS]
+/* Names for the registers in i686. */
+static const char* reg32_names[AS386_NUM_REGS]
     = { "%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "%ebp", "%esp" };
+static const char* reg16_names[AS386_NUM_REGS]
+    = { "%ax", "%bx", "%cx", "%dx", "%si", "%di", "%bp", "%sp" };
+static const char* reg8h_names[AS386_NUM_REGS]
+    = { "%ah", "%bh", "%ch", "%dh", NULL, NULL, NULL, NULL };
+static const char* reg8l_names[AS386_NUM_REGS]
+    = { "%al", "%bl", "%cl", "%dl", NULL, NULL, NULL, NULL };
 
 typedef struct cc_as386_context {
-    bool regs[AS386_NUM_REGS];
-    bool temp[AS386_NUM_REGS];
-    unsigned int reg_mapping[AS386_NUM_REGS]; /* Reg mapping for tmpids */
+    bool r_used[AS386_NUM_REGS]; /* Is the register currently being used? */
+    unsigned short r_mapping[AS386_NUM_REGS][UCHAR_MAX]; /* tmpids assigned to each register */
+    unsigned char r_spills[AS386_NUM_REGS]; /* How many times this register has been spilled? */
     unsigned int stack_offset;
     bool s_text;
     bool s_data;
@@ -49,45 +56,65 @@ static bool cc_as386_is_alloc_reg(enum cc_as386_reg regno)
     return !(regno == AS386_EBP || regno == AS386_ESP);
 }
 
-static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx)
+static enum cc_as386_reg cc_as386_get_tmpreg(cc_context* ctx, unsigned int tmpid)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    size_t i;
-    for (i = 0; i < AS386_NUM_REGS; i++) {
-        if (!cc_as386_is_alloc_reg(i))
+    enum cc_as386_reg regno;
+    for (regno = 0; regno < AS386_NUM_REGS; ++regno) {
+        if (!cc_as386_is_alloc_reg(regno))
             continue;
-        if (!actx->regs[i]) {
-            actx->reg_mapping[i] = 0;
-            actx->regs[i] = true;
-            actx->temp[i] = false;
-            return (enum cc_as386_reg)i;
-        }
+
+        if (actx->r_used[regno] && actx->r_mapping[regno][actx->r_spills[regno]] == tmpid)
+            return regno;
     }
     cc_abort(__FILE__, __LINE__);
 }
 
-static enum cc_as386_reg cc_as386_regalloc_tmp(
-    cc_context* ctx, unsigned int tmpid)
+/* Spills a register, returns the register that was spilled */
+static enum cc_as386_reg cc_as386_regspill(cc_context* ctx)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    size_t i;
-    for (i = 0; i < AS386_NUM_REGS; i++) {
-        if (!cc_as386_is_alloc_reg(i))
+    enum cc_as386_reg regno;
+    enum cc_as386_reg least_regno = AS386_EAX;
+    for (regno = 0; regno < AS386_NUM_REGS; ++regno) {
+        if (!cc_as386_is_alloc_reg(regno))
             continue;
-        if (!actx->regs[i]) {
-            actx->reg_mapping[i] = tmpid;
-            actx->regs[i] = true;
-            actx->temp[i] = false;
-            return (enum cc_as386_reg)i;
+        if (actx->r_spills[regno] <= actx->r_spills[least_regno])
+            least_regno = regno;
+        }
+    ++actx->r_spills[least_regno];
+    return least_regno;
+    }
+
+static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx, unsigned int tmpid)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    enum cc_as386_reg regno;
+    for (regno = 0; regno < AS386_NUM_REGS; ++regno) {
+        if (!cc_as386_is_alloc_reg(regno))
+            continue;
+        if (!actx->r_used[regno]) {
+            assert(actx->r_spills[regno] == 0);
+            actx->r_mapping[regno][actx->r_spills[regno]] = tmpid;
+            actx->r_used[regno] = true;
+            return regno;
         }
     }
-    cc_abort(__FILE__, __LINE__);
+    regno = cc_as386_regspill(ctx);
+    actx->r_mapping[regno][actx->r_spills[regno]] = tmpid;
+    fprintf(ctx->out, "\tpushl\t%s\n", reg32_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+    return regno;
 }
 
 static void cc_as386_regfree(cc_context* ctx, enum cc_as386_reg regno)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    actx->regs[regno] = false;
+    if (actx->r_spills[regno] > 0) {
+        fprintf(ctx->out, "\tpopl\t%s\n", reg32_names[regno]);
+        --actx->r_spills[regno];
+    } else {
+        actx->r_used[regno] = false;
+    }
 }
 
 static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
@@ -98,25 +125,10 @@ static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
         if (!cc_as386_is_alloc_reg(i))
             continue;
 
-        if (actx->regs[i] && actx->reg_mapping[i] == tmpid) {
+        if (actx->r_used[i] && actx->r_mapping[i][actx->r_spills[i]] == tmpid) {
             cc_as386_regfree(ctx, i);
             return;
         }
-    }
-    cc_abort(__FILE__, __LINE__);
-}
-
-static enum cc_as386_reg cc_as386_get_tmpreg(
-    cc_context* ctx, unsigned int tmpid)
-{
-    cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    size_t i;
-    for (i = 0; i < AS386_NUM_REGS; i++) {
-        if (!cc_as386_is_alloc_reg(i))
-            continue;
-
-        if (actx->regs[i] && actx->reg_mapping[i] == tmpid)
-            return i;
     }
     cc_abort(__FILE__, __LINE__);
 }
@@ -220,35 +232,35 @@ static void cc_as386_gen_assign(
 
     switch (lhs->type) {
     case SSA_PARAM_VARIABLE: {
-        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx);
-        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
+        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx, 0);
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx, 0);
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tmovl\t%s,$%lu\n", reg_names[val_regno],
+            fprintf(ctx->out, "\tmovl\t%s,$%lu\n", reg32_names[val_regno],
                 rhs->data.constant.value.u);
             if (rhs->data.constant.is_negative)
-                fprintf(ctx->out, "\tmull\t$-1,%s\n", reg_names[val_regno]);
+                fprintf(ctx->out, "\tmull\t$-1,%s\n", reg32_names[val_regno]);
             break;
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tmovl\t$_%s,%s\n",
-                cc_strview(rhs->data.var_name), reg_names[val_regno]);
+                cc_strview(rhs->data.var_name), reg32_names[val_regno]);
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%s,%s\n",
-                reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                reg_names[val_regno]);
+                reg32_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                reg32_names[val_regno]);
             break;
         case SSA_PARAM_STRING_LITERAL:
             fprintf(ctx->out, "\tmovl\t$__ms_%u,%s\n", rhs->data.string.tmpid,
-                reg_names[val_regno]);
+                reg32_names[val_regno]);
             break;
         default:
             cc_abort(__FILE__, __LINE__);
         }
-        fprintf(ctx->out, "\tmovl\t$%s,_%s\n", reg_names[val_regno],
+        fprintf(ctx->out, "\tmovl\t$%s,_%s\n", reg32_names[val_regno],
             cc_strview(lhs->data.var_name));
-        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg_names[val_regno],
-            reg_names[ptr_regno]);
+        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg32_names[val_regno],
+            reg32_names[ptr_regno]);
         cc_as386_regfree(ctx, ptr_regno);
         cc_as386_regfree(ctx, val_regno);
     } break;
@@ -256,20 +268,20 @@ static void cc_as386_gen_assign(
         switch (rhs->type) {
         case SSA_PARAM_CONSTANT:
             fprintf(ctx->out, "\tmovl\t$%lu,%s\n", rhs->data.constant.value.u,
-                reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             if (rhs->data.constant.is_negative)
                 fprintf(ctx->out, "\timull\t$-1,%s\n",
-                    reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tmovl\t$_%s,%s\n",
                 cc_strview(rhs->data.var_name),
-                reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmovl\t%s,%s\n",
-                reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                reg32_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
             break;
         default:
             cc_abort(__FILE__, __LINE__);
@@ -288,11 +300,39 @@ static void cc_as386_gen_store_from(
         return;
 
     switch (lhs->type) {
+    case SSA_PARAM_TMPVAR: {
+        switch (rhs->type) {
+        case SSA_PARAM_TMPVAR:
+            if (lhs->size == rhs->size) {
+                switch (lhs->size) {
+                case 1:
+                    fprintf(ctx->out, "\tmovb\t%s,(%s)\n",
+                        reg8l_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                case 2:
+                    fprintf(ctx->out, "\tmovw\t%s,(%s)\n",
+                        reg16_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                case 4:
+                    fprintf(ctx->out, "\tmovl\t%s,(%s)\n",
+                        reg32_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                    break;
+                }
+            }
+            break;
+        default:
+            cc_abort(__FILE__, __LINE__);
+        }
+        break;
+    }
     case SSA_PARAM_VARIABLE: {
         switch (rhs->type) {
         case SSA_PARAM_VARIABLE:
             if (lhs->size == rhs->size) {
-                switch (lhs->size | rhs->size) {
+                switch (lhs->size) {
                 case 1:
                     fprintf(ctx->out, "\tmovb\t$_%s,($_%s)\n",
                         cc_strview(rhs->data.var_name),
@@ -320,17 +360,17 @@ static void cc_as386_gen_store_from(
                 switch (lhs->size | rhs->size) {
                 case 1:
                     fprintf(ctx->out, "\tmovb\t%s,($_%s)\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg8l_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
                         cc_strview(lhs->data.var_name));
                     break;
                 case 2:
                     fprintf(ctx->out, "\tmovw\t%s,($_%s)\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg16_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
                         cc_strview(lhs->data.var_name));
                     break;
                 case 4:
                     fprintf(ctx->out, "\tmovl\t%s,($_%s)\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+                        reg32_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
                         cc_strview(lhs->data.var_name));
                     break;
                 default:
@@ -365,17 +405,17 @@ static void cc_as386_gen_load_from(
                 case 1:
                     fprintf(ctx->out, "\tmovb\t($_%s),%s\n",
                         cc_strview(rhs->data.var_name),
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                        reg8l_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
                     break;
                 case 2:
                     fprintf(ctx->out, "\tmovw\t($_%s),%s\n",
                         cc_strview(rhs->data.var_name),
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                        reg16_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
                     break;
                 case 4:
                     fprintf(ctx->out, "\tmovl\t($_%s),%s\n",
                         cc_strview(rhs->data.var_name),
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
                     break;
                 default:
                     cc_abort(__FILE__, __LINE__);
@@ -389,18 +429,18 @@ static void cc_as386_gen_load_from(
                 switch (lhs->size | rhs->size) {
                 case 1:
                     fprintf(ctx->out, "\tmovb\t(%s),%s\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg8l_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
                     break;
                 case 2:
                     fprintf(ctx->out, "\tmovw\t(%s),%s\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg16_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
                     break;
                 case 4:
                     fprintf(ctx->out, "\tmovl\t(%s),%s\n",
-                        reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
-                        reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
+                        reg32_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
+                        reg32_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
                     break;
                 default:
                     cc_abort(__FILE__, __LINE__);
@@ -421,9 +461,6 @@ static void cc_as386_gen_load_from(
 static void cc_as386_gen_call_param(
     cc_context* ctx, const cc_ssa_param* param, unsigned short offset)
 {
-    cc_ssa_param tmp
-        = cc_ssa_tempvar_param_1(ctx, param->is_signed, param->size);
-    cc_as386_regalloc_tmp(ctx, tmp.data.tmpid);
     switch (param->type) {
     case SSA_PARAM_CONSTANT:
         fprintf(ctx->out, "\tmovl\t%lu,%u(%%esp)\n",
@@ -436,18 +473,21 @@ static void cc_as386_gen_call_param(
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tmovl\t%s,%u(%%esp)\n",
-            reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)], offset);
+            reg32_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)], offset);
         break;
-    case SSA_PARAM_STRING_LITERAL:
+    case SSA_PARAM_STRING_LITERAL: {
+        cc_ssa_param tmp
+            = cc_ssa_tempvar_param_1(ctx, param->is_signed, param->size);
+        enum cc_as386_reg tmp_reg = cc_as386_regalloc(ctx, tmp.data.tmpid);
         fprintf(ctx->out, "\tmovl\t$__ms_%u,%s\n", param->data.string.tmpid,
-            reg_names[cc_as386_get_tmpreg(ctx, tmp.data.tmpid)]);
-        fprintf(ctx->out, "\tmovl\t%s,%u(%%esp)\n",
-            reg_names[cc_as386_get_tmpreg(ctx, tmp.data.tmpid)], offset);
-        break;
+            reg32_names[tmp_reg]);
+        fprintf(ctx->out, "\tmovl\t%s,%u(%%esp)\n", reg32_names[tmp_reg], offset);
+        cc_as386_regfree(ctx, tmp_reg);
+    } break;
     default:
         cc_abort(__FILE__, __LINE__);
     }
-    cc_as386_regfree_tmpid(ctx, tmp.data.tmpid);
+
 }
 
 static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
@@ -480,7 +520,7 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tcall\t%s\n",
-            reg_names[cc_as386_get_tmpreg(ctx, call_param->data.tmpid)]);
+            reg32_names[cc_as386_get_tmpreg(ctx, call_param->data.tmpid)]);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -490,13 +530,13 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
 
     switch (call_retval->type) {
     case SSA_PARAM_VARIABLE: {
-        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx);
-        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx);
-        fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg_names[val_regno]);
-        fprintf(ctx->out, "\tmovl\t$%s,($_%s)\n", reg_names[val_regno],
+        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx, 0);
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx, 0);
+        fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg32_names[val_regno]);
+        fprintf(ctx->out, "\tmovl\t$%s,($_%s)\n", reg32_names[val_regno],
             cc_strview(call_retval->data.var_name));
-        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg_names[val_regno],
-            reg_names[ptr_regno]);
+        fprintf(ctx->out, "\tmovl\t$%s,%s\n", reg32_names[val_regno],
+            reg32_names[ptr_regno]);
         cc_as386_regfree(ctx, ptr_regno);
         cc_as386_regfree(ctx, val_regno);
     } break;
@@ -504,7 +544,7 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         enum cc_as386_reg regno
             = cc_as386_get_tmpreg(ctx, call_retval->data.tmpid);
         if (regno != AS386_EAX)
-            fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg_names[regno]);
+            fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg32_names[regno]);
     } break;
     case SSA_PARAM_NONE:
         /* Discard result of call... */
@@ -528,7 +568,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tje\t%s\n",
-            reg_names[cc_as386_get_tmpreg(ctx, on_true_param->data.tmpid)]);
+            reg32_names[cc_as386_get_tmpreg(ctx, on_true_param->data.tmpid)]);
         break;
     case SSA_PARAM_LABEL:
         fprintf(ctx->out, "\tje\tL%i\n", on_true_param->data.label_id);
@@ -545,7 +585,7 @@ static void cc_as386_process_branch(cc_context* ctx, const cc_ssa_token* tok)
         break;
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tjmp\t%s\n",
-            reg_names[cc_as386_get_tmpreg(ctx, on_false_param->data.tmpid)]);
+            reg32_names[cc_as386_get_tmpreg(ctx, on_false_param->data.tmpid)]);
         break;
     case SSA_PARAM_LABEL:
         fprintf(ctx->out, "\tjmp\tL%i\n", on_false_param->data.label_id);
@@ -561,15 +601,15 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     cc_ssa_param lhs = tok->data.binop.left;
     cc_ssa_param rhs[2];
     cc_ssa_param tmp[2];
+    enum cc_as386_reg tmp_reg[2];
 
     rhs[0] = tok->data.binop.right;
     rhs[1] = tok->data.binop.extra;
 
-    tmp[0] = cc_ssa_tempvar_param_1(ctx, false, 4);
-    tmp[1] = cc_ssa_tempvar_param_1(ctx, false, 4);
-
-    cc_as386_regalloc_tmp(ctx, tmp[0].data.tmpid);
-    cc_as386_regalloc_tmp(ctx, tmp[1].data.tmpid);
+    tmp[0] = cc_ssa_tempvar_param_1(ctx, rhs[0].is_signed, rhs[0].size);
+    tmp[1] = cc_ssa_tempvar_param_1(ctx, rhs[1].is_signed, rhs[1].size);
+    tmp_reg[0] = cc_as386_regalloc(ctx, tmp[0].data.tmpid);
+    tmp_reg[1] = cc_as386_regalloc(ctx, tmp[1].data.tmpid);
 
     cc_as386_gen_assign(ctx, &tmp[0], &rhs[0]);
     cc_as386_gen_assign(ctx, &tmp[1], &rhs[1]);
@@ -613,33 +653,31 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
                                               : "jne";
         fprintf(ctx->out, "\t%s\t1f\n", insn_name);
         fprintf(ctx->out, "1:\n");
-        fprintf(ctx->out, "\tmov\t$1,%s\n",
-            reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)]);
-        fprintf(ctx->out, "\tjmp\t1f\n");
+        fprintf(ctx->out, "\tmovl\t$1,%s\n", reg32_names[tmp_reg[0]]);
+        fprintf(ctx->out, "\tljmp\t1f\n");
         fprintf(ctx->out, "1:\n");
-        fprintf(ctx->out, "\tmov\t$0,%s\n",
-            reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)]);
-    }
+        fprintf(ctx->out, "\tmovl\t$0,%s\n", reg32_names[tmp_reg[1]]);
         goto end;
+    }
     default:
         cc_abort(__FILE__, __LINE__);
     }
     fprintf(ctx->out, "\t%sl\t%s,%s\n", insn_name,
-        reg_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)],
-        reg_names[cc_as386_get_tmpreg(ctx, tmp[1].data.tmpid)]);
-
+        reg32_names[cc_as386_get_tmpreg(ctx, tmp[0].data.tmpid)],
+        reg32_names[cc_as386_get_tmpreg(ctx, tmp[1].data.tmpid)]);
 end:
+    cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
     cc_as386_gen_assign(ctx, &lhs, &tmp[0]);
     cc_as386_regfree_tmpid(ctx, tmp[0].data.tmpid);
-    cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
 }
 
 static void cc_as386_process_token(
     cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
 {
     const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
+    enum cc_as386_reg lhs_reg = AS386_EAX;
     if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR)
-        cc_as386_regalloc_tmp(ctx, lhs->data.tmpid);
+        lhs_reg = cc_as386_regalloc(ctx, lhs->data.tmpid);
 
     switch (tok->type) {
     case SSA_TOKEN_RET:
@@ -685,7 +723,7 @@ static void cc_as386_process_token(
         cc_as386_process_branch(ctx, tok);
         break;
     case SSA_TOKEN_DROP:
-        cc_as386_regfree_tmpid(ctx, tok->data.dropped.data.tmpid);
+        cc_as386_regfree(ctx, lhs_reg);
         break;
     case SSA_TOKEN_ALLOCA:
         break;
@@ -762,8 +800,13 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     bool needs_frame = cc_as386_needs_frame_setup(func);
 
     /* Reset context for register allocation! */
-    for (i = 0; i < AS386_NUM_REGS; i++)
-        actx->regs[i] = false;
+    for (i = 0; i < AS386_NUM_REGS; ++i) {
+        size_t j;
+        actx->r_used[i] = false;
+        actx->r_spills[i] = 0;
+        for (j = 0; j < UCHAR_MAX; ++j)
+            actx->r_mapping[i][j] = 0;
+    }
 
     if (!actx->s_text) {
         fprintf(ctx->out, ".text\n");
@@ -779,8 +822,6 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         fprintf(ctx->out, "\tpushl\t%%ebp\n");
         fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
     }
-
-    memset(actx->regs, 0, sizeof(actx->regs));
 
     /* Stack offset for local non-VLA variables */
     actx->stack_offset = 0;
