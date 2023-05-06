@@ -387,7 +387,7 @@ static bool cc_parse_function_specifier(cc_context* ctx, cc_ast_variable* var)
     case LEXER_TOKEN_inline:
         var->storage |= AST_STORAGE_INLINE;
         break;
-    case LEXER_TOKEN__Noreturn:
+    case LEXER_TOKEN_Noreturn:
         var->type.mode = AST_TYPE_MODE_FUNCTION;
         var->type.data.func.no_return = true;
         break;
@@ -413,7 +413,7 @@ static bool cc_parse_type_qualifier(cc_context* ctx, cc_ast_type* type)
     case LEXER_TOKEN_restrict:
         type->cv_qual[type->n_cv_qual].is_restrict = true;
         break;
-    case LEXER_TOKEN__Atomic:
+    case LEXER_TOKEN_Atomic:
         type->cv_qual[type->n_cv_qual].is_atomic = true;
         if (type->mode == AST_TYPE_MODE_FUNCTION
             || type->cv_qual[type->n_cv_qual].is_array)
@@ -505,7 +505,7 @@ error_handle:
 bool cc_parse_type_specifier(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
 {
-    const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
+    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
     switch (ctok->type) {
@@ -546,7 +546,7 @@ bool cc_parse_type_specifier(
         }
         type->data.num.is_signed = ctok->type == LEXER_TOKEN_signed;
         break;
-    case LEXER_TOKEN__BitInt: {
+    case LEXER_TOKEN_BitInt: {
         cc_ast_literal literal = { 0 };
 
         type->mode = AST_TYPE_MODE_BITINT;
@@ -563,19 +563,19 @@ bool cc_parse_type_specifier(
         type->data.num.bitint_bits = cc_ceval_literal_to_ushort(ctx, &literal);
         CC_PARSE_EXPECT(ctx, ctok, LEXER_TOKEN_RPAREN, "Expected ')'");
     } break;
-    case LEXER_TOKEN__Bool:
+    case LEXER_TOKEN_Bool:
         type->mode = AST_TYPE_MODE_BOOL;
         break;
-    case LEXER_TOKEN__Complex:
+    case LEXER_TOKEN_Complex:
         type->mode = AST_TYPE_MODE_COMPLEX;
         break;
-    case LEXER_TOKEN__Decimal32:
+    case LEXER_TOKEN_Decimal32:
         type->mode = AST_TYPE_MODE_DECIMAL32;
         break;
-    case LEXER_TOKEN__Decimal64:
+    case LEXER_TOKEN_Decimal64:
         type->mode = AST_TYPE_MODE_DECIMAL64;
         break;
-    case LEXER_TOKEN__Decimal128:
+    case LEXER_TOKEN_Decimal128:
         type->mode = AST_TYPE_MODE_DECIMAL128;
         break;
     case LEXER_TOKEN___builtin_va_list:
@@ -599,7 +599,7 @@ error_handle:
 static bool cc_parse_storage_class_specifier(
     cc_context* ctx, cc_ast_variable* var)
 {
-    const cc_lexer_token* ctok = ctok = cc_lex_token_peek(ctx, 0);
+    const cc_lexer_token* ctok = cc_lex_token_peek(ctx, 0);
     if (ctok == NULL)
         return false;
 

@@ -22,12 +22,12 @@
     LEXER_TOKEN_LIST_R(dynamic_cast), \
     LEXER_TOKEN_LIST_R(synchronized), \
     LEXER_TOKEN_LIST_R(static_cast), \
-    LEXER_TOKEN_LIST_R(_Decimal128), \
-    LEXER_TOKEN_LIST_R(_Imaginary), \
-    LEXER_TOKEN_LIST_R(_Decimal64), \
-    LEXER_TOKEN_LIST_R(_Decimal32), \
+    LEXER_TOKEN_LIST_1(Decimal128, "_Decimal128"), \
+    LEXER_TOKEN_LIST_1(Imaginary, "_Imaginary"), \
+    LEXER_TOKEN_LIST_1(Decimal64, "_Decimal64"), \
+    LEXER_TOKEN_LIST_1(Decimal32, "_Decimal32"), \
     LEXER_TOKEN_LIST_R(const_cast), \
-    LEXER_TOKEN_LIST_R(_Noreturn), \
+    LEXER_TOKEN_LIST_1(Noreturn, "_Noreturn"), \
     LEXER_TOKEN_LIST_R(constexpr), \
     LEXER_TOKEN_LIST_R(namespace), \
     LEXER_TOKEN_LIST_R(protected), \
@@ -36,8 +36,8 @@
     LEXER_TOKEN_LIST_R(co_return), \
     LEXER_TOKEN_LIST_R(__func__), \
     LEXER_TOKEN_LIST_R(override), \
-    LEXER_TOKEN_LIST_R(_Generic), \
-    LEXER_TOKEN_LIST_R(_Complex), \
+    LEXER_TOKEN_LIST_1(Generic, "_Generic"), \
+    LEXER_TOKEN_LIST_1(Complex, "_Complex"), \
     LEXER_TOKEN_LIST_R(decltype), \
     LEXER_TOKEN_LIST_R(volatile), \
     LEXER_TOKEN_LIST_R(unsigned), \
@@ -65,8 +65,8 @@
     LEXER_TOKEN_LIST_R(expects), \
     LEXER_TOKEN_LIST_R(ensures), \
     LEXER_TOKEN_LIST_R(nullptr), \
-    LEXER_TOKEN_LIST_R(_Atomic), \
-    LEXER_TOKEN_LIST_R(_BitInt), \
+    LEXER_TOKEN_LIST_1(Atomic, "_Atomic"), \
+    LEXER_TOKEN_LIST_1(BitInt, "_BitInt"), \
     LEXER_TOKEN_LIST_R(private), \
     LEXER_TOKEN_LIST_R(typedef), \
     LEXER_TOKEN_LIST_R(virtual), \
@@ -89,7 +89,7 @@
     LEXER_TOKEN_LIST_R(typeof), \
     LEXER_TOKEN_LIST_R(typeid), \
     LEXER_TOKEN_LIST_R(delete), \
-    LEXER_TOKEN_LIST_R(_Bool), \
+    LEXER_TOKEN_LIST_1(Bool, "_Bool"), \
     LEXER_TOKEN_LIST_R(break), \
     LEXER_TOKEN_LIST_R(catch), \
     LEXER_TOKEN_LIST_R(const), \

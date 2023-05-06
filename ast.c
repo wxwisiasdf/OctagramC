@@ -836,19 +836,20 @@ static void cc_ast_print_var(const cc_ast_variable* var, cc_string_key name)
     }
 
     ++body_print_lock;
-    printf("<var %s ", cc_strview(var->name));
+    printf("<var{%s}", cc_strview(var->name));
 
     switch (var->type.mode) {
     case AST_TYPE_MODE_FUNCTION:
-        printf("(fn)");
+        printf("fn");
         break;
     case AST_TYPE_MODE_INT:
-        printf("(int)");
+        printf("int");
         break;
     default:
-        printf("(*)");
+        printf("?");
         break;
     }
+    printf(",");
 
     for (i = 0; i <= var->type.n_cv_qual; ++i)
         if (var->type.cv_qual[i].is_array) {
@@ -881,14 +882,16 @@ static void cc_ast_print_var(const cc_ast_variable* var, cc_string_key name)
         /*printf("(return ");
         cc_ast_print_var(var->type.data.func.return_type, NULL);
         printf(")");*/
-        printf("(");
+#if 0
+        printf("{");
         for (i = 0; i < var->type.data.func.n_params; ++i)
             cc_ast_print_var(&var->type.data.func.params[i], 0);
         if (var->type.data.func.variadic)
             printf("<...>");
-        printf(")");
+        printf("}");
         if (body_print_lock <= 1 && var->body != NULL)
             cc_ast_print(var->body);
+#endif
     }
     printf(">");
     --body_print_lock;
@@ -913,14 +916,14 @@ void cc_ast_print(const cc_ast_node* node)
         break;
     case AST_NODE_BLOCK: {
         size_t i;
-        printf("<block(%u){", (unsigned int)node->data.block.n_children);
+        printf("<block{%u}{", (unsigned int)node->data.block.n_children);
         if (node->data.block.is_case)
             printf("case %lu,%s", node->data.block.case_val.value.u,
                 node->data.block.is_default ? "default" : "case");
 
         for (i = 0; i < node->data.block.n_types; i++) {
             const cc_ast_type* type = &node->data.block.types[i];
-            printf("type %s;\n", cc_strview(type->name));
+            printf("{type,%s}", cc_strview(type->name));
         }
 
         for (i = 0; i < node->data.block.n_vars; i++)
@@ -961,7 +964,7 @@ void cc_ast_print(const cc_ast_node* node)
         printf("}>");
         break;
     case AST_NODE_JUMP:
-        printf("<jump-to %u>", node->data.jump_label_id);
+        printf("<jump-to{%u}>", node->data.jump_label_id);
         break;
     case AST_NODE_LITERAL:
         if (node->data.literal.is_signed)
@@ -978,10 +981,10 @@ void cc_ast_print(const cc_ast_node* node)
         printf("<string-literal %s>", cc_strview(node->data.string_literal));
         break;
     case AST_NODE_UNOP:
-        printf("<unop ");
+        printf("<unop{");
         switch (node->data.unop.op) {
         case AST_UNOP_CAST:
-            printf("cast(mode=%i)", node->data.unop.cast.mode);
+            printf("cast,mode=%i", node->data.unop.cast.mode);
             break;
         case AST_UNOP_COND_NOT:
             printf("!");
@@ -1011,17 +1014,18 @@ void cc_ast_print(const cc_ast_node* node)
             printf("???");
             break;
         }
+        printf("{");
         cc_ast_print(node->data.unop.child);
-        printf(">");
+        printf("}>");
         break;
     case AST_NODE_VARIABLE:
         cc_ast_print_var(cc_ast_find_variable(0, node->data.var.name, node),
             node->data.var.name);
         break;
     case AST_NODE_FIELD_ACCESS:
-        printf("<field-access(");
+        printf("<field-access{");
         cc_ast_print(node->data.field_access.left);
-        printf(")%s>", cc_strview(node->data.field_access.field_name));
+        printf("}{%s}>", cc_strview(node->data.field_access.field_name));
         break;
     default:
         printf("<?{%i}>", node->type);

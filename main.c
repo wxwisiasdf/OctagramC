@@ -65,7 +65,8 @@ const char* cc_get_anon_name(cc_context* ctx)
 
 int main(int argc, char** argv)
 {
-    const char *output_filename = "out.asm", *input_filename = "main.c";
+    const char *output_filename = "out.asm";
+    const char *input_filename = "main.c";
     cc_context ctx = { 0 };
     int i;
 

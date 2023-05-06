@@ -137,7 +137,7 @@ static cc_ast_literal cc_ceval_eval_1(
         var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
         if ((var->storage & AST_STORAGE_CONSTEXPR) == 0) {
-            cc_diag_warning(ctx, "Non-constexpr variable used in constexpr");
+            cc_diag_warning(ctx, "Non-constexpr variable '%s' used in constexpr", cc_strview(var->name));
             goto error_handle;
         }
         if (var != NULL && var->initializer != NULL)
@@ -462,10 +462,10 @@ bool cc_ceval_deduce_type_1(
            from the branching paths, the type of the value itself is what
            we wish to obtain */
         if (node->data.if_expr.block != NULL)
-            return cc_ceval_deduce_type_1(ctx, &node->data.if_expr.block, type,
+            return cc_ceval_deduce_type_1(ctx, node->data.if_expr.block, type,
                 as_func);
         else if (node->data.if_expr.tail_else != NULL)
-            return cc_ceval_deduce_type_1(ctx, &node->data.if_expr.tail_else, type,
+            return cc_ceval_deduce_type_1(ctx, node->data.if_expr.tail_else, type,
                 as_func);
         else
             abort();
@@ -482,6 +482,12 @@ bool cc_ceval_deduce_type(
     return cc_ceval_deduce_type_1(ctx, node, type, false);
 }
 
+static bool cc_ceval_var_is_const(cc_context* ctx, const cc_ast_variable* var)
+{
+    assert(var != NULL);
+    return (var->storage & AST_STORAGE_CONSTEXPR) != 0;
+}
+
 bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
 {
     switch (node->type) {
@@ -490,22 +496,33 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_VARIABLE: {
         const cc_ast_variable* var = cc_ast_find_variable(
             cc_get_cfunc_name(ctx), node->data.var.name, node);
-        if ((var->storage & AST_STORAGE_CONSTEXPR) != 0)
-            return true;
+        return cc_ceval_var_is_const(ctx, var);
     }
-        return false;
     case AST_NODE_BINOP:
         return cc_ceval_is_const(ctx, node->data.binop.left)
             && cc_ceval_is_const(ctx, node->data.binop.right);
     case AST_NODE_CALL: {
         const cc_ast_variable* var;
+        /* Save old current function... */
+        const cc_ast_variable* old_fn = ctx->ast_current_func;
+        bool r; /* Return value*/
+        size_t i;
+
         assert(node->data.call.call_expr->type == AST_NODE_VARIABLE);
         var = cc_ast_find_variable(cc_get_cfunc_name(ctx),
             node->data.call.call_expr->data.var.name, node);
         assert(var != NULL && var->type.mode == AST_TYPE_MODE_FUNCTION);
+        /* Function may have side effects... */
         if (var->body == NULL)
             return false;
-        return cc_ceval_is_const(ctx, var->body);
+        
+        ctx->ast_current_func = var;
+        r = cc_ceval_is_const(ctx, var->body);
+        ctx->ast_current_func = old_fn;
+        /* Check call parameters being const too */
+        for (i = 0; i < node->data.call.n_params && r; ++i)
+            r = r && cc_ceval_is_const(ctx, &node->data.call.params[i]);
+        return r;
     }
     case AST_NODE_RETURN:
         return cc_ceval_is_const(ctx, node->data.return_expr);
@@ -519,8 +536,15 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     case AST_NODE_IF:
         return cc_ceval_is_const(ctx, node->data.if_expr.tail_else)
             && cc_ceval_is_const(ctx, node->data.if_expr.block);
-    case AST_NODE_FIELD_ACCESS:
-        return cc_ceval_is_const(ctx, node->data.field_access.left);
+    case AST_NODE_FIELD_ACCESS: {
+        cc_ast_type su_type = { 0 };
+        cc_ast_variable* var;
+        if (!cc_ceval_deduce_type(ctx, node->data.field_access.left, &su_type))
+            return false;
+        var = cc_ast_get_field_of(&su_type, node->data.field_access.field_name);
+        return cc_ceval_var_is_const(ctx, var)
+            && cc_ceval_is_const(ctx, node->data.field_access.left);
+    }
     default:
         abort();
     }

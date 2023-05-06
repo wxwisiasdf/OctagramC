@@ -738,10 +738,10 @@ bool cc_parse_unary_expression(cc_context* ctx, cc_ast_node* node)
     case LEXER_TOKEN_MINUS: { /* Prefix - */
         cc_ast_node* literal_node;
         cc_lex_token_consume(ctx);
-        literal_node = cc_ast_create_literal_from_str(
-            ctx, binop_node->data.binop.left, "0");
         binop_node = cc_ast_create_binop_expr(ctx, node,
             ctok->type == LEXER_TOKEN_PLUS ? AST_BINOP_ADD : AST_BINOP_SUB);
+        literal_node = cc_ast_create_literal_from_str(
+            ctx, binop_node->data.binop.left, "0");
         cc_ast_add_block_node(binop_node->data.binop.left, literal_node);
     } break;
     case LEXER_TOKEN_INCREMENT: /* Prefix ++ */
