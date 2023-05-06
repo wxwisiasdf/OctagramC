@@ -27,26 +27,33 @@ static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
         cc_free(tok);
 }
 
-static char* cc_lex_get_logical_line(cc_context* ctx)
+static char* cc_lex_get_logical_line(cc_context* ctx, char **buf, size_t *total)
 {
-    size_t total_len = 0;
-    char* p = NULL;
-    char tmpbuf[2048 * 2];
-    while (fgets(tmpbuf, sizeof(tmpbuf), ctx->fp)) {
-        size_t len = strlen(tmpbuf);
-        total_len += len;
-        p = cc_realloc(p, total_len + 1);
-        memcpy(p, tmpbuf, len + 1);
-        cc_diag_increment_linenum(ctx);
+    size_t end = 0;
+    char *p = *buf;
+    p[0] = '\0';
+    while (fgets(&p[end], *total - end, ctx->fp) != NULL) {
+        size_t len = strlen(&p[end]);
+        if (!len)
+            goto expand_buffer;
 
+        end += len;
         /* Logical lines can only continue after ecaping the newline */
-        if (len > 1 && tmpbuf[len - 2] == '\\' && tmpbuf[len - 1] == '\n')
-            continue;
-        else if (len > 0 && tmpbuf[len - 1] == '\\')
-            continue;
-        break;
+        if (len > 0 && p[end - 1] == '\n') {
+            p[end - 1] = '\0';
+            cc_diag_increment_linenum(ctx);
+            break;
+        } else if ((len > 1 && p[end - 2] == '\\' && p[end - 1] == '\n')
+        || (len > 0 && p[end - 1] == '\\'))
+            cc_diag_increment_linenum(ctx);
+        
+        if (end >= *total) {
+expand_buffer:
+            *total = end + 1024;
+            p = *buf = cc_realloc(*buf, *total + 1);
+        }
     }
-    return p;
+    return p[0] == '\0' ? NULL : p;
 }
 
 void cc_lex_print_token(const cc_lexer_token* tok)
@@ -370,12 +377,14 @@ static void cc_lex_line(cc_context* ctx, const char* line)
 
 int cc_lex_top(cc_context* ctx)
 {
-    char* line = NULL;
+    size_t total = 1024;
+    char* line = cc_malloc(total);
     ctx->stage = STAGE_LEXER;
-    while ((line = cc_lex_get_logical_line(ctx)) != NULL) {
+    /* To avoid many relocations, reuse the same buffer over and over
+       and expand it as needed. */
+    while (cc_lex_get_logical_line(ctx, &line, &total) != NULL)
         cc_lex_line(ctx, line);
-        cc_free(line);
-    }
+    cc_free(line);
     ctx->c_token = 0;
     return 0;
 }
