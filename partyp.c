@@ -38,7 +38,7 @@ static const char* libc_names[140 + 3] = { "clearerr", "fclose", "feof",
     "fmod", "frexp", "ldexp", "log", "log10", "modf", "pow", "sin", "sinh",
     "sqrt", "tan", "tanh",
     /* msvcrt part of pdpclib */
-    "__gtin", "__gtout", "gterr" };
+    "__gtin", "__gtout", "__gterr" };
 
 static unsigned short cc_parse_attribute_literal_param(
     cc_context* ctx, cc_ast_node* node, cc_ast_type* type)
