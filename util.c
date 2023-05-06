@@ -146,8 +146,9 @@ void* cc_realloc(void* p, size_t size)
     cc_alloc_add(np, size);
     return np;
 #else
-    void* np = realloc(p, size);
-    if (np == NULL)
+    void* np;
+    assert(size > 0);
+    if ((np = realloc(p, size)) == NULL)
         cc_abort(__FILE__, __LINE__);
     return np;
 #endif

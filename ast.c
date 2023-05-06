@@ -548,15 +548,17 @@ void cc_ast_copy_type(
         size_t i;
 
         dest->data.func.n_params = src->data.func.n_params;
-        dest->data.func.params = cc_realloc_array(
-            dest->data.func.params, dest->data.func.n_params);
-        memset(dest->data.func.params, 0,
-            sizeof(cc_ast_variable) * dest->data.func.n_params);
-        for (i = 0; i < dest->data.func.n_params; i++) {
-            cc_ast_copy_type(&dest->data.func.params[i].type,
-                &src->data.func.params[i].type);
-            if (src->data.func.params[i].name)
-                dest->data.func.params[i].name = src->data.func.params[i].name;
+        if (dest->data.func.n_params) {
+            dest->data.func.params = cc_realloc_array(
+                dest->data.func.params, dest->data.func.n_params);
+            memset(dest->data.func.params, 0,
+                sizeof(cc_ast_variable) * dest->data.func.n_params);
+            for (i = 0; i < dest->data.func.n_params; i++) {
+                cc_ast_copy_type(&dest->data.func.params[i].type,
+                    &src->data.func.params[i].type);
+                if (src->data.func.params[i].name)
+                    dest->data.func.params[i].name = src->data.func.params[i].name;
+            }
         }
         dest->data.func.variadic = src->data.func.variadic;
 
