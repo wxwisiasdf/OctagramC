@@ -139,7 +139,7 @@ static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
     cc_abort(__FILE__, __LINE__);
 }
 
-static const char **cc_as386_get_regset_by_size(size_t size)
+static const char** cc_as386_get_regset_by_size(size_t size)
 {
     switch (size) {
     case 1:
@@ -153,7 +153,7 @@ static const char **cc_as386_get_regset_by_size(size_t size)
     }
 }
 
-static const char *cc_as386_get_suffix_by_size(size_t size)
+static const char* cc_as386_get_suffix_by_size(size_t size)
 {
     switch (size) {
     case 1:
@@ -262,8 +262,8 @@ static unsigned int cc_as386_get_offsetof(
 static void cc_as386_gen_assign(cc_context* restrict ctx,
     const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
 {
-    const char **lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
-    const char **rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
+    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     /* No redundant gens should be fed, we assume they've been removed by now */
     assert(!cc_ssa_is_param_same(lhs, rhs));
     switch (lhs->type) {
@@ -303,8 +303,8 @@ static void cc_as386_gen_assign(cc_context* restrict ctx,
 static void cc_as386_gen_store_from(cc_context* restrict ctx,
     const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
 {
-    const char **lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
-    const char **rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
+    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     assert(!cc_ssa_is_param_same(lhs, rhs));
     switch (lhs->type) {
     case SSA_PARAM_TMPVAR: {
@@ -325,8 +325,7 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
         case SSA_PARAM_VARIABLE:
             fprintf(ctx->out, "\tmov%s\t$_%s,($_%s)\n",
                 cc_as386_get_suffix_by_size(lhs->size),
-                        cc_strview(rhs->data.var_name),
-                        cc_strview(lhs->data.var_name));
+                cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
                     break;
         case SSA_PARAM_TMPVAR:
             fprintf(ctx->out, "\tmov%s\t%s,($_%s)\n",
@@ -346,8 +345,8 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
 static void cc_as386_gen_load_from(cc_context* restrict ctx,
     const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
 {
-    const char **lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
-    const char **rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
+    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     /* Redundant gens? */
     if (cc_ssa_is_param_same(lhs, rhs))
         return;
@@ -379,7 +378,7 @@ static void cc_as386_gen_load_from(cc_context* restrict ctx,
 static void cc_as386_gen_call_param(
     cc_context* ctx, const cc_ssa_param* param, unsigned short offset)
 {
-    const char **param_reg_names = cc_as386_get_regset_by_size(param->size);
+    const char** param_reg_names = cc_as386_get_regset_by_size(param->size);
     switch (param->type) {
     case SSA_PARAM_CONSTANT:
         fprintf(ctx->out, "\tmov%s\t%lu,%u(%%esp)\n",
@@ -387,8 +386,7 @@ static void cc_as386_gen_call_param(
             param->data.constant.value.u, offset);
         break;
     case SSA_PARAM_VARIABLE:
-        fprintf(
-            ctx->out, "\tmov%s\t$_%s,%%edi\n",
+        fprintf(ctx->out, "\tmov%s\t$_%s,%%edi\n",
             cc_as386_get_suffix_by_size(param->size),
             cc_strview(param->data.var_name));
         fprintf(ctx->out, "\tmov%s\t%%edi,%u(%%esp)\n",
@@ -397,20 +395,19 @@ static void cc_as386_gen_call_param(
     case SSA_PARAM_TMPVAR:
         fprintf(ctx->out, "\tmov%s\t%s,%u(%%esp)\n",
             cc_as386_get_suffix_by_size(param->size),
-            param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)], offset);
+            param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)],
+            offset);
         break;
     case SSA_PARAM_STRING_LITERAL: {
         cc_ssa_param tmp
             = cc_ssa_tempvar_param_1(ctx, param->is_signed, param->size);
         enum cc_as386_reg tmp_reg = cc_as386_regalloc(ctx, tmp.data.tmpid);
         fprintf(ctx->out, "\tmov%s\t$__ms_%u,%s\n",
-            cc_as386_get_suffix_by_size(param->size),
-            param->data.string.tmpid,
+            cc_as386_get_suffix_by_size(param->size), param->data.string.tmpid,
             param_reg_names[tmp_reg]);
-        fprintf(
-            ctx->out, "\tmov%s\t%s,%u(%%esp)\n",
-                cc_as386_get_suffix_by_size(param->size),
-                param_reg_names[tmp_reg], offset);
+        fprintf(ctx->out, "\tmov%s\t%s,%u(%%esp)\n",
+            cc_as386_get_suffix_by_size(param->size), param_reg_names[tmp_reg],
+            offset);
         cc_as386_regfree(ctx, tmp_reg);
     } break;
     default:
