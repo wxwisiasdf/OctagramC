@@ -71,6 +71,7 @@ typedef struct cc_context {
     struct cc_ssa_token* ssa_current_tok;
     struct cc_ssa_func* static_ctor_func;
     struct cc_ssa_func* static_dtor_func;
+    bool print_ssa;
 
     bool
         func_has_return; /* Basic return detection for functions that should return  */

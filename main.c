@@ -89,6 +89,8 @@ int main(int argc, char** argv)
             }
         } else if (!strcmp(argv[i], "-print-ast")) {
             ctx.print_ast = true;
+        } else if (!strcmp(argv[i], "-print-ssa")) {
+            ctx.print_ssa = true;
         } else if (!strcmp(argv[i], "-h")) {
             printf("occ - A compiler for the C23 language, targeting 370 and "
                    "386\n");

@@ -1553,8 +1553,11 @@ void cc_ssa_top(cc_context* ctx)
     ctx->ssa_funcs[ctx->n_ssa_funcs++] = static_ctor_func;
     ctx->ssa_current_func = NULL;
 
+    if (ctx->print_ssa)
     cc_ssa_print(ctx);
 
     cc_ssa_colour(ctx);
+
+    if (ctx->print_ssa)
     cc_ssa_print(ctx);
 }
