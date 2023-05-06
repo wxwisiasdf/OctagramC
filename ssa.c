@@ -1054,7 +1054,8 @@ static void cc_ssa_tmpassign_ret(
    i32 var a = i32 var a
    i32 0 = i32 0
    i32 var a = i32 var a + i32 0 */
-static void cc_ssa_tmpassign_func(char* restrict visited, cc_ssa_func* restrict func)
+static void cc_ssa_tmpassign_func(
+    char* restrict visited, cc_ssa_func* restrict func)
 {
     size_t i;
     for (i = 0; i < func->n_tokens; ++i) {
@@ -1154,11 +1155,11 @@ bool cc_ssa_is_param_same(
     case SSA_PARAM_CONSTANT:
         return p1->data.constant.is_float == p2->data.constant.is_float
             && p1->data.constant.is_negative == p2->data.constant.is_negative
-            && (p1->data.constant.is_float ?
-                p1->data.constant.value.u == p2->data.constant.value.u
+            && (p1->data.constant.is_float
+                    ? p1->data.constant.value.u == p2->data.constant.value.u
                 : p1->data.constant.value.d == p2->data.constant.value.d);
     default:
-        return false;/*p1->size == p2->size;*/
+        return false; /*p1->size == p2->size;*/
     }
 }
 
