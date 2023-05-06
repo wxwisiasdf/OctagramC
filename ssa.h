@@ -72,7 +72,7 @@ enum cc_ssa_token_type {
     SSA_TOKEN_SUB,
     SSA_TOKEN_MUL,
     SSA_TOKEN_DIV,
-    SSA_TOKEN_REM,
+    SSA_TOKEN_MOD,
     SSA_TOKEN_LSHIFT,
     SSA_TOKEN_RSHIFT,
     SSA_TOKEN_OR,

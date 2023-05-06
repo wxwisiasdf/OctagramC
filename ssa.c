@@ -137,8 +137,8 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
     case SSA_TOKEN_PHI:
         cc_ssa_print_token_binop(tok, "phi");
         break;
-    case SSA_TOKEN_REM:
-        cc_ssa_print_token_binop(tok, "rem");
+    case SSA_TOKEN_MOD:
+        cc_ssa_print_token_binop(tok, "mod");
         break;
     case SSA_TOKEN_RET:
         printf("ret ");
@@ -1028,6 +1028,7 @@ static void cc_ssa_tmpassign_func(const cc_ssa_func* func)
             case SSA_TOKEN_NEQ:
             case SSA_TOKEN_LSHIFT:
             case SSA_TOKEN_RSHIFT:
+            case SSA_TOKEN_MOD:
                 cc_ssa_tmpassign_binop(tmpid, vtok->data.unop.right, tok);
                 break;
             case SSA_TOKEN_CALL:
@@ -1208,6 +1209,7 @@ static void cc_ssa_labmerge_func_1(
         case SSA_TOKEN_NEQ:
         case SSA_TOKEN_LSHIFT:
         case SSA_TOKEN_RSHIFT:
+        case SSA_TOKEN_MOD:
             cc_ssa_labmerge_binop(label_id, new_label_id, tok);
             break;
         case SSA_TOKEN_CALL:
@@ -1292,6 +1294,7 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
     case SSA_TOKEN_NEQ:
     case SSA_TOKEN_LSHIFT:
     case SSA_TOKEN_RSHIFT:
+    case SSA_TOKEN_MOD:
         return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
@@ -1390,6 +1393,7 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
     case SSA_TOKEN_NEQ:
     case SSA_TOKEN_LSHIFT:
     case SSA_TOKEN_RSHIFT:
+    case SSA_TOKEN_MOD:
         return &tok->data.binop.left;
     case SSA_TOKEN_CALL:
         return &tok->data.call.left;
