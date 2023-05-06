@@ -353,9 +353,9 @@ static void cc_lex_line(cc_context* ctx, const char* line)
             }
         }
 
-        tok.info.filename = cc_strdup(ctx->n_diag_infos
-                ? cc_strview(ctx->diag_infos[ctx->n_diag_infos - 1].filename)
-                : "<unknown>");
+        tok.info.filename = ctx->n_diag_infos
+                ? ctx->diag_infos[ctx->n_diag_infos - 1].filename
+                : cc_strdup("<unknown>");
         tok.info.column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf);
         tok.info.line = ctx->n_diag_infos
             ? ctx->diag_infos[ctx->n_diag_infos - 1].line
@@ -378,7 +378,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
 int cc_lex_top(cc_context* ctx)
 {
     size_t total = 1024;
-    char* line = cc_malloc(total);
+    char* line = cc_malloc(total + 1);
     ctx->stage = STAGE_LEXER;
     /* To avoid many relocations, reuse the same buffer over and over
        and expand it as needed. */
