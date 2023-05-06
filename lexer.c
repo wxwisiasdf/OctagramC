@@ -27,10 +27,10 @@ static void cc_lex_destroy_token(cc_lexer_token* tok, bool managed)
         cc_free(tok);
 }
 
-static char* cc_lex_get_logical_line(cc_context* ctx, char **buf, size_t *total)
+static char* cc_lex_get_logical_line(cc_context* ctx, char** buf, size_t* total)
 {
     size_t end = 0;
-    char *p = *buf;
+    char* p = *buf;
     p[0] = '\0';
     while (fgets(&p[end], *total - end, ctx->fp) != NULL) {
         size_t len = strlen(&p[end]);
@@ -42,13 +42,15 @@ static char* cc_lex_get_logical_line(cc_context* ctx, char **buf, size_t *total)
         if (len > 0 && p[end - 1] == '\n') {
             p[end - 1] = '\0';
             cc_diag_increment_linenum(ctx);
-            break;
+            return p;
         } else if ((len > 1 && p[end - 2] == '\\' && p[end - 1] == '\n')
-        || (len > 0 && p[end - 1] == '\\'))
+            || (len > 0 && p[end - 1] == '\\'))
+            if (p[end - 1] == '\n')
+                p[end--] = '\0';
             cc_diag_increment_linenum(ctx);
-        
+
         if (end >= *total) {
-expand_buffer:
+        expand_buffer:
             *total = end + 1024;
             p = *buf = cc_realloc(*buf, *total + 1);
         }
@@ -354,8 +356,8 @@ static void cc_lex_line(cc_context* ctx, const char* line)
         }
 
         tok.info.filename = ctx->n_diag_infos
-                ? ctx->diag_infos[ctx->n_diag_infos - 1].filename
-                : cc_strdup("<unknown>");
+            ? ctx->diag_infos[ctx->n_diag_infos - 1].filename
+            : cc_strdup("<unknown>");
         tok.info.column = (size_t)((ptrdiff_t)ctx->cptr - (ptrdiff_t)ctx->cbuf);
         tok.info.line = ctx->n_diag_infos
             ? ctx->diag_infos[ctx->n_diag_infos - 1].line
