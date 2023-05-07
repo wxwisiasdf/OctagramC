@@ -279,6 +279,11 @@ bool cc_parse_assignment_expression(
         /* Expand assignment <lhs> += <rhs> into <lhs> = <lhs> + <rhs> */
         assert(binop_type != AST_BINOP_NONE);
         if (binop_type != AST_BINOP_ASSIGN) {
+            /* TODO: Mirror will expand:
+               this     sarr[index--] += 1;
+               into     arr[index--] = arr[index--] + 1;
+
+               which is NOT what it is meant to do! */
             /* Create the binop that will go on the right side of the expr */
             cc_ast_node* binop_node = cc_ast_create_binop_expr(
                 ctx, assign_node->data.binop.right, binop_type);

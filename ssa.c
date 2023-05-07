@@ -440,6 +440,16 @@ static void cc_ssa_process_binop(
             tok.data.unop.right = rhs_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+            /* Return result of assignment */
+            if (param.type != SSA_PARAM_NONE) {
+                memset(&tok, 0, sizeof(tok));
+                tok.type = SSA_TOKEN_ASSIGN;
+                tok.data.unop.left = param;
+                tok.data.unop.right = rhs_param;
+                cc_diag_copy(&tok.info, &node->info);
+                cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+            }
             return;
         }
         case AST_BINOP_GT:
@@ -1183,42 +1193,52 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
     /* Remove assignments */
     for (i = 0; i < func->n_tokens; i++) {
         cc_ssa_token* tok = &func->tokens[i];
+        bool erase = false;
+
         switch (tok->type) {
-        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_ASSIGN: {
+            erase = cc_ssa_is_param_same(
+                &tok->data.unop.left, &tok->data.unop.right);
+            /* Assignments **can** only be into temporals! */
+            if (tok->data.unop.left.type != SSA_PARAM_TMPVAR)
+                erase = true;
+            if (tok->data.unop.left.is_volatile
+                || tok->data.unop.right.is_volatile)
+                erase = false;
+        } break;
         case SSA_TOKEN_STORE_FROM:
         case SSA_TOKEN_LOAD_FROM: {
-            bool erase = cc_ssa_is_param_same(
+            erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);
-            /* Remove read without side effect */
+            /* Assignments **can** only be into temporals! */
             if (tok->data.unop.left.type == SSA_PARAM_NONE)
                 erase = true;
-            if (erase && !tok->data.unop.left.is_volatile
-                && !tok->data.unop.right.is_volatile) {
-                memmove(&func->tokens[i], &func->tokens[i + 1],
-                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
-                func->n_tokens--;
-                i--;
-            }
+            if (tok->data.unop.left.is_volatile
+                || tok->data.unop.right.is_volatile)
+                erase = false;
         } break;
         case SSA_TOKEN_BRANCH: {
-            bool erase = cc_ssa_is_param_same(
+            erase = cc_ssa_is_param_same(
                 &tok->data.branch.t_branch, &tok->data.branch.f_branch);
             /* Remove read without side effect */
             if (tok->data.branch.eval.type == SSA_PARAM_NONE
                 || tok->data.branch.t_branch.type == SSA_PARAM_NONE
                 || tok->data.branch.f_branch.type == SSA_PARAM_NONE)
                 erase = true;
-            if (erase && !tok->data.branch.eval.is_volatile
-                && !tok->data.branch.t_branch.is_volatile
-                && !tok->data.branch.f_branch.is_volatile) {
+            if (tok->data.branch.eval.is_volatile
+                || tok->data.branch.t_branch.is_volatile
+                || tok->data.branch.f_branch.is_volatile)
+                erase = false;
+        } break;
+        default:
+            break;
+        }
+
+        if (erase) {
                 memmove(&func->tokens[i], &func->tokens[i + 1],
                     sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
                 func->n_tokens--;
                 i--;
-            }
-        } break;
-        default:
-            break;
         }
     }
 }
