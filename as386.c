@@ -39,6 +39,7 @@ static const char* reg8l_names[AS386_NUM_REGS]
 
 typedef struct cc_as386_context {
     bool r_used[AS386_NUM_REGS]; /* Is the register currently being used? */
+    bool r_pinned[AS386_NUM_REGS]; /* Can they be spilled? */
     unsigned short r_mapping[AS386_NUM_REGS]
                             [UCHAR_MAX]; /* tmpids assigned to each register */
     unsigned char r_spills
@@ -78,14 +79,22 @@ static enum cc_as386_reg cc_as386_get_tmpreg(
 static enum cc_as386_reg cc_as386_regspill(cc_context* ctx)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    enum cc_as386_reg least_regno = AS386_NONE;
     enum cc_as386_reg regno;
-    enum cc_as386_reg least_regno = AS386_EAX;
-    for (regno = 0; regno < AS386_NUM_REGS; ++regno) {
+    for (regno = AS386_EAX; regno < AS386_NUM_REGS; ++regno) {
         if (!cc_as386_is_alloc_reg(regno))
             continue;
-        if (actx->r_spills[regno] <= actx->r_spills[least_regno])
+        /* Can't spill pinned registers either! */
+        if (actx->r_pinned[regno])
+            continue;
+
+        if (least_regno == AS386_NONE)
+            least_regno = regno;
+        else if (actx->r_spills[regno] <= actx->r_spills[least_regno])
             least_regno = regno;
     }
+    assert(least_regno != AS386_NONE);
+    assert(actx->r_used[least_regno] == true);
     ++actx->r_spills[least_regno];
     return least_regno;
 }
@@ -94,20 +103,29 @@ static enum cc_as386_reg cc_as386_regalloc(cc_context* ctx, unsigned int tmpid)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
     enum cc_as386_reg regno;
-    for (regno = 0; regno < AS386_NUM_REGS; ++regno) {
+    for (regno = AS386_EAX; regno < AS386_NUM_REGS; ++regno) {
         if (!cc_as386_is_alloc_reg(regno))
             continue;
         if (!actx->r_used[regno]) {
-            assert(actx->r_spills[regno] == 0);
+            assert(!actx->r_spills[regno]);
             actx->r_mapping[regno][actx->r_spills[regno]] = tmpid;
             actx->r_used[regno] = true;
             return regno;
         }
     }
+
     regno = cc_as386_regspill(ctx);
     actx->r_mapping[regno][actx->r_spills[regno]] = tmpid;
-    fprintf(ctx->out, "\tpushl\t%s\n",
-        reg32_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+    fprintf(ctx->out, "\tpushl\t%s\n", reg32_names[regno]);
+    return regno;
+}
+
+static enum cc_as386_reg cc_as386_regalloc_pinned(
+    cc_context* ctx, unsigned int tmpid)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    enum cc_as386_reg regno = cc_as386_regalloc(ctx, tmpid);
+    actx->r_pinned[regno] = true;
     return regno;
 }
 
@@ -119,20 +137,21 @@ static void cc_as386_regfree(cc_context* ctx, enum cc_as386_reg regno)
         fprintf(ctx->out, "\tpopl\t%s\n", reg32_names[regno]);
         --actx->r_spills[regno];
     } else {
-        actx->r_used[regno] = false;
+        actx->r_pinned[regno] = actx->r_used[regno] = false;
     }
 }
 
 static void cc_as386_regfree_tmpid(cc_context* ctx, unsigned int tmpid)
 {
     cc_as386_context* actx = cc_as386_get_ctx(ctx);
-    size_t i;
-    for (i = 0; i < AS386_NUM_REGS; i++) {
-        if (!cc_as386_is_alloc_reg(i))
+    enum cc_as386_reg regno;
+    for (regno = AS386_EAX; regno < AS386_NUM_REGS; ++regno) {
+        if (!cc_as386_is_alloc_reg(regno))
             continue;
 
-        if (actx->r_used[i] && actx->r_mapping[i][actx->r_spills[i]] == tmpid) {
-            cc_as386_regfree(ctx, i);
+        if (actx->r_used[regno]
+            && actx->r_mapping[regno][actx->r_spills[regno]] == tmpid) {
+            cc_as386_regfree(ctx, regno);
             return;
         }
     }
@@ -343,8 +362,7 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
             } else {
                 fprintf(ctx->out, "\tmov%s\t$%lu,($_%s)\n",
                     cc_as386_get_suffix_by_size(lhs->size),
-                    rhs->data.constant.value.u,
-                    cc_strview(lhs->data.var_name));
+                    rhs->data.constant.value.u, cc_strview(lhs->data.var_name));
             }
             break;
         default:
@@ -410,7 +428,8 @@ static void cc_as386_gen_call_param(
     case SSA_PARAM_STRING_LITERAL: {
         cc_ssa_param tmp
             = cc_ssa_tempvar_param_1(ctx, param->is_signed, param->size);
-        enum cc_as386_reg tmp_reg = cc_as386_regalloc(ctx, tmp.data.tmpid);
+        enum cc_as386_reg tmp_reg
+            = cc_as386_regalloc_pinned(ctx, tmp.data.tmpid);
         fprintf(ctx->out, "\tmov%s\t$__ms_%u,%s\n",
             cc_as386_get_suffix_by_size(param->size), param->data.string.tmpid,
             param_reg_names[tmp_reg]);
@@ -464,8 +483,8 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
 
     switch (call_retval->type) {
     case SSA_PARAM_VARIABLE: {
-        enum cc_as386_reg val_regno = cc_as386_regalloc(ctx, 0);
-        enum cc_as386_reg ptr_regno = cc_as386_regalloc(ctx, 0);
+        enum cc_as386_reg val_regno = cc_as386_regalloc_pinned(ctx, 0);
+        enum cc_as386_reg ptr_regno = cc_as386_regalloc_pinned(ctx, 0);
         fprintf(ctx->out, "\tmovl\t%%eax,%s\n", reg32_names[val_regno]);
         fprintf(ctx->out, "\tmovl\t$%s,($_%s)\n", reg32_names[val_regno],
             cc_strview(call_retval->data.var_name));
@@ -567,8 +586,8 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
 
     tmp[0] = cc_ssa_tempvar_param_1(ctx, rhs[0]->is_signed, rhs[0]->size);
     tmp[1] = cc_ssa_tempvar_param_1(ctx, rhs[1]->is_signed, rhs[1]->size);
-    tmp_reg[0] = cc_as386_regalloc(ctx, tmp[0].data.tmpid);
-    tmp_reg[1] = cc_as386_regalloc(ctx, tmp[1].data.tmpid);
+    tmp_reg[0] = cc_as386_regalloc_pinned(ctx, tmp[0].data.tmpid);
+    tmp_reg[1] = cc_as386_regalloc_pinned(ctx, tmp[1].data.tmpid);
 
     assert(tmp[0].type == SSA_PARAM_TMPVAR);
     cc_as386_gen_assign(ctx, tmp[0].data.tmpid, rhs[0], tmp[0].size);
@@ -774,7 +793,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     /* Reset context for register allocation! */
     for (i = 0; i < AS386_NUM_REGS; ++i) {
         size_t j;
-        actx->r_used[i] = false;
+        actx->r_used[i] = actx->r_pinned[i] = false;
         actx->r_spills[i] = 0;
         for (j = 0; j < UCHAR_MAX; ++j)
             actx->r_mapping[i][j] = 0;

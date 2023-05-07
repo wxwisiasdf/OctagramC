@@ -1127,9 +1127,58 @@ static void cc_ssa_tmpasign_func_1(char* restrict visited,
         }
     }
 }
+/* Helper function for cc_ssa_tmpassign_func */
+static void cc_ssa_tmpasign_func_2(char* restrict visited,
+    cc_ssa_func* restrict func, unsigned short tmpid,
+    const cc_ssa_token* binop_tok, size_t offset)
+{
+    size_t i;
+    for (i = offset; i < func->n_tokens; ++i) {
+        cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_ADD:
+        case SSA_TOKEN_SUB:
+        case SSA_TOKEN_AND:
+        case SSA_TOKEN_COMPARE:
+        case SSA_TOKEN_DIV:
+        case SSA_TOKEN_MUL:
+        case SSA_TOKEN_OR:
+        case SSA_TOKEN_XOR:
+        case SSA_TOKEN_GT:
+        case SSA_TOKEN_GTE:
+        case SSA_TOKEN_LT:
+        case SSA_TOKEN_LTE:
+        case SSA_TOKEN_EQ:
+        case SSA_TOKEN_NEQ:
+        case SSA_TOKEN_LSHIFT:
+        case SSA_TOKEN_RSHIFT:
+        case SSA_TOKEN_MOD:
+            if (cc_ssa_is_param_same(
+                    &binop_tok->data.binop.right, &tok->data.binop.right)
+                && cc_ssa_is_param_same(
+                    &binop_tok->data.binop.extra, &tok->data.binop.extra)) {
+                /* Same result, so replace it with the first temporal that
+                   obtained this result (and keep reusing said tempoworal) */
+                assert(binop_tok->data.binop.left.type == SSA_PARAM_TMPVAR);
+                cc_ssa_tmpasign_func_1(visited, func,
+                    tok->data.binop.left.data.tmpid,
+                    &binop_tok->data.binop.left, i + 1);
 
-/* Temporal assignment elimination */
-/* "Paint" an existing temporal variable into another parameter, for example
+                /* Remove this instance of computation */
+                memmove(&func->tokens[i], &func->tokens[i + 1],
+                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                func->n_tokens--;
+                i--;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+/* Temporal assignment elimination
+
+   "Paint" an existing temporal variable into another parameter, for example
    the following SSA:
    
    i32 tmp_0 = i32 var a
@@ -1147,24 +1196,51 @@ static void cc_ssa_tmpassign_func(
     for (i = 0; i < func->n_tokens; ++i) {
         cc_ssa_token* vtok = &func->tokens[i];
         unsigned short tmpid = cc_ssa_get_lhs_tmpid(vtok);
-        if (tmpid == 0
-            || (vtok->type != SSA_TOKEN_ASSIGN
-                && vtok->type != SSA_TOKEN_LOAD_FROM))
+        if (tmpid == 0)
             continue;
-
+        
         if ((visited[tmpid / CHAR_BIT]) & (1 << (tmpid % CHAR_BIT)))
             continue;
         visited[tmpid / CHAR_BIT] |= 1 << (tmpid % CHAR_BIT);
         
-        cc_ssa_tmpasign_func_1(
-            visited, func, tmpid, &vtok->data.load.right, i + 1);
+        switch (vtok->type) {
+        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_LOAD_FROM:
+            cc_ssa_tmpasign_func_1(
+                visited, func, tmpid, &vtok->data.load.right, i + 1);
 
-        /* Remove the assignment token as we've tmpassigned every instance
-           of this temporal away. */
-        memmove(&func->tokens[i], &func->tokens[i + 1],
-            sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
-        func->n_tokens--;
-        i--;
+            /* Remove the assignment token as we've tmpassigned every instance
+            of this temporal away. */
+            memmove(&func->tokens[i], &func->tokens[i + 1],
+                sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+            func->n_tokens--;
+            i--;
+            break;
+        case SSA_TOKEN_ADD:
+        case SSA_TOKEN_SUB:
+        case SSA_TOKEN_AND:
+        case SSA_TOKEN_COMPARE:
+        case SSA_TOKEN_DIV:
+        case SSA_TOKEN_MUL:
+        case SSA_TOKEN_OR:
+        case SSA_TOKEN_XOR:
+        case SSA_TOKEN_GT:
+        case SSA_TOKEN_GTE:
+        case SSA_TOKEN_LT:
+        case SSA_TOKEN_LTE:
+        case SSA_TOKEN_EQ:
+        case SSA_TOKEN_NEQ:
+        case SSA_TOKEN_LSHIFT:
+        case SSA_TOKEN_RSHIFT:
+        case SSA_TOKEN_MOD:
+            assert(vtok->data.binop.left.type == SSA_PARAM_TMPVAR);
+            cc_ssa_tmpasign_func_2(visited, func, tmpid, vtok, i + 1);
+            cc_ssa_tmpasign_func_1(
+                visited, func, tmpid, &vtok->data.binop.left, i + 1);
+            break;
+        default:
+            break;
+        }
     }
 }
 
@@ -1596,6 +1672,8 @@ static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
     cc_ssa_remove_assign_func(func);
     memset(visited, 0, visited_len);
     cc_ssa_remove_loadstore_func(visited, visited_len, func);
+    memset(visited, 0, visited_len);
+    cc_ssa_tmpassign_func(visited, func);
     memset(visited, 0, visited_len);
     cc_ssa_remove_assign_func(func);
     memset(visited, 0, visited_len);
