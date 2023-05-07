@@ -1010,6 +1010,9 @@ ignore_missing_ident:
         cc_ast_literal size_literal;
         cc_lex_token_consume(ctx);
 
+        /* We allow arrays to exist at cv_qual index 1, because of cases like:
+           static array[const static restrict 64]; */
+        ++var->type.n_cv_qual;
         if (var->type.n_cv_qual >= MAX_CV_QUALIFIERS) {
             cc_diag_error(ctx, "Array exceeds pointer depth size");
             goto error_handle;
@@ -1058,10 +1061,6 @@ ignore_missing_ident:
                 cc_diag_warning(ctx, "0 length array will not be materialized");
             array_cv->array.size = (unsigned short)size_literal.value.u;
         }
-
-        /* We allow arrays to exist at cv_qual index 0, because of cases like:
-           static array[const static restrict 64]; */
-        var->type.n_cv_qual++;
     }
 
     /* If we're assigning on declaration we will have to expand a separate

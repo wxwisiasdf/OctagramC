@@ -197,9 +197,21 @@ static unsigned int cc_as386_get_alignof(
 static unsigned int cc_as386_get_sizeof(
     cc_context* ctx, const cc_ast_type* type)
 {
-    size_t sizeof_ptr = 4;
-    if (type->n_cv_qual > 0) /* Pointer types */
+    unsigned int sizeof_ptr = 4;
+    if (type->n_cv_qual > 0) {
+        /* Pointer types */
+        if (type->cv_qual[type->n_cv_qual].is_array) {
+            cc_ast_type tmp_type = *type;
+            unsigned int base_size;
+            /* **Variable** sized arrays can't be deduced right-away! */
+            assert(!type->cv_qual[type->n_cv_qual].is_vla);
+            --tmp_type.n_cv_qual;
+            base_size = cc_as386_get_sizeof(ctx, &tmp_type);
+            ++tmp_type.n_cv_qual;
+            return base_size * type->cv_qual[type->n_cv_qual].array.size;
+        }
         return sizeof_ptr;
+    }
 
     /* Variadic list is a pointer */
     if (type->mode == AST_TYPE_MODE_VA_LIST)

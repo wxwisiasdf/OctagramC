@@ -339,7 +339,7 @@ static void cc_ssa_process_binop(
         /* Pointer with pointer arithmethic is illegal */
         if (lhs_type.n_cv_qual > 0 && rhs_type.n_cv_qual > 0)
             cc_abort(__FILE__, __LINE__);
-        else if (lhs_type.n_cv_qual > 0 || rhs_type.n_cv_qual > 0) {
+        else {
             /* Obtain sizes from types iff they are pointers (to properly perform
             pointer arithmethic). */
             if (lhs_type.n_cv_qual > 0) {
@@ -520,6 +520,61 @@ static void cc_ssa_add_dummy_ret(cc_context* ctx, cc_ssa_func* func)
     cc_ssa_push_token(ctx, func, tok);
 }
 
+/* Helper function for cc_ssa_process_block_1 */
+static void cc_ssa_process_block_2(cc_context* ctx, const cc_ast_node* node,
+    cc_ssa_param param, const cc_ast_variable* var)
+{
+    bool is_comp = false; /* Is composite? (i.e multidimensional VLA) */
+    size_t i;
+
+    /* Global variables are handled by a ctor function! */
+    assert(ctx->ssa_current_func != NULL);
+    /* Non-VLA, non-array, so it's simple to handle */
+    /*if (var->type.n_cv_qual == 0) {
+        cc_ast_literal literal = { 0 };
+        literal.is_float = literal.is_signed = false;
+        literal.value.u = ctx->get_sizeof(ctx, &var->type);
+        tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } else {*/
+
+    for (i = 0; i <= var->type.n_cv_qual; ++i)
+        if (var->type.cv_qual[i].is_vla)
+            is_comp = true;
+    /* Composite multidimensionals require more effort to produce
+        and more tokens are emitted */
+    if (is_comp) {
+        for (i = 0; i <= var->type.n_cv_qual; ++i) {
+            /* TODO: Composite multidimensional VLA arrays support */
+        }
+    } else {
+        cc_ssa_token tok = { 0 };
+        cc_ast_literal literal = { 0 };
+        cc_ast_type tmp_type = var->type;
+
+        literal.is_float = literal.is_signed = false;
+
+        /* Obtain the size of the primitive conforming the array. */
+        assert(tmp_type.n_cv_qual > 0);
+        literal.value.u = ctx->get_sizeof(ctx, &tmp_type);
+
+        for (i = 0; i <= var->type.n_cv_qual; ++i) {
+            if (!var->type.cv_qual[i].is_array)
+                break;
+            assert(var->type.cv_qual[i].is_vla == false);
+            assert(var->type.cv_qual[i].array.size > 0);
+            literal.value.u
+                *= (unsigned int)var->type.cv_qual[i].array.size;
+        }
+
+        tok.type = SSA_TOKEN_ALLOCA;
+        tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
+        tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    }
+}
+/* Helper function for cc_ssa_process_block */
 static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
     cc_ssa_param param, const cc_ast_variable* var)
 {
@@ -529,7 +584,9 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
     if ((var->storage & AST_STORAGE_TYPEDEF) != 0)
         return;
 
-    if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
+    if (var->type.n_cv_qual > 0) {
+        cc_ssa_process_block_2(ctx, node, param, var);
+    } else if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
         cc_ssa_func func = { 0 };
         cc_ssa_func* old_current_ssa_func = ctx->ssa_current_func;
         cc_ssa_param none_param = { 0 };
@@ -556,56 +613,6 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
 
         ctx->ssa_funcs = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
         ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
-    } else if (var->type.mode != AST_TYPE_MODE_FUNCTION) {
-        /* Global variables are handled by a ctor function! */
-        assert(ctx->ssa_current_func != NULL);
-        tok.type = SSA_TOKEN_ALLOCA;
-        tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
-        cc_diag_copy(&tok.info, &node->info);
-
-        /* Non-VLA, non-array, so it's simple af */
-        if (var->type.n_cv_qual == 0) {
-            cc_ast_literal literal = { 0 };
-            literal.is_float = literal.is_signed = false;
-            literal.value.u = ctx->get_sizeof(ctx, &var->type);
-            tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
-            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-        } else {
-            bool is_comp = false; /* Is composite? (i.e multidimensional VLA) */
-            size_t i;
-            for (i = 0; i <= var->type.n_cv_qual; ++i)
-                if (var->type.cv_qual[i].is_vla)
-                    is_comp = true;
-
-            /* Composite multidimensionals require more effort to produce
-               and more tokens are emitted */
-            if (is_comp) {
-                for (i = 0; i <= var->type.n_cv_qual; ++i) {
-                    /* TODO: Composite multidimensional VLA arrays support */
-                }
-            } else {
-                cc_ast_literal literal = { 0 };
-                unsigned short old_n_cv_qual = var->type.n_cv_qual;
-                cc_ast_type tmp_type = var->type;
-
-                literal.is_float = literal.is_signed = false;
-
-                /* Obtain the size of the primitive conforming the array. */
-                tmp_type.n_cv_qual = 0;
-                literal.value.u = ctx->get_sizeof(ctx, &tmp_type);
-                tmp_type.n_cv_qual = old_n_cv_qual;
-                for (i = 0; i <= var->type.n_cv_qual; ++i) {
-                    if (!var->type.cv_qual[i].is_array)
-                        break;
-                    assert(var->type.cv_qual[i].is_vla == false);
-                    assert(var->type.cv_qual[i].array.size > 0);
-                    literal.value.u
-                        *= (unsigned int)var->type.cv_qual[i].array.size;
-                }
-                tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
-                cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-            }
-        }
     }
 }
 
