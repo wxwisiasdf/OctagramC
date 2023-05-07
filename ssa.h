@@ -113,8 +113,8 @@ typedef struct cc_ssa_token {
         } unop;
         struct {
             unsigned short size;
-            unsigned short left_tmpid;
-            cc_ssa_param right;
+            unsigned short val_tmpid;
+            cc_ssa_param addr;
         } load;
         struct {
             cc_ssa_param left;

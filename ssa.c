@@ -116,13 +116,13 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         break;
     case SSA_TOKEN_ASSIGN:
         printf("u%u tmp_%u = ", (unsigned int)tok->data.load.size * 8,
-            (unsigned int)tok->data.load.left_tmpid);
-        cc_ssa_print_param(&tok->data.load.right);
+            (unsigned int)tok->data.load.val_tmpid);
+        cc_ssa_print_param(&tok->data.load.addr);
         break;
     case SSA_TOKEN_LOAD_FROM:
         printf("u%u tmp_%u = load_from ", (unsigned int)tok->data.load.size * 8,
-            (unsigned int)tok->data.load.left_tmpid);
-        cc_ssa_print_param(&tok->data.load.right);
+            (unsigned int)tok->data.load.val_tmpid);
+        cc_ssa_print_param(&tok->data.load.addr);
         break;
     case SSA_TOKEN_LSHIFT:
         cc_ssa_print_token_binop(tok, "lshift");
@@ -369,14 +369,14 @@ static void cc_ssa_process_binop(
         tok.type = SSA_TOKEN_ASSIGN;
         if (lhs_psize) {
             assert(lhs_param.type == SSA_PARAM_TMPVAR);
-            tok.data.load.left_tmpid = lhs_param.data.tmpid;
+            tok.data.load.val_tmpid = lhs_param.data.tmpid;
             tok.data.load.size = lhs_param.size;
         } else {
             assert(rhs_param.type == SSA_PARAM_TMPVAR);
-            tok.data.load.left_tmpid = rhs_param.data.tmpid;
+            tok.data.load.val_tmpid = rhs_param.data.tmpid;
             tok.data.load.size = rhs_param.size;
         }
-        tok.data.load.right = tmp_param;
+        tok.data.load.addr = tmp_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         memset(&tok, 0, sizeof(tok));
@@ -456,8 +456,8 @@ static void cc_ssa_process_binop(
 
                 memset(&tok, 0, sizeof(tok));
                 tok.type = SSA_TOKEN_ASSIGN;
-                tok.data.load.left_tmpid = param.data.tmpid;
-                tok.data.load.right = rhs_param;
+                tok.data.load.val_tmpid = param.data.tmpid;
+                tok.data.load.addr = rhs_param;
                 cc_diag_copy(&tok.info, &node->info);
                 cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
             }
@@ -748,8 +748,8 @@ static void cc_ssa_process_literal(
     assert(param.type == SSA_PARAM_TMPVAR);
 
     tok.type = SSA_TOKEN_ASSIGN;
-    tok.data.load.left_tmpid = param.data.tmpid;
-    tok.data.load.right = cc_ssa_literal_to_param(&node->data.literal);
+    tok.data.load.val_tmpid = param.data.tmpid;
+    tok.data.load.addr = cc_ssa_literal_to_param(&node->data.literal);
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
@@ -789,8 +789,8 @@ static void cc_ssa_process_string_literal(
 
         assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_ASSIGN;
-        tok.data.load.left_tmpid = param.data.tmpid;
-        tok.data.load.right = literal_param;
+        tok.data.load.val_tmpid = param.data.tmpid;
+        tok.data.load.addr = literal_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     }
@@ -836,9 +836,9 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
         if (param.type != SSA_PARAM_NONE) {
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_LOAD_FROM;
-            tok.data.load.left_tmpid = param.data.tmpid;
+            tok.data.load.val_tmpid = param.data.tmpid;
             tok.data.load.size = param.size;
-            tok.data.load.right = child_param;
+            tok.data.load.addr = child_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         }
@@ -876,8 +876,8 @@ static void cc_ssa_process_unop(
         if (param.type != SSA_PARAM_NONE) {
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_ASSIGN;
-            tok.data.load.left_tmpid = param.data.tmpid;
-            tok.data.load.right = child_param;
+            tok.data.load.val_tmpid = param.data.tmpid;
+            tok.data.load.addr = child_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         }
@@ -889,9 +889,9 @@ static void cc_ssa_process_unop(
         if (param.type != SSA_PARAM_NONE) {
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_LOAD_FROM;
-            tok.data.load.left_tmpid = param.data.tmpid;
+            tok.data.load.val_tmpid = param.data.tmpid;
             tok.data.load.size = param.size;
-            tok.data.load.right = child_param;
+            tok.data.load.addr = child_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         }
@@ -915,9 +915,9 @@ static void cc_ssa_process_unop(
 
         assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_LOAD_FROM;
-        tok.data.load.left_tmpid = param.data.tmpid;
+        tok.data.load.val_tmpid = param.data.tmpid;
         tok.data.load.size = param.size;
-        tok.data.load.right = child_param;
+        tok.data.load.addr = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
@@ -975,9 +975,9 @@ static void cc_ssa_process_variable(
 
     assert(param.type == SSA_PARAM_TMPVAR);
     tok.type = SSA_TOKEN_LOAD_FROM;
-    tok.data.load.left_tmpid = param.data.tmpid;
+    tok.data.load.val_tmpid = param.data.tmpid;
     tok.data.load.size = param.size;
-    tok.data.load.right = var_param;
+    tok.data.load.addr = var_param;
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
@@ -1072,12 +1072,12 @@ static void cc_ssa_tmpasign_func_1(char* restrict visited,
             break;
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
-            if (tok->data.load.left_tmpid == tmpid
+            if (tok->data.load.val_tmpid == tmpid
                 && new_colour->type == SSA_PARAM_TMPVAR) {
-                tok->data.load.left_tmpid = new_colour->data.tmpid;
+                tok->data.load.val_tmpid = new_colour->data.tmpid;
                 tok->data.load.size = new_colour->size;
             }
-            cc_ssa_tmpassign_param(&tok->data.load.right, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.load.addr, tmpid, new_colour);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
@@ -1214,7 +1214,7 @@ static void cc_ssa_tmpassign_func(
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
             cc_ssa_tmpasign_func_1(
-                visited, func, tmpid, &vtok->data.load.right, i + 1);
+                visited, func, tmpid, &vtok->data.load.addr, i + 1);
 
             /* Remove the assignment token as we've tmpassigned every instance
             of this temporal away. */
@@ -1298,9 +1298,9 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
             break;
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
-            erase = tok->data.load.right.type == SSA_PARAM_TMPVAR
-                && tok->data.load.right.data.tmpid == tok->data.load.left_tmpid;
-            if (tok->data.load.right.is_volatile)
+            erase = tok->data.load.addr.type == SSA_PARAM_TMPVAR
+                && tok->data.load.addr.data.tmpid == tok->data.load.val_tmpid;
+            if (tok->data.load.addr.is_volatile)
                 erase = false;
             break;
         case SSA_TOKEN_BRANCH: {
@@ -1342,7 +1342,7 @@ static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
        other blocks! */
     tmp_param.type = SSA_PARAM_TMPVAR;
     tmp_param.size = ld_tok->data.load.size;
-    tmp_param.data.tmpid = ld_tok->data.load.left_tmpid;
+    tmp_param.data.tmpid = ld_tok->data.load.val_tmpid;
     for (i = offset; i < func->n_tokens; i++) {
         cc_ssa_token* tok = &func->tokens[i];
         bool erase = false;
@@ -1354,9 +1354,9 @@ static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
             break;
         case SSA_TOKEN_LOAD_FROM:
             if (cc_ssa_is_param_same(
-                    &ld_tok->data.load.right, &tok->data.load.right)) {
+                    &ld_tok->data.load.addr, &tok->data.load.addr)) {
                 /* Coalesce temporal loads into a single temporal if possible... */
-                cc_ssa_tmpasign_func_1(visited, func, tok->data.load.left_tmpid,
+                cc_ssa_tmpasign_func_1(visited, func, tok->data.load.val_tmpid,
                     &tmp_param, i + 1);
 
                 /* Remove this block (it's redundant since the temporal was removed) */
@@ -1416,7 +1416,7 @@ static void cc_ssa_labmerge_func_1(
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
             cc_ssa_labmerge_param(
-                &tok->data.load.right, label_id, new_label_id);
+                &tok->data.load.addr, label_id, new_label_id);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
@@ -1516,8 +1516,8 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
             || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
     case SSA_TOKEN_ASSIGN:
     case SSA_TOKEN_LOAD_FROM:
-        return tok->data.load.left_tmpid == tmpid
-            || cc_ssa_is_livetmp_param(tok->data.load.right, tmpid);
+        return tok->data.load.val_tmpid == tmpid
+            || cc_ssa_is_livetmp_param(tok->data.load.addr, tmpid);
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:
@@ -1623,7 +1623,7 @@ unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok)
             : 0;
     case SSA_TOKEN_ASSIGN:
     case SSA_TOKEN_LOAD_FROM:
-        return tok->data.load.left_tmpid;
+        return tok->data.load.val_tmpid;
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:

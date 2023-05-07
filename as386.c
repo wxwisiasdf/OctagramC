@@ -710,12 +710,12 @@ static void cc_as386_process_token(
             ctx, &tok->data.unop.left, &tok->data.unop.right);
         break;
     case SSA_TOKEN_ASSIGN:
-        cc_as386_gen_assign(ctx, tok->data.load.left_tmpid,
-            &tok->data.load.right, tok->data.load.size);
+        cc_as386_gen_assign(ctx, tok->data.load.val_tmpid,
+            &tok->data.load.addr, tok->data.load.size);
         break;
     case SSA_TOKEN_LOAD_FROM:
-        cc_as386_gen_load_from(ctx, tok->data.load.left_tmpid,
-            &tok->data.load.right, tok->data.load.size);
+        cc_as386_gen_load_from(ctx, tok->data.load.val_tmpid,
+            &tok->data.load.addr, tok->data.load.size);
         break;
     case SSA_TOKEN_CALL:
         cc_as386_process_call(ctx, tok);
@@ -852,7 +852,7 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
             break;
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
-            cc_as386_colstring_param(ctx, &tok->data.load.right);
+            cc_as386_colstring_param(ctx, &tok->data.load.addr);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
