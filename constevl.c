@@ -553,6 +553,9 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
     }
     case AST_NODE_MIRROR:
         return cc_ceval_is_const(ctx, node->data.mirror_expr);
+    case AST_NODE_SWITCH:
+        return cc_ceval_is_const(ctx, node->data.switch_expr.control)
+            && cc_ceval_is_const(ctx, node->data.switch_expr.block);
     default:
         cc_abort(__FILE__, __LINE__);
     }
