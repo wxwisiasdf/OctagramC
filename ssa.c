@@ -300,6 +300,7 @@ cc_ssa_param cc_ssa_tempvar_param(
 static void cc_ssa_push_token(
     cc_context* ctx, cc_ssa_func* func, cc_ssa_token tok)
 {
+    assert(tok.type != SSA_TOKEN_NONE);
     if (func->n_tokens + 1 >= func->n_alloc_tokens) {
         func->n_alloc_tokens
             = func->n_tokens + ctx->alloc_reserve_factor / sizeof(cc_ssa_token);
@@ -328,7 +329,44 @@ static void cc_ssa_process_binop(
         cc_abort(__FILE__, __LINE__);
     rhs_param = cc_ssa_tempvar_param(ctx, &rhs_type);
 
-    if (node->data.binop.op == AST_BINOP_ADD
+    if (node->data.binop.op == AST_BINOP_COND_AND) {
+        /* C uses short-circuit conditionals, if the first part of the AND
+           is not true, the second term ISN'T evaluated! */
+        /* So we will compose a control flow like this:
+           
+            tmp1 = left-side
+            branch tmp1, onTrue L1, onFalse L2
+        L1
+            tmp2 = right-side
+            branch tmp2, onTrue L3, onFalse L2
+        L3
+            __occ_cond = store_from 0
+            jump L4
+        L2
+            __occ_cond = store_from 1
+        L4
+            param = load_from __occ_cond */
+        tok.type = SSA_TOKEN_SUB;
+    } else if (node->data.binop.op == AST_BINOP_COND_OR) {
+        /* C uses short-circuit conditionals, if the first part of the OR
+           is not true we will evaluate the second one, if it was true
+           then we don't need to evaluate the second one */
+        /* So we will compose a control flow like this:
+           
+            tmp1 = left-side
+            branch tmp1, onTrue L2, onFalse L1
+        L1
+            tmp2 = right-side
+            branch tmp2, onTrue L2, onFalse L3
+        L3
+            __occ_cond = store_from 0
+            jump L4
+        L2
+            __occ_cond = store_from 1
+        L4
+            param = load_from __occ_cond */
+        tok.type = SSA_TOKEN_SUB;
+    } else if (node->data.binop.op == AST_BINOP_ADD
         && node->data.binop.op == AST_BINOP_SUB) {
         unsigned int lhs_psize = 0;
         unsigned int rhs_psize = 0;
@@ -495,11 +533,6 @@ static void cc_ssa_process_binop(
             tok.type = SSA_TOKEN_OR;
             break;
         case AST_BINOP_XOR:
-            tok.type = SSA_TOKEN_XOR;
-            break;
-        case AST_BINOP_COND_AND:
-        case AST_BINOP_COND_OR:
-            /* TODO: Conditionals */
             tok.type = SSA_TOKEN_XOR;
             break;
         default:
