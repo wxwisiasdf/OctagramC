@@ -525,13 +525,15 @@ static void cc_as386_process_jump(cc_context* ctx, const cc_ssa_token* tok)
     assert(tok->type == SSA_TOKEN_JUMP);
     switch (tok->data.jump_target.type) {
     case SSA_PARAM_VARIABLE:
-        fprintf(
-            ctx->out, "\tljmp\t$_%s\n", cc_strview(tok->data.jump_target.data.var_name));
+        fprintf(ctx->out, "\tljmp\t$_%s\n",
+            cc_strview(tok->data.jump_target.data.var_name));
         break;
     case SSA_PARAM_TMPVAR: {
-        const char **lhs_reg_names = cc_as386_get_regset_by_size(tok->data.jump_target.size);
+        const char** lhs_reg_names
+            = cc_as386_get_regset_by_size(tok->data.jump_target.size);
         fprintf(ctx->out, "\tljmp\t%s\n",
-            lhs_reg_names[cc_as386_get_tmpreg(ctx, tok->data.jump_target.data.tmpid)]);
+            lhs_reg_names[cc_as386_get_tmpreg(
+                ctx, tok->data.jump_target.data.tmpid)]);
     } break;
     case SSA_PARAM_LABEL:
         fprintf(ctx->out, "\tljmp\tL%i\n", tok->data.jump_target.data.label_id);
@@ -597,7 +599,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
             : tok->type == SSA_TOKEN_GTE      ? "jge"
             : tok->type == SSA_TOKEN_EQ       ? "je"
                                               : "jne";
-        fprintf(ctx->out, "\t%s\t1f\n", insn_name);
+        fprintf(ctx->out, "\t%sl\t1f\n", insn_name);
         fprintf(ctx->out, "1:\n");
         fprintf(ctx->out, "\tmovl\t$1,%s\n", reg32_names[tmp_reg[0]]);
         fprintf(ctx->out, "\tljmp\t1f\n");
@@ -620,10 +622,10 @@ end:
 static void cc_as386_process_token(
     cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
 {
-    const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
+    unsigned short tmpid = cc_ssa_get_lhs_tmpid(tok);
     enum cc_as386_reg lhs_reg = AS386_EAX;
-    if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR)
-        lhs_reg = cc_as386_regalloc(ctx, lhs->data.tmpid);
+    if (tmpid > 0)
+        lhs_reg = cc_as386_regalloc(ctx, tmpid);
 
     switch (tok->type) {
     case SSA_TOKEN_RET:
@@ -669,7 +671,6 @@ static void cc_as386_process_token(
         cc_as386_process_branch(ctx, tok);
         break;
     case SSA_TOKEN_DROP:
-        assert(lhs == NULL);
         cc_as386_regfree_tmpid(ctx, tok->data.dropped_tmpid);
         break;
     case SSA_TOKEN_ALLOCA:

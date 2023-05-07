@@ -120,7 +120,8 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         cc_ssa_print_token_unop(tok, "store_from");
         break;
     case SSA_TOKEN_LOAD_FROM:
-        cc_ssa_print_token_unop(tok, "load_from");
+        printf("tmp_%u = load_from ", (unsigned int)tok->data.load.left_tmpid);
+        cc_ssa_print_param(&tok->data.load.right);
         break;
     case SSA_TOKEN_LSHIFT:
         cc_ssa_print_token_binop(tok, "lshift");
@@ -303,7 +304,8 @@ static void cc_ssa_push_token(
     cc_context* ctx, cc_ssa_func* func, cc_ssa_token tok)
 {
     if (func->n_tokens + 1 >= func->n_alloc_tokens) {
-        func->n_alloc_tokens = func->n_tokens + ctx->alloc_reserve_factor / sizeof(cc_ssa_token);
+        func->n_alloc_tokens
+            = func->n_tokens + ctx->alloc_reserve_factor / sizeof(cc_ssa_token);
         func->tokens = cc_realloc_array(func->tokens, func->n_alloc_tokens);
     }
     func->tokens[func->n_tokens++] = tok;
@@ -669,40 +671,48 @@ static void cc_ssa_process_if(
     cc_ssa_token if_label_tok = { 0 };
     cc_ssa_token else_label_tok = { 0 };
 
+    /* Conditions will always be evaluated, for example when calling a
+       function inside an if statment, we have to call it no matter what. */
     if (!cc_ceval_deduce_type(ctx, node->data.if_expr.cond, &cond_type))
         cc_abort(__FILE__, __LINE__);
     cond_param = cc_ssa_tempvar_param(ctx, &cond_type);
     cc_ssa_from_ast(ctx, node->data.if_expr.cond, cond_param);
 
-    /* Skip effect-less if statment blocks (condition needs to be evaluated anyways) */
+    /* Skip effect-less if statment blocks */
     if (node->data.if_expr.block == NULL
         && node->data.if_expr.tail_else == NULL)
         return;
+    else if (node->data.if_expr.block != NULL
+        || node->data.if_expr.tail_else != NULL) {
+        /* Both conditionals are present wherein... */
+        if_label_tok.type = SSA_TOKEN_LABEL;
+        if_label_tok.data.label_id = node->data.if_expr.block == NULL
+            ? cc_ast_alloc_label_id(ctx)
+            : node->data.if_expr.block->label_id;
+        cc_diag_copy(&if_label_tok.info, &node->info);
 
-    tok.type = SSA_TOKEN_BRANCH;
-    tok.data.branch.eval = cond_param;
+        else_label_tok.type = SSA_TOKEN_LABEL;
+        else_label_tok.data.label_id = node->data.if_expr.tail_else == NULL
+            ? cc_ast_alloc_label_id(ctx)
+            : node->data.if_expr.tail_else->label_id;
+        cc_diag_copy(&else_label_tok.info, &node->info);
 
-    if_label_tok.type = SSA_TOKEN_LABEL;
-    if_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
-    cc_diag_copy(&if_label_tok.info, &node->info);
+        /* Tail else is null, we will have to synthetize a label after this if */
+        tok.type = SSA_TOKEN_BRANCH;
+        tok.data.branch.eval = cond_param;
+        tok.data.branch.t_branch
+            = cc_ssa_label_param(ctx, if_label_tok.data.label_id);
+        tok.data.branch.f_branch
+            = cc_ssa_label_param(ctx, else_label_tok.data.label_id);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 
-    else_label_tok.type = SSA_TOKEN_LABEL;
-    else_label_tok.data.label_id = cc_ast_alloc_label_id(ctx);
-    cc_diag_copy(&else_label_tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
+        cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
 
-    /* Tail else is null, we will have to synthetize a label after this if */
-    tok.data.branch.t_branch
-        = cc_ssa_label_param(ctx, if_label_tok.data.label_id);
-    tok.data.branch.f_branch
-        = cc_ssa_label_param(ctx, else_label_tok.data.label_id);
-    cc_diag_copy(&tok.info, &node->info);
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
-    cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
-
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);
-    cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);
+        cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
+    }
 }
 
 static void cc_ssa_process_jump(
@@ -802,15 +812,16 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
     } else {
         /* First obtain the value from the children parameter and store it
            onto the parameter. */
-        cc_ssa_param tmp_param;
+        cc_ssa_param tmp_param = cc_ssa_tempvar_param(ctx, child_type);
 
-        tmp_param = cc_ssa_tempvar_param(ctx, child_type);
-
-        tok.type = SSA_TOKEN_LOAD_FROM;
-        tok.data.unop.left = param;
-        tok.data.unop.right = child_param;
-        cc_diag_copy(&tok.info, &node->info);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        if (param.type != SSA_PARAM_NONE) {
+            assert(param.type == SSA_PARAM_TMPVAR);
+            tok.type = SSA_TOKEN_LOAD_FROM;
+            tok.data.load.left_tmpid = param.data.tmpid;
+            tok.data.load.right = child_param;
+            cc_diag_copy(&tok.info, &node->info);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        }
 
         memset(&tok, 0, sizeof(tok));
         tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
@@ -850,9 +861,11 @@ static void cc_ssa_process_unop(
     case AST_UNOP_DEREF: {
         cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+
+        assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_LOAD_FROM;
-        tok.data.unop.left = param;
-        tok.data.unop.right = child_param;
+        tok.data.load.left_tmpid = param.data.tmpid;
+        tok.data.load.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
@@ -872,9 +885,11 @@ static void cc_ssa_process_unop(
         /* TODO: Refs */
         cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
+
+        assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_LOAD_FROM;
-        tok.data.unop.left = param;
-        tok.data.unop.right = child_param;
+        tok.data.load.left_tmpid = param.data.tmpid;
+        tok.data.load.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } break;
@@ -930,9 +945,10 @@ static void cc_ssa_process_variable(
         ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
     var_param = cc_ssa_variable_to_param(ctx, var);
 
+    assert(param.type == SSA_PARAM_TMPVAR);
     tok.type = SSA_TOKEN_LOAD_FROM;
-    tok.data.unop.left = param;
-    tok.data.unop.right = var_param;
+    tok.data.load.left_tmpid = param.data.tmpid;
+    tok.data.load.right = var_param;
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
@@ -1002,68 +1018,86 @@ static void cc_ssa_from_ast(
     }
 }
 
+/* Helper function for cc_ssa_tmpassign_func_1 */
 static void cc_ssa_tmpassign_param(
-    cc_ssa_param* param, unsigned short tmpid, cc_ssa_param new_colour)
+    cc_ssa_param* param, unsigned short tmpid, unsigned short new_colour)
 {
     if (param->type == SSA_PARAM_TMPVAR && param->data.tmpid == tmpid)
-        *param = new_colour;
+        param->data.tmpid = new_colour;
 }
-
 /* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_binop(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.binop.left, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.binop.right, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.binop.extra, tmpid, new_colour);
-}
-
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_unop(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.unop.left, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.unop.right, tmpid, new_colour);
-}
-
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_call(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
+static void cc_ssa_tmpasign_func_1(char* restrict visited,
+    cc_ssa_func* restrict func, unsigned short tmpid, unsigned short new_colour,
+    size_t offset)
 {
     size_t i;
-    cc_ssa_tmpassign_param(&tok->data.call.left, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.call.right, tmpid, new_colour);
-    for (i = 0; i < tok->data.call.n_params; i++)
-        cc_ssa_tmpassign_param(&tok->data.call.params[i], tmpid, new_colour);
-}
-
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_alloca(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.alloca.left, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.alloca.size, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.alloca.align, tmpid, new_colour);
-}
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_jump(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.jump_target, tmpid, new_colour);
-}
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_branch(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.branch.eval, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.branch.t_branch, tmpid, new_colour);
-    cc_ssa_tmpassign_param(&tok->data.branch.f_branch, tmpid, new_colour);
-}
-/* Helper function for cc_ssa_tmpassign_func */
-static void cc_ssa_tmpassign_ret(
-    unsigned short tmpid, cc_ssa_param new_colour, cc_ssa_token* tok)
-{
-    cc_ssa_tmpassign_param(&tok->data.retval, tmpid, new_colour);
+    for (i = offset; i < func->n_tokens; ++i) {
+        cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_STORE_FROM:
+            cc_ssa_tmpassign_param(&tok->data.unop.left, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.unop.right, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            if (tok->data.load.left_tmpid == tmpid)
+                tok->data.load.left_tmpid = new_colour;
+            cc_ssa_tmpassign_param(&tok->data.load.right, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_ADD:
+        case SSA_TOKEN_SUB:
+        case SSA_TOKEN_AND:
+        case SSA_TOKEN_COMPARE:
+        case SSA_TOKEN_DIV:
+        case SSA_TOKEN_MUL:
+        case SSA_TOKEN_OR:
+        case SSA_TOKEN_XOR:
+        case SSA_TOKEN_GT:
+        case SSA_TOKEN_GTE:
+        case SSA_TOKEN_LT:
+        case SSA_TOKEN_LTE:
+        case SSA_TOKEN_EQ:
+        case SSA_TOKEN_NEQ:
+        case SSA_TOKEN_LSHIFT:
+        case SSA_TOKEN_RSHIFT:
+        case SSA_TOKEN_MOD:
+            cc_ssa_tmpassign_param(&tok->data.binop.left, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.binop.right, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.binop.extra, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_CALL: {
+            size_t i;
+            cc_ssa_tmpassign_param(&tok->data.call.left, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.call.right, tmpid, new_colour);
+            for (i = 0; i < tok->data.call.n_params; i++)
+                cc_ssa_tmpassign_param(
+                    &tok->data.call.params[i], tmpid, new_colour);
+        } break;
+        case SSA_TOKEN_ALLOCA:
+            cc_ssa_tmpassign_param(&tok->data.alloca.left, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.alloca.size, tmpid, new_colour);
+            cc_ssa_tmpassign_param(&tok->data.alloca.align, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_JUMP:
+            cc_ssa_tmpassign_param(&tok->data.jump_target, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_BRANCH:
+            cc_ssa_tmpassign_param(&tok->data.branch.eval, tmpid, new_colour);
+            cc_ssa_tmpassign_param(
+                &tok->data.branch.t_branch, tmpid, new_colour);
+            cc_ssa_tmpassign_param(
+                &tok->data.branch.f_branch, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_RET:
+            cc_ssa_tmpassign_param(&tok->data.retval, tmpid, new_colour);
+            break;
+        case SSA_TOKEN_LABEL:
+            /* No operation */
+            break;
+        default:
+            cc_abort(__FILE__, __LINE__);
+        }
+    }
 }
 
 /* Temporal assignment elimination */
@@ -1084,74 +1118,18 @@ static void cc_ssa_tmpassign_func(
     size_t i;
     for (i = 0; i < func->n_tokens; ++i) {
         cc_ssa_token* vtok = &func->tokens[i];
-        const cc_ssa_param* vlhs = cc_ssa_get_lhs_param(vtok);
-        size_t j;
-
-        if (vtok->type != SSA_TOKEN_ASSIGN || vlhs->type != SSA_PARAM_TMPVAR)
+        unsigned short tmpid = cc_ssa_get_lhs_tmpid(vtok);
+        if (vtok->type != SSA_TOKEN_ASSIGN || tmpid > 0)
             continue;
 
-        if ((visited[vlhs->data.tmpid / CHAR_BIT])
-            & (1 << (vlhs->data.tmpid % CHAR_BIT)))
+        if ((visited[tmpid / CHAR_BIT]) & (1 << (tmpid % CHAR_BIT)))
             continue;
-        visited[vlhs->data.tmpid / CHAR_BIT] |= 1
-            << (vlhs->data.tmpid % CHAR_BIT);
+        visited[tmpid / CHAR_BIT] |= 1 << (tmpid % CHAR_BIT);
 
-        for (j = i + 1; j < func->n_tokens; ++j) {
-            cc_ssa_token* tok = &func->tokens[j];
-            switch (tok->type) {
-            case SSA_TOKEN_ASSIGN:
-            case SSA_TOKEN_LOAD_FROM:
-            case SSA_TOKEN_STORE_FROM:
-                cc_ssa_tmpassign_unop(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_ADD:
-            case SSA_TOKEN_SUB:
-            case SSA_TOKEN_AND:
-            case SSA_TOKEN_COMPARE:
-            case SSA_TOKEN_DIV:
-            case SSA_TOKEN_MUL:
-            case SSA_TOKEN_OR:
-            case SSA_TOKEN_XOR:
-            case SSA_TOKEN_GT:
-            case SSA_TOKEN_GTE:
-            case SSA_TOKEN_LT:
-            case SSA_TOKEN_LTE:
-            case SSA_TOKEN_EQ:
-            case SSA_TOKEN_NEQ:
-            case SSA_TOKEN_LSHIFT:
-            case SSA_TOKEN_RSHIFT:
-            case SSA_TOKEN_MOD:
-                cc_ssa_tmpassign_binop(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_CALL:
-                cc_ssa_tmpassign_call(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_ALLOCA:
-                cc_ssa_tmpassign_alloca(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_JUMP:
-                cc_ssa_tmpassign_jump(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_BRANCH:
-                cc_ssa_tmpassign_branch(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_RET:
-                cc_ssa_tmpassign_ret(
-                    vlhs->data.tmpid, vtok->data.unop.right, tok);
-                break;
-            case SSA_TOKEN_LABEL:
-                /* No operation */
-                break;
-            default:
-                cc_abort(__FILE__, __LINE__);
-            }
-        }
+        assert(vtok->data.unop.right.type == SSA_PARAM_TMPVAR);
+        cc_ssa_tmpasign_func_1(visited, func, tmpid,
+            vtok->data.unop.right.data.tmpid, i + 1);
+
         /* Remove the assignment token as we've tmpassigned every instance
            of this temporal away. */
         memmove(&func->tokens[i], &func->tokens[i + 1],
@@ -1207,7 +1185,6 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
                 erase = false;
         } break;
         case SSA_TOKEN_STORE_FROM:
-        case SSA_TOKEN_LOAD_FROM: {
             erase = cc_ssa_is_param_same(
                 &tok->data.unop.left, &tok->data.unop.right);
             /* Assignments **can** only be into temporals! */
@@ -1216,7 +1193,13 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
             if (tok->data.unop.left.is_volatile
                 || tok->data.unop.right.is_volatile)
                 erase = false;
-        } break;
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            erase = tok->data.load.right.type == SSA_PARAM_TMPVAR
+                && tok->data.load.right.data.tmpid == tok->data.load.left_tmpid;
+            if (tok->data.load.right.is_volatile)
+                erase = false;
+            break;
         case SSA_TOKEN_BRANCH: {
             erase = cc_ssa_is_param_same(
                 &tok->data.branch.t_branch, &tok->data.branch.f_branch);
@@ -1235,75 +1218,76 @@ static void cc_ssa_remove_assign_func(cc_ssa_func* func)
         }
 
         if (erase) {
-                memmove(&func->tokens[i], &func->tokens[i + 1],
-                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
-                func->n_tokens--;
-                i--;
+            memmove(&func->tokens[i], &func->tokens[i + 1],
+                sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+            func->n_tokens--;
+            i--;
         }
     }
 }
 
+/* Helper for cc_ssa_remove_loadstore_func, for removing redundant loads */
+static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
+    cc_ssa_func* restrict func, const cc_ssa_token* restrict ld_tok,
+    size_t offset)
+{
+    size_t i;
+    assert(ld_tok->type == SSA_TOKEN_LOAD_FROM);
+    for (i = offset; i < func->n_tokens; i++) {
+        cc_ssa_token* tok = &func->tokens[i];
+        bool erase = false;
+        switch (tok->type) {
+        case SSA_TOKEN_STORE_FROM:
+            if (cc_ssa_is_param_same(
+                    &ld_tok->data.unop.right, &tok->data.unop.left))
+                return;
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            if (cc_ssa_is_param_same(
+                    &ld_tok->data.load.right, &tok->data.load.right)) {
+                /* Coalesce temporal loads into a single temporal if possible... */
+                cc_ssa_tmpasign_func_1(visited, func, tok->data.load.left_tmpid,
+                    ld_tok->data.load.left_tmpid, i + 1);
+
+                /* Remove this block (it's redundant since the temporal was removed) */
+                memmove(&func->tokens[i], &func->tokens[i + 1],
+                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                func->n_tokens--;
+                i--;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+/* Removes redundant loads and stores. */
+static void cc_ssa_remove_loadstore_func(
+    char* restrict visited, size_t visited_len, cc_ssa_func* restrict func)
+{
+    size_t i;
+    for (i = 0; i < func->n_tokens; i++) {
+        cc_ssa_token* tok = &func->tokens[i];
+        switch (tok->type) {
+        case SSA_TOKEN_STORE_FROM:
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            memset(visited, 0, visited_len);
+            cc_ssa_remove_loadstore_func_1(visited, func, tok, i + 1);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+/* Helper function for cc_ssa_labmerge_func_1 */
 static void cc_ssa_labmerge_param(
     cc_ssa_param* param, unsigned short label_id, unsigned short new_label_id)
 {
     assert(label_id != new_label_id);
     if (param->type == SSA_PARAM_LABEL && param->data.label_id == label_id)
         param->data.label_id = new_label_id;
-}
-
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_binop(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.binop.left, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.binop.right, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.binop.extra, label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_unop(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.unop.left, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.unop.right, label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_call(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    size_t i;
-    cc_ssa_labmerge_param(&tok->data.call.left, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.call.right, label_id, new_label_id);
-    for (i = 0; i < tok->data.call.n_params; i++)
-        cc_ssa_labmerge_param(
-            &tok->data.call.params[i], label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_alloca(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.alloca.left, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.alloca.size, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.alloca.align, label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_branch(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.branch.eval, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.branch.t_branch, label_id, new_label_id);
-    cc_ssa_labmerge_param(&tok->data.branch.f_branch, label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_jump(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.retval, label_id, new_label_id);
-}
-/* Helper function for cc_ssa_labmerge_func_1 */
-static void cc_ssa_labmerge_ret(
-    unsigned short label_id, unsigned short new_label_id, cc_ssa_token* tok)
-{
-    cc_ssa_labmerge_param(&tok->data.retval, label_id, new_label_id);
 }
 /* Helper function for cc_ssa_labmerge_func */
 static void cc_ssa_labmerge_func_1(
@@ -1314,9 +1298,14 @@ static void cc_ssa_labmerge_func_1(
         cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
-            cc_ssa_labmerge_unop(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(&tok->data.unop.left, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.unop.right, label_id, new_label_id);
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            cc_ssa_labmerge_param(
+                &tok->data.load.right, label_id, new_label_id);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
@@ -1335,22 +1324,43 @@ static void cc_ssa_labmerge_func_1(
         case SSA_TOKEN_LSHIFT:
         case SSA_TOKEN_RSHIFT:
         case SSA_TOKEN_MOD:
-            cc_ssa_labmerge_binop(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(
+                &tok->data.binop.left, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.binop.right, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.binop.extra, label_id, new_label_id);
             break;
-        case SSA_TOKEN_CALL:
-            cc_ssa_labmerge_call(label_id, new_label_id, tok);
-            break;
+        case SSA_TOKEN_CALL: {
+            size_t i;
+            cc_ssa_labmerge_param(&tok->data.call.left, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.call.right, label_id, new_label_id);
+            for (i = 0; i < tok->data.call.n_params; i++)
+                cc_ssa_labmerge_param(
+                    &tok->data.call.params[i], label_id, new_label_id);
+        } break;
         case SSA_TOKEN_ALLOCA:
-            cc_ssa_labmerge_alloca(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(
+                &tok->data.alloca.left, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.alloca.size, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.alloca.align, label_id, new_label_id);
             break;
         case SSA_TOKEN_BRANCH:
-            cc_ssa_labmerge_branch(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(
+                &tok->data.branch.eval, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.branch.t_branch, label_id, new_label_id);
+            cc_ssa_labmerge_param(
+                &tok->data.branch.f_branch, label_id, new_label_id);
             break;
         case SSA_TOKEN_RET:
-            cc_ssa_labmerge_ret(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(&tok->data.retval, label_id, new_label_id);
             break;
         case SSA_TOKEN_JUMP:
-            cc_ssa_labmerge_jump(label_id, new_label_id, tok);
+            cc_ssa_labmerge_param(&tok->data.retval, label_id, new_label_id);
             break;
         case SSA_TOKEN_LABEL:
             /* No operation */
@@ -1366,23 +1376,17 @@ static void cc_ssa_labmerge_func(cc_ssa_func* func)
     size_t i;
     for (i = 0; i < func->n_tokens; i++) {
         cc_ssa_token* tok = &func->tokens[i];
-        switch (tok->type) {
-        case SSA_TOKEN_LABEL:
+        if (tok->type == SSA_TOKEN_LABEL) {
+            cc_ssa_token* ltok = &func->tokens[i + 1];
             /* Merge adjacent labels */
-            if (i + 1 < func->n_tokens) {
-                cc_ssa_token* ltok = &func->tokens[i + 1];
-                if (ltok->type == SSA_TOKEN_LABEL) {
-                    cc_ssa_labmerge_func_1(
-                        func, tok->data.label_id, ltok->data.label_id);
-                    memmove(&func->tokens[i], &func->tokens[i + 1],
-                        sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
-                    --func->n_tokens;
-                    --i;
-                }
+            if (i + 1 < func->n_tokens && ltok->type == SSA_TOKEN_LABEL) {
+                cc_ssa_labmerge_func_1(
+                    func, tok->data.label_id, ltok->data.label_id);
+                memmove(&func->tokens[i], &func->tokens[i + 1],
+                    sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
+                --func->n_tokens;
+                --i;
             }
-            break;
-        default:
-            break;
         }
     }
 }
@@ -1397,10 +1401,12 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
 {
     switch (tok->type) {
     case SSA_TOKEN_ASSIGN:
-    case SSA_TOKEN_LOAD_FROM:
     case SSA_TOKEN_STORE_FROM:
         return cc_ssa_is_livetmp_param(tok->data.unop.left, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.unop.right, tmpid);
+    case SSA_TOKEN_LOAD_FROM:
+        return tok->data.load.left_tmpid == tmpid
+            || cc_ssa_is_livetmp_param(tok->data.load.right, tmpid);
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:
@@ -1469,45 +1475,46 @@ static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
     size_t i;
     for (i = 0; i < func->n_tokens; ++i) {
         const cc_ssa_token* tok = &func->tokens[i];
-        const cc_ssa_param* lhs = cc_ssa_get_lhs_param(tok);
-        if (lhs != NULL && lhs->type == SSA_PARAM_TMPVAR) {
+        unsigned short tmpid = cc_ssa_get_lhs_tmpid(tok);
+        if (tmpid > 0) {
             cc_ssa_token drop_tok = { 0 };
             size_t loc;
-            if ((visited[lhs->data.tmpid / CHAR_BIT])
-                & (1 << (lhs->data.tmpid % CHAR_BIT)))
+            if ((visited[tmpid / CHAR_BIT])
+                & (1 << (tmpid % CHAR_BIT)))
                 continue;
-            visited[lhs->data.tmpid / CHAR_BIT] |= 1
-                << (lhs->data.tmpid % CHAR_BIT);
+            visited[tmpid / CHAR_BIT] |= 1
+                << (tmpid % CHAR_BIT);
 
-            loc = cc_ssa_get_livetmp_location(func, lhs->data.tmpid) + 1;
+            loc = cc_ssa_get_livetmp_location(func, tmpid) + 1;
 
             /* TODO: This code may write past the function tokens... */
             func->tokens = cc_realloc_array(func->tokens, func->n_tokens + 2);
             tok = &func->tokens[i];
-            lhs = cc_ssa_get_lhs_param(tok);
             ++func->n_tokens;
             if (loc + 1 < func->n_tokens)
                 /* Insert "DROP" token to aid codegen that the temporal is
                     now dead and should be dropped. */
                 memmove(&func->tokens[loc + 1], &func->tokens[loc],
                     sizeof(cc_ssa_token) * (func->n_tokens - loc));
-
-            assert(lhs->type == SSA_PARAM_TMPVAR);
+            
             drop_tok.type = SSA_TOKEN_DROP;
-            drop_tok.data.dropped_tmpid = lhs->data.tmpid;
+            drop_tok.data.dropped_tmpid = tmpid;
             func->tokens[loc] = drop_tok;
         }
     }
 }
 
 /* Obtain the LHS parameters of a token. */
-const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
+unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok)
 {
     switch (tok->type) {
     case SSA_TOKEN_ASSIGN:
-    case SSA_TOKEN_LOAD_FROM:
     case SSA_TOKEN_STORE_FROM:
-        return &tok->data.unop.left;
+        if (tok->data.unop.left.type != SSA_PARAM_TMPVAR)
+            return 0;
+        return tok->data.unop.left.data.tmpid;
+    case SSA_TOKEN_LOAD_FROM:
+        return tok->data.load.left_tmpid;
     case SSA_TOKEN_ADD:
     case SSA_TOKEN_SUB:
     case SSA_TOKEN_AND:
@@ -1525,24 +1532,28 @@ const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok)
     case SSA_TOKEN_LSHIFT:
     case SSA_TOKEN_RSHIFT:
     case SSA_TOKEN_MOD:
-        return &tok->data.binop.left;
+        if (tok->data.binop.left.type != SSA_PARAM_TMPVAR)
+            return 0;
+        return tok->data.binop.left.data.tmpid;
     case SSA_TOKEN_CALL:
-        return &tok->data.call.left;
+        if (tok->data.call.left.type != SSA_PARAM_TMPVAR)
+            return 0;
+        return tok->data.call.left.data.tmpid;
     case SSA_TOKEN_ALLOCA:
-        return &tok->data.alloca.left;
+        if (tok->data.alloca.left.type != SSA_PARAM_TMPVAR)
+            return 0;
+        return tok->data.alloca.left.data.tmpid;
     case SSA_TOKEN_BRANCH:
     case SSA_TOKEN_JUMP:
     case SSA_TOKEN_RET:
     case SSA_TOKEN_LABEL:
-        /* No operation */
-        return NULL;
     case SSA_TOKEN_DROP:
-        /* Codegen aids - ignored */
-        return NULL;
+        /* No-operation or codegen aids - ignored */
+        return 0;
     default:
         cc_abort(__FILE__, __LINE__);
     }
-    return NULL;
+    return 0;
 }
 
 static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
@@ -1551,13 +1562,23 @@ static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
     size_t visited_len = (ctx->tmpid + 1) / CHAR_BIT;
     char* visited = cc_malloc(visited_len);
 
-    memset(visited, '\0', visited_len);
+    /* None of these passes should ever add any new temporals, they shall
+       only remove temporals. */
+    memset(visited, 0, visited_len);
     cc_ssa_tmpassign_func(visited, func);
-    memset(visited, '\0', visited_len);
+    memset(visited, 0, visited_len);
     cc_ssa_remove_assign_func(func);
-    memset(visited, '\0', visited_len);
+    memset(visited, 0, visited_len);
+    cc_ssa_remove_loadstore_func(visited, visited_len, func);
+    memset(visited, 0, visited_len);
+    cc_ssa_remove_assign_func(func);
+
+    if (!strcmp(cc_strview(func->ast_var->name), "cc_strndup"))
+        abort();
+
+    memset(visited, 0, visited_len);
     cc_ssa_labmerge_func(func);
-    memset(visited, '\0', visited_len);
+    memset(visited, 0, visited_len);
     cc_ssa_livetmp_func(visited, func);
 
     cc_free(visited);

@@ -290,7 +290,7 @@ bool cc_parse_assignment_expression(
             /* And the mirror node, for evaluating as proper! */
             cc_ast_node* mirror_node = cc_ast_create_mirror(
                 ctx, binop_node->data.binop.left, assign_node->data.binop.left);
-            
+
             /* "Mirror" the assignment expression */
             cc_ast_add_block_node(binop_node->data.binop.left, mirror_node);
 

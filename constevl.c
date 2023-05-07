@@ -473,7 +473,8 @@ bool cc_ceval_deduce_type_1(
             cc_abort(__FILE__, __LINE__);
         break;
     case AST_NODE_MIRROR:
-        return cc_ceval_deduce_type_1(ctx, node->data.mirror_expr, type, as_func);
+        return cc_ceval_deduce_type_1(
+            ctx, node->data.mirror_expr, type, as_func);
     default:
         cc_abort(__FILE__, __LINE__);
     }

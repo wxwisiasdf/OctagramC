@@ -14,7 +14,7 @@
 /* Prevent infinite recursion for printing functions */
 static int body_print_lock = 0;
 
-unsigned short cc_ast_alloc_label_id(cc_context* ctx)
+unsigned int cc_ast_alloc_label_id(cc_context* ctx)
 {
     if ((ctx->label_id + 1) >= UINT_MAX)
         cc_diag_warning(ctx, "Ran out of labels to assign");
@@ -450,7 +450,8 @@ void cc_ast_copy_type(
                 cc_ast_copy_type(&dest->data.func.params[i].type,
                     &src->data.func.params[i].type);
                 if (src->data.func.params[i].name)
-                    dest->data.func.params[i].name = src->data.func.params[i].name;
+                    dest->data.func.params[i].name
+                        = src->data.func.params[i].name;
             }
         }
         dest->data.func.variadic = src->data.func.variadic;

@@ -434,9 +434,11 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
             cc_mf370_colstring_unop(ctx, tok);
+            break;
+        case SSA_TOKEN_LOAD_FROM:
+            cc_abort(__FILE__, __LINE__);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:

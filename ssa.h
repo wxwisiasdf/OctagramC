@@ -113,6 +113,10 @@ typedef struct cc_ssa_token {
             cc_ssa_param right;
         } unop;
         struct {
+            unsigned short left_tmpid;
+            cc_ssa_param right;
+        } load;
+        struct {
             cc_ssa_param left;
             cc_ssa_param size;
             cc_ssa_param align;
@@ -156,7 +160,7 @@ cc_ssa_param cc_ssa_tempvar_param(
     cc_context* ctx, const struct cc_ast_type* base_type);
 bool cc_ssa_is_param_same(
     const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2);
-const cc_ssa_param* cc_ssa_get_lhs_param(const cc_ssa_token* tok);
+unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok);
 void cc_ssa_top(cc_context* ctx);
 
 #endif

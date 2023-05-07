@@ -259,7 +259,7 @@ typedef struct cc_ast_node {
     } data;
 } cc_ast_node;
 
-unsigned short cc_ast_alloc_label_id(cc_context* ctx);
+unsigned int cc_ast_alloc_label_id(cc_context* ctx);
 cc_ast_node* cc_ast_create_any(
     cc_context* ctx, cc_ast_node* parent, enum cc_ast_node_type type);
 cc_ast_node* cc_ast_create_block(cc_context* ctx, cc_ast_node* parent);
