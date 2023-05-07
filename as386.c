@@ -343,33 +343,24 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
 }
 
 static void cc_as386_gen_load_from(cc_context* restrict ctx,
-    const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
+    unsigned short tmpid, const cc_ssa_param* restrict rhs, unsigned short size)
 {
-    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    const char** lhs_reg_names = cc_as386_get_regset_by_size(size);
     const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
-    /* Redundant gens? */
-    if (cc_ssa_is_param_same(lhs, rhs))
-        return;
-
-    switch (lhs->type) {
-    case SSA_PARAM_TMPVAR: {
-        switch (rhs->type) {
-        case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmov%s\t($_%s),%s\n",
-                cc_as386_get_suffix_by_size(rhs->size),
-                cc_strview(rhs->data.var_name),
-                lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            break;
-        case SSA_PARAM_TMPVAR:
-            fprintf(ctx->out, "\tmov%s\t(%s),%s\n",
-                cc_as386_get_suffix_by_size(rhs->size),
-                rhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)],
-                lhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)]);
-            break;
-        default:
-            cc_abort(__FILE__, __LINE__);
-        }
-    } break;
+    switch (rhs->type) {
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmov%s\t($_%s),%s\n",
+            cc_as386_get_suffix_by_size(rhs->size),
+            cc_strview(rhs->data.var_name),
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        break;
+    case SSA_PARAM_TMPVAR:
+        assert(tmpid != rhs->data.tmpid);
+        fprintf(ctx->out, "\tmov%s\t(%s),%s\n",
+            cc_as386_get_suffix_by_size(rhs->size),
+            rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        break;
     default:
         cc_abort(__FILE__, __LINE__);
     }
@@ -661,8 +652,8 @@ static void cc_as386_process_token(
             ctx, &tok->data.unop.left, &tok->data.unop.right);
         break;
     case SSA_TOKEN_LOAD_FROM:
-        cc_as386_gen_load_from(
-            ctx, &tok->data.unop.left, &tok->data.unop.right);
+        cc_as386_gen_load_from(ctx, tok->data.load.left_tmpid,
+            &tok->data.load.right, tok->data.load.size);
         break;
     case SSA_TOKEN_CALL:
         cc_as386_process_call(ctx, tok);

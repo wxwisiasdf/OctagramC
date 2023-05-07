@@ -207,7 +207,6 @@ typedef struct cc_ast_node {
         cc_string_key label_name;
         struct {
             cc_string_key name;
-            unsigned short version; /* Used by SSA */
             bool is_temporal : 1;
         } var;
         struct {

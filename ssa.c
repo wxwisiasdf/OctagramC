@@ -120,7 +120,8 @@ static void cc_ssa_print_token(const cc_ssa_token* tok)
         cc_ssa_print_token_unop(tok, "store_from");
         break;
     case SSA_TOKEN_LOAD_FROM:
-        printf("tmp_%u = load_from ", (unsigned int)tok->data.load.left_tmpid);
+        printf("u%u tmp_%u = load_from ", (unsigned int)tok->data.load.size * 8,
+            (unsigned int)tok->data.load.left_tmpid);
         cc_ssa_print_param(&tok->data.load.right);
         break;
     case SSA_TOKEN_LSHIFT:
@@ -257,7 +258,6 @@ static cc_ssa_param cc_ssa_variable_to_param(
     tmp.data.var_name = var->name;
     tmp.is_signed = false;
     tmp.size = ctx->get_sizeof(ctx, &var->type);
-    tmp.version = 0;
     return tmp;
 }
 
@@ -269,14 +269,13 @@ static cc_ssa_param cc_ssa_label_param(cc_context* ctx, unsigned short label_id)
     tmp.data.label_id = label_id;
     tmp.is_signed = false;
     tmp.size = 4;
-    tmp.version = 0;
     return tmp;
 }
 
 static unsigned short cc_ssa_get_unique_tmpid(cc_context* ctx)
 {
-    assert(ctx->tmpid + 1 < USHRT_MAX);
-    return ctx->tmpid++;
+    assert(ctx->ssa_tmpid + 1 < USHRT_MAX);
+    return ++ctx->ssa_tmpid;
 }
 
 /* Temporary variable parameter */
@@ -289,7 +288,6 @@ cc_ssa_param cc_ssa_tempvar_param_1(
     tmp.data.tmpid = cc_ssa_get_unique_tmpid(ctx);
     tmp.is_signed = is_signed;
     tmp.size = size;
-    tmp.version = 0;
     return tmp;
 }
 
@@ -522,15 +520,13 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION && var->body != NULL) {
         cc_ssa_func func = { 0 };
-        cc_ssa_func* old_current_ssa_func;
+        cc_ssa_func* old_current_ssa_func = ctx->ssa_current_func;
         cc_ssa_param none_param = { 0 };
-        bool old_func_has_return;
-
+        bool old_func_has_return = ctx->func_has_return;
+        
         func.ast_var = var;
         /* Enter into a new function contextee */
-        old_current_ssa_func = ctx->ssa_current_func;
         ctx->ssa_current_func = &func;
-        old_func_has_return = ctx->func_has_return;
         ctx->func_has_return = false;
         cc_ssa_from_ast(ctx, var->body, none_param);
         if (!ctx->func_has_return) {
@@ -541,12 +537,11 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
                 cc_ssa_add_dummy_ret(ctx, ctx->ssa_current_func);
             }
         }
+        ctx->func_has_return = old_func_has_return;
+        ctx->ssa_current_func = old_current_ssa_func;
 
         /* Shrink array of tokens for this function */
         func.tokens = cc_realloc_array(func.tokens, func.n_tokens + 1);
-
-        ctx->func_has_return = old_func_has_return;
-        ctx->ssa_current_func = old_current_ssa_func;
 
         ctx->ssa_funcs = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
         ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
@@ -667,9 +662,6 @@ static void cc_ssa_process_if(
 {
     cc_ast_type cond_type = { 0 };
     cc_ssa_param cond_param;
-    cc_ssa_token tok = { 0 };
-    cc_ssa_token if_label_tok = { 0 };
-    cc_ssa_token else_label_tok = { 0 };
 
     /* Conditions will always be evaluated, for example when calling a
        function inside an if statment, we have to call it no matter what. */
@@ -684,7 +676,12 @@ static void cc_ssa_process_if(
         return;
     else if (node->data.if_expr.block != NULL
         || node->data.if_expr.tail_else != NULL) {
+        cc_ssa_token tok = { 0 };
+        cc_ssa_token if_label_tok = { 0 };
+        cc_ssa_token else_label_tok = { 0 };
+
         /* Both conditionals are present wherein... */
+        /*
         if_label_tok.type = SSA_TOKEN_LABEL;
         if_label_tok.data.label_id = node->data.if_expr.block == NULL
             ? cc_ast_alloc_label_id(ctx)
@@ -696,6 +693,7 @@ static void cc_ssa_process_if(
             ? cc_ast_alloc_label_id(ctx)
             : node->data.if_expr.tail_else->label_id;
         cc_diag_copy(&else_label_tok.info, &node->info);
+        */
 
         /* Tail else is null, we will have to synthetize a label after this if */
         tok.type = SSA_TOKEN_BRANCH;
@@ -707,10 +705,10 @@ static void cc_ssa_process_if(
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
+        /*cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);*/
         cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
 
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);
+        /*cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);*/
         cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
     }
 }
@@ -766,7 +764,6 @@ static void cc_ssa_process_string_literal(
     literal_param.size = ctx->get_sizeof(ctx, &string_type);
     literal_param.is_signed = false;
     literal_param.storage = SSA_STORAGE_STACK;
-    literal_param.version = 0;
     literal_param.data.string.tmpid = cc_ssa_get_unique_tmpid(ctx);
     literal_param.data.string.literal = node->data.string_literal;
 
@@ -818,6 +815,7 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_LOAD_FROM;
             tok.data.load.left_tmpid = param.data.tmpid;
+            tok.data.load.size = param.size;
             tok.data.load.right = child_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -865,6 +863,7 @@ static void cc_ssa_process_unop(
         assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_LOAD_FROM;
         tok.data.load.left_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
         tok.data.load.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -889,6 +888,7 @@ static void cc_ssa_process_unop(
         assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_LOAD_FROM;
         tok.data.load.left_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
         tok.data.load.right = child_param;
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -948,6 +948,7 @@ static void cc_ssa_process_variable(
     assert(param.type == SSA_PARAM_TMPVAR);
     tok.type = SSA_TOKEN_LOAD_FROM;
     tok.data.load.left_tmpid = param.data.tmpid;
+    tok.data.load.size = param.size;
     tok.data.load.right = var_param;
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
@@ -969,7 +970,7 @@ static void cc_ssa_from_ast(
     if (node == NULL)
         return;
 
-    if (node->ref_count > 0)
+    if (!ctx->mirror_mode && node->ref_count > 0)
         cc_ssa_process_label(ctx, node);
 
     switch (node->type) {
@@ -1010,9 +1011,12 @@ static void cc_ssa_from_ast(
     case AST_NODE_FIELD_ACCESS:
         cc_ssa_process_field_access(ctx, node, param);
         break;
-    case AST_NODE_MIRROR:
+    case AST_NODE_MIRROR: {
+        bool old_v = ctx->mirror_mode;
+        ctx->mirror_mode = true;
         cc_ssa_from_ast(ctx, node->data.mirror_expr, param);
-        break;
+        ctx->mirror_mode = old_v;
+    } break;
     default:
         cc_abort(__FILE__, __LINE__);
     }
@@ -1028,7 +1032,7 @@ static void cc_ssa_tmpassign_param(
 /* Helper function for cc_ssa_tmpassign_func */
 static void cc_ssa_tmpasign_func_1(char* restrict visited,
     cc_ssa_func* restrict func, unsigned short tmpid, unsigned short new_colour,
-    size_t offset)
+    unsigned short new_size, size_t offset)
 {
     size_t i;
     for (i = offset; i < func->n_tokens; ++i) {
@@ -1040,8 +1044,10 @@ static void cc_ssa_tmpasign_func_1(char* restrict visited,
             cc_ssa_tmpassign_param(&tok->data.unop.right, tmpid, new_colour);
             break;
         case SSA_TOKEN_LOAD_FROM:
-            if (tok->data.load.left_tmpid == tmpid)
+            if (tok->data.load.left_tmpid == tmpid) {
                 tok->data.load.left_tmpid = new_colour;
+                tok->data.load.size = new_size;
+            }
             cc_ssa_tmpassign_param(&tok->data.load.right, tmpid, new_colour);
             break;
         case SSA_TOKEN_ADD:
@@ -1127,7 +1133,7 @@ static void cc_ssa_tmpassign_func(
         visited[tmpid / CHAR_BIT] |= 1 << (tmpid % CHAR_BIT);
 
         assert(vtok->data.unop.right.type == SSA_PARAM_TMPVAR);
-        cc_ssa_tmpasign_func_1(visited, func, tmpid,
+        cc_ssa_tmpasign_func_1(visited, func, tmpid, vtok->data.unop.right.size,
             vtok->data.unop.right.data.tmpid, i + 1);
 
         /* Remove the assignment token as we've tmpassigned every instance
@@ -1247,7 +1253,8 @@ static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
                     &ld_tok->data.load.right, &tok->data.load.right)) {
                 /* Coalesce temporal loads into a single temporal if possible... */
                 cc_ssa_tmpasign_func_1(visited, func, tok->data.load.left_tmpid,
-                    ld_tok->data.load.left_tmpid, i + 1);
+                    ld_tok->data.load.size, ld_tok->data.load.left_tmpid,
+                    i + 1);
 
                 /* Remove this block (it's redundant since the temporal was removed) */
                 memmove(&func->tokens[i], &func->tokens[i + 1],
@@ -1294,6 +1301,7 @@ static void cc_ssa_labmerge_func_1(
     cc_ssa_func* func, unsigned short label_id, unsigned short new_label_id)
 {
     size_t i;
+    assert(label_id != new_label_id);
     for (i = 0; i < func->n_tokens; ++i) {
         cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
@@ -1479,11 +1487,9 @@ static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
         if (tmpid > 0) {
             cc_ssa_token drop_tok = { 0 };
             size_t loc;
-            if ((visited[tmpid / CHAR_BIT])
-                & (1 << (tmpid % CHAR_BIT)))
+            if ((visited[tmpid / CHAR_BIT]) & (1 << (tmpid % CHAR_BIT)))
                 continue;
-            visited[tmpid / CHAR_BIT] |= 1
-                << (tmpid % CHAR_BIT);
+            visited[tmpid / CHAR_BIT] |= 1 << (tmpid % CHAR_BIT);
 
             loc = cc_ssa_get_livetmp_location(func, tmpid) + 1;
 
@@ -1496,7 +1502,7 @@ static void cc_ssa_livetmp_func(char* visited, cc_ssa_func* func)
                     now dead and should be dropped. */
                 memmove(&func->tokens[loc + 1], &func->tokens[loc],
                     sizeof(cc_ssa_token) * (func->n_tokens - loc));
-            
+
             drop_tok.type = SSA_TOKEN_DROP;
             drop_tok.data.dropped_tmpid = tmpid;
             func->tokens[loc] = drop_tok;
@@ -1559,7 +1565,7 @@ unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok)
 static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
 {
     /* Make a bit array for each visited node... */
-    size_t visited_len = (ctx->tmpid + 1) / CHAR_BIT;
+    size_t visited_len = ((ctx->ssa_tmpid + 1) / CHAR_BIT) + 1;
     char* visited = cc_malloc(visited_len);
 
     /* None of these passes should ever add any new temporals, they shall
@@ -1572,10 +1578,6 @@ static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
     cc_ssa_remove_loadstore_func(visited, visited_len, func);
     memset(visited, 0, visited_len);
     cc_ssa_remove_assign_func(func);
-
-    if (!strcmp(cc_strview(func->ast_var->name), "cc_strndup"))
-        abort();
-
     memset(visited, 0, visited_len);
     cc_ssa_labmerge_func(func);
     memset(visited, 0, visited_len);

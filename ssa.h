@@ -46,7 +46,6 @@ typedef struct {
     bool is_atomic : 1; /* If the value in question is atomically treated */
     bool is_volatile : 1; /* If the value's loads and stores are explicitly
                              not optimized away */
-    unsigned short version;
     union {
         cc_ssa_constant constant;
         cc_string_key var_name; /* Name of parameter */
@@ -113,6 +112,7 @@ typedef struct cc_ssa_token {
             cc_ssa_param right;
         } unop;
         struct {
+            unsigned short size;
             unsigned short left_tmpid;
             cc_ssa_param right;
         } load;

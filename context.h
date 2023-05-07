@@ -20,7 +20,6 @@ typedef struct cc_context {
     FILE* fp;
     FILE* out;
     char* top_file;
-    unsigned int tmpid; /* Unique temporal id assigners */
     enum cc_stage stage; /* Current stage of compilation */
     unsigned int error_cnt; /* Counter for errors */
     unsigned int label_id; /* Label Id assignation */
@@ -75,6 +74,8 @@ typedef struct cc_context {
     struct cc_ssa_func* static_ctor_func;
     struct cc_ssa_func* static_dtor_func;
     bool print_ssa;
+    bool mirror_mode;
+    unsigned short ssa_tmpid; /* Unique temporal id assigners */
 
     bool
         func_has_return; /* Basic return detection for functions that should return  */
