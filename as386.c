@@ -470,8 +470,10 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
         stack_size += param->size;
     }
     /* Make space for the stack */
-    if (stack_size)
+    if (stack_size) {
+        fprintf(ctx->out, ".cfi_def_cfa_offset -%u\n", stack_size);
         fprintf(ctx->out, "\tsubl\t$%u,%%esp\n", stack_size);
+    }
     /* Emplace parameters onto the stack */
     for (i = 0; i < tok->data.call.n_params; i++) {
         const cc_ssa_param* param = &tok->data.call.params[i];
@@ -490,8 +492,10 @@ static void cc_as386_process_call(cc_context* ctx, const cc_ssa_token* tok)
     default:
         cc_abort(__FILE__, __LINE__);
     }
-    if (stack_size)
+    if (stack_size) {
+        fprintf(ctx->out, ".cfi_def_cfa_offset %u\n", stack_size);
         fprintf(ctx->out, "\taddl\t$%u,%%esp\n", stack_size);
+    }
 
     switch (call_retval->type) {
     case SSA_PARAM_VARIABLE: {
@@ -589,7 +593,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     const cc_ssa_param* rhs[2];
     cc_ssa_param tmp[2];
     enum cc_as386_reg tmp_reg[2];
-    
+
     rhs[0] = &tok->data.binop.right;
     rhs[1] = &tok->data.binop.extra;
 
@@ -818,6 +822,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         fprintf(ctx->out, ".globl\t_%s\n", cc_strview(func->ast_var->name));
 
     fprintf(ctx->out, "_%s:\n", cc_strview(func->ast_var->name));
+    fprintf(ctx->out, ".cfi_startproc\n");
+
     if (needs_frame) {
         fprintf(ctx->out, "\tpushl\t%%ebp\n");
         fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
@@ -839,6 +845,8 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     /* Process all tokens of this function */
     for (i = 0; i < func->n_tokens; i++)
         cc_as386_process_token(ctx, &func->tokens[i], needs_frame);
+
+    fprintf(ctx->out, ".cfi_endproc\n");
 
     for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
