@@ -1,0 +1,120 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage{listings}
+\usepackage{color}
+\lstset{frame=tb,
+    language=C,
+    aboveskip=3mm,
+    belowskip=3mm,
+    showstringspaces=false,
+    columns=flexible,
+    basicstyle={\small\ttfamily},
+    numbers=none,
+    numberstyle=\tiny\color{cyan},
+    keywordstyle=\color{blue},
+    keywordstyle=[2]\color{red},
+    commentstyle=\color{green},
+    stringstyle=\color{red},
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=3
+}
+\lstdefinelanguage{SSA}{
+    sensitive,
+    moredelim=[s][{\itshape\color[rgb]{0,0,0.75}}]{\#[}{]},
+    morestring=[b]{"},
+    alsodigit={},
+    alsoother={},
+    alsoletter={\$\_},
+    %types
+    morekeywords=[1]{u0,u4,u8,u16,u32,u64,u128},
+    morekeywords=[1]{i0,i4,i8,i16,i32,i64,i128},
+    morekeywords=[1]{f0,f4,f8,f16,f32,f64,f128},
+    morekeywords=[1]{fn},
+    %params
+    morekeywords=[1]{none},
+    %instructions
+    morekeywords=[2]{load_from,store_from,drop,add,sub,mul,div,mod,rem,alloca,and,xor,not,or,lshift,rshift,call,jump,ret,branch,eq,neq,gt,gte,lt,lte}
+    %indicators
+    morekeywords=[2]{size,align}
+}
+\usepackage{tabularx}
+\title{OctagramC manual}
+\author{Leaf}
+\date{May 2023}
+\begin{document}
+\maketitle
+\newpage
+%
+TODO: binop use only tmpid for lhs
+%
+\newpage
+\section{SSA System}
+%
+The SSA intermediate representation is composed of tokens, which represent an
+abstract instruction to perform.
+%
+\newpage
+\begin{center}
+\begin{table}
+\begin{tabularx}{\columnwidth}{|X|X|}
+    \hline
+    none & No parameter is specified/required. May be often seen along a call that might have side effects \\
+    \hline
+    variable & A variable is a constant representing a named address, that is, an address that has a name \\
+    \hline
+    constant & Represents a constant value that doesn't change \\
+    \hline
+    tmpvar & A temporal holding variable, may only be assigned once \\
+    \hline
+    string\_literal & A form of a constant wich is anonymously named - that is, it's name is generated on the fly by the compiler. And holds a string of data \\
+    \hline
+\end{tabularx}
+\label{table: SSA Variable Parameters}
+\end{table}
+\end{center}
+%
+\begin{center}
+\begin{table}
+\begin{tabularx}{\columnwidth}{|X|X|X|}
+    \hline
+    load\_from & \textbf{value} = load\_from \textbf{address} & Loads \textbf{value} with the one in \textbf{address} \\ 
+    \hline
+    store\_from & \textbf{address} = store\_from \textbf{value} & Stores \textbf{value} into \textbf{address} \\ 
+    \hline
+\end{tabularx}
+\label{table: SSA Instructions}
+\end{table}
+\end{center}
+%
+\newpage
+\subsection{Example with cc\_zalloc}
+The compiler transforms the following:
+\begin{lstlisting}[language=C]
+void* cc_zalloc(size_t size)
+{
+    void* p = calloc(size, 1);
+    if (p == 
+            ((void *)0)
+                )
+        do { cc_abort_1("util.c", 125); abort(); } while (0);
+    return p;
+}
+\end{lstlisting}
+Into an SSA form:
+\begin{lstlisting}[language=SSA]
+fn cc_zalloc {
+    u32 var_p = alloca size u32 0, align u0 none
+    u32 tmp_7 = call u32 var_calloc(u32 var_size, u32 1, )
+    u32 var_p = store_from u32 tmp_7
+    drop tmp_7
+    u32 tmp_12 = u32 var_p eq u32 0
+    drop tmp_12
+L_256800:
+    u0 none = call u32 var_cc_abort_1(u32 string_19_"util.c", u32 125, )
+    u0 none = call u32 var_abort()
+    jump u32 L_60192
+    ret u32 var_p
+}
+\end{lstlisting}
+%
+\end{document}

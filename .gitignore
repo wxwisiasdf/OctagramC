@@ -10,5 +10,9 @@
 !Makefile
 !Makefile.*
 
+!docs/
+!docs/*.tex
+!docs/mkdocs.sh
+
 !tests/
 !tests/*.c
