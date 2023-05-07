@@ -50,8 +50,7 @@ static void cc_ssa_print_token_unop(const cc_ssa_token* tok, const char* name)
 
 static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
 {
-    cc_ssa_print_param(&tok->data.binop.left);
-    printf(" = ");
+    printf("x%u tmp_%u = ", tok->data.binop.size, tok->data.binop.left_tmpid);
     cc_ssa_print_param(&tok->data.binop.right);
     printf(" %s ", name);
     cc_ssa_print_param(&tok->data.binop.extra);
@@ -392,7 +391,8 @@ static void cc_ssa_process_binop(
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);    \
         /* Assignment is an unop here */                                       \
         tok.type = SSA_TOKEN_MUL;                                              \
-        tok.data.binop.left = parith_param;                                    \
+        tok.data.binop.left_tmpid = parith_param.data.tmpid; \
+        tok.data.binop.size = parith_param.size; \
         tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
         tok.data.binop.extra = tmp_param;                                      \
         cc_diag_copy(&tok.info, &node->info);                                  \
@@ -416,7 +416,8 @@ static void cc_ssa_process_binop(
             || (lhs_psize == 0 && rhs_psize != 0)
             || (lhs_psize == 0 && rhs_psize == 0));
 
-        tok.data.binop.left = param;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
         tok.data.binop.right = lhs_psize == 0 ? lhs_param : parith_param;
         tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     } else {
@@ -504,7 +505,8 @@ static void cc_ssa_process_binop(
         default:
             cc_abort(__FILE__, __LINE__);
         }
-        tok.data.binop.left = param;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
         tok.data.binop.right = lhs_param;
         tok.data.binop.extra = rhs_param;
     }
@@ -816,7 +818,8 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
            higher parameter, and then store the value of the parameter
            onto the children. */
         tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
-        tok.data.binop.left = param;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
         tok.data.binop.right = child_param;
         tok.data.binop.extra = one_param;
         cc_diag_copy(&tok.info, &node->info);
@@ -841,22 +844,23 @@ static void cc_ssa_process_unop_ppid(cc_context* ctx, const cc_ast_node* node,
             tok.data.load.addr = child_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+            memset(&tok, 0, sizeof(tok));
+            tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
+            tok.data.binop.left_tmpid = param.data.tmpid;
+            tok.data.binop.size = param.size;
+            tok.data.binop.right = child_param;
+            tok.data.binop.extra = one_param;
+            cc_diag_copy(&tok.info, &node->info);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+
+            memset(&tok, 0, sizeof(tok));
+            tok.type = SSA_TOKEN_STORE_FROM;
+            tok.data.unop.left = child_param;
+            tok.data.unop.right = tmp_param;
+            cc_diag_copy(&tok.info, &node->info);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
         }
-
-        memset(&tok, 0, sizeof(tok));
-        tok.type = is_inc ? SSA_TOKEN_ADD : SSA_TOKEN_SUB;
-        tok.data.binop.left = tmp_param;
-        tok.data.binop.right = child_param;
-        tok.data.binop.extra = one_param;
-        cc_diag_copy(&tok.info, &node->info);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-
-        memset(&tok, 0, sizeof(tok));
-        tok.type = SSA_TOKEN_STORE_FROM;
-        tok.data.unop.left = child_param;
-        tok.data.unop.right = tmp_param;
-        cc_diag_copy(&tok.info, &node->info);
-        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     }
 }
 
@@ -953,8 +957,10 @@ static void cc_ssa_process_field_access(
         size_literal.value.u = (unsigned int)field_offset;
         size_param = cc_ssa_literal_to_param(&size_literal);
 
+        assert(param.type == SSA_PARAM_TMPVAR);
         tok.type = SSA_TOKEN_ADD;
-        tok.data.binop.left = param;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
         tok.data.binop.right = left_param;
         tok.data.binop.extra = size_param;
         cc_diag_copy(&tok.info, &node->info);
@@ -966,18 +972,14 @@ static void cc_ssa_process_variable(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     cc_ssa_token tok = { 0 };
-    const cc_ast_variable* var;
-    cc_ssa_param var_param;
-
-    var = cc_ast_find_variable(
+    const cc_ast_variable* var = cc_ast_find_variable(
         ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
-    var_param = cc_ssa_variable_to_param(ctx, var);
-
+    
     assert(param.type == SSA_PARAM_TMPVAR);
-    tok.type = SSA_TOKEN_LOAD_FROM;
+    tok.type = SSA_TOKEN_ASSIGN;
     tok.data.load.val_tmpid = param.data.tmpid;
     tok.data.load.size = param.size;
-    tok.data.load.addr = var_param;
+    tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
     cc_diag_copy(&tok.info, &node->info);
     cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 }
@@ -1096,7 +1098,11 @@ static void cc_ssa_tmpasign_func_1(char* restrict visited,
         case SSA_TOKEN_LSHIFT:
         case SSA_TOKEN_RSHIFT:
         case SSA_TOKEN_MOD:
-            cc_ssa_tmpassign_param(&tok->data.binop.left, tmpid, new_colour);
+            if (tok->data.binop.left_tmpid == tmpid
+                && new_colour->type == SSA_PARAM_TMPVAR) {
+                tok->data.binop.left_tmpid = new_colour->data.tmpid;
+                tok->data.binop.size = new_colour->size;
+            }
             cc_ssa_tmpassign_param(&tok->data.binop.right, tmpid, new_colour);
             cc_ssa_tmpassign_param(&tok->data.binop.extra, tmpid, new_colour);
             break;
@@ -1164,12 +1170,15 @@ static void cc_ssa_tmpasign_func_2(char* restrict visited,
                     &binop_tok->data.binop.right, &tok->data.binop.right)
                 && cc_ssa_is_param_same(
                     &binop_tok->data.binop.extra, &tok->data.binop.extra)) {
+                cc_ssa_param tmp_param = { 0 };
+                tmp_param.type = SSA_PARAM_TMPVAR;
+                tmp_param.data.tmpid = binop_tok->data.binop.left_tmpid;
+                tmp_param.size = binop_tok->data.binop.size;
+
                 /* Same result, so replace it with the first temporal that
                    obtained this result (and keep reusing said tempoworal) */
-                assert(binop_tok->data.binop.left.type == SSA_PARAM_TMPVAR);
                 cc_ssa_tmpasign_func_1(visited, func,
-                    tok->data.binop.left.data.tmpid,
-                    &binop_tok->data.binop.left, i + 1);
+                    tok->data.binop.left_tmpid, &tmp_param, i + 1);
 
                 /* Remove this instance of computation */
                 memmove(&func->tokens[i], &func->tokens[i + 1],
@@ -1239,12 +1248,14 @@ static void cc_ssa_tmpassign_func(
         case SSA_TOKEN_NEQ:
         case SSA_TOKEN_LSHIFT:
         case SSA_TOKEN_RSHIFT:
-        case SSA_TOKEN_MOD:
-            assert(vtok->data.binop.left.type == SSA_PARAM_TMPVAR);
+        case SSA_TOKEN_MOD: {
+            cc_ssa_param tmp_param = { 0 };
             cc_ssa_tmpasign_func_2(visited, func, tmpid, vtok, i + 1);
-            cc_ssa_tmpasign_func_1(
-                visited, func, tmpid, &vtok->data.binop.left, i + 1);
-            break;
+            tmp_param.type = SSA_PARAM_TMPVAR;
+            tmp_param.data.tmpid = vtok->data.binop.left_tmpid;
+            tmp_param.size = vtok->data.binop.size;
+            cc_ssa_tmpasign_func_1(visited, func, tmpid, &tmp_param, i + 1);
+        } break;
         default:
             break;
         }
@@ -1436,8 +1447,6 @@ static void cc_ssa_labmerge_func_1(
         case SSA_TOKEN_RSHIFT:
         case SSA_TOKEN_MOD:
             cc_ssa_labmerge_param(
-                &tok->data.binop.left, label_id, new_label_id);
-            cc_ssa_labmerge_param(
                 &tok->data.binop.right, label_id, new_label_id);
             cc_ssa_labmerge_param(
                 &tok->data.binop.extra, label_id, new_label_id);
@@ -1535,7 +1544,7 @@ static bool cc_ssa_is_livetmp_token(const cc_ssa_token* tok, unsigned int tmpid)
     case SSA_TOKEN_LSHIFT:
     case SSA_TOKEN_RSHIFT:
     case SSA_TOKEN_MOD:
-        return cc_ssa_is_livetmp_param(tok->data.binop.left, tmpid)
+        return tok->data.binop.left_tmpid == tmpid
             || cc_ssa_is_livetmp_param(tok->data.binop.right, tmpid)
             || cc_ssa_is_livetmp_param(tok->data.binop.extra, tmpid);
     case SSA_TOKEN_CALL: {
@@ -1641,9 +1650,7 @@ unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok)
     case SSA_TOKEN_LSHIFT:
     case SSA_TOKEN_RSHIFT:
     case SSA_TOKEN_MOD:
-        return tok->data.binop.left.type == SSA_PARAM_TMPVAR
-            ? tok->data.binop.left.data.tmpid
-            : 0;
+        return tok->data.binop.left_tmpid;
     case SSA_TOKEN_CALL:
         return tok->data.call.left.type == SSA_PARAM_TMPVAR
             ? tok->data.call.left.data.tmpid

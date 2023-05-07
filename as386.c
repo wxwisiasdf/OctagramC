@@ -586,13 +586,10 @@ static void cc_as386_process_jump(cc_context* ctx, const cc_ssa_token* tok)
 static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
 {
     const char* insn_name;
-    cc_ssa_param lhs = tok->data.binop.left;
     const cc_ssa_param* rhs[2];
     cc_ssa_param tmp[2];
     enum cc_as386_reg tmp_reg[2];
-
-    assert(lhs.type == SSA_PARAM_TMPVAR);
-
+    
     rhs[0] = &tok->data.binop.right;
     rhs[1] = &tok->data.binop.extra;
 
@@ -665,7 +662,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         reg32_names[cc_as386_get_tmpreg(ctx, tmp[1].data.tmpid)]);
 end:
     cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
-    cc_as386_gen_assign(ctx, lhs.data.tmpid, &tmp[0], lhs.size);
+    cc_as386_gen_assign(ctx, tok->data.binop.left_tmpid, &tmp[0], tok->data.binop.size);
     cc_as386_regfree_tmpid(ctx, tmp[0].data.tmpid);
 }
 
@@ -870,7 +867,6 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         case SSA_TOKEN_NEQ:
         case SSA_TOKEN_LSHIFT:
         case SSA_TOKEN_RSHIFT:
-            cc_as386_colstring_param(ctx, &tok->data.binop.left);
             cc_as386_colstring_param(ctx, &tok->data.binop.right);
             cc_as386_colstring_param(ctx, &tok->data.binop.extra);
             break;

@@ -103,7 +103,8 @@ typedef struct cc_ssa_token {
     cc_diag_info info;
     union {
         struct {
-            cc_ssa_param left;
+            unsigned short size;
+            unsigned short left_tmpid;
             cc_ssa_param right;
             cc_ssa_param extra;
         } binop;
