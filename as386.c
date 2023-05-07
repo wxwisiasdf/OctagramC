@@ -293,8 +293,16 @@ static unsigned int cc_as386_get_offsetof(
 static void cc_as386_gen_assign(cc_context* restrict ctx, unsigned short tmpid,
     const cc_ssa_param* restrict rhs, unsigned short size)
 {
-    const char** lhs_reg_names = cc_as386_get_regset_by_size(size);
-    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
+    const char** lhs_reg_names;
+    const char** rhs_reg_names;
+
+    if (size > 4 || rhs->size > 4) {
+        fprintf(ctx->out, "#todo: assignments for big datastructures!\n");
+        return;
+    }
+
+    lhs_reg_names = cc_as386_get_regset_by_size(size);
+    rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     /* No redundant gens should be fed, we assume they've been removed by now */
     switch (rhs->type) {
     case SSA_PARAM_CONSTANT:
@@ -328,8 +336,15 @@ static void cc_as386_gen_assign(cc_context* restrict ctx, unsigned short tmpid,
 static void cc_as386_gen_store_from(cc_context* restrict ctx,
     const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
 {
-    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
-    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
+    const char** lhs_reg_names;
+    const char** rhs_reg_names;
+    if (lhs->size > 4 || rhs->size > 4) {
+        fprintf(ctx->out, "#todo: generate big loads\n");
+        return;
+    }
+
+    lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     assert(!cc_ssa_is_param_same(lhs, rhs));
     switch (lhs->type) {
     case SSA_PARAM_TMPVAR: {
@@ -413,7 +428,13 @@ static void cc_as386_gen_load_from(cc_context* restrict ctx,
 static void cc_as386_gen_call_param(
     cc_context* ctx, const cc_ssa_param* param, unsigned short offset)
 {
-    const char** param_reg_names = cc_as386_get_regset_by_size(param->size);
+    const char** param_reg_names;
+    if (param->size > 4) {
+        fprintf(ctx->out, "#todo: support for >4byte big parameters!\n");
+        return;
+    }
+
+    param_reg_names = cc_as386_get_regset_by_size(param->size);
     switch (param->type) {
     case SSA_PARAM_CONSTANT:
         if (param->data.constant.is_float) {

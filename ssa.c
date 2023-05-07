@@ -346,7 +346,13 @@ static void cc_ssa_process_binop(
             __occ_cond = store_from 1
         L4
             param = load_from __occ_cond */
-        tok.type = SSA_TOKEN_SUB;
+        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+        tok.type = SSA_TOKEN_ADD;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
+        tok.data.binop.right = lhs_param;
+        tok.data.binop.extra = rhs_param;
     } else if (node->data.binop.op == AST_BINOP_COND_OR) {
         /* C uses short-circuit conditionals, if the first part of the OR
            is not true we will evaluate the second one, if it was true
@@ -365,7 +371,13 @@ static void cc_ssa_process_binop(
             __occ_cond = store_from 1
         L4
             param = load_from __occ_cond */
-        tok.type = SSA_TOKEN_SUB;
+        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+        tok.type = SSA_TOKEN_ADD;
+        tok.data.binop.left_tmpid = param.data.tmpid;
+        tok.data.binop.size = param.size;
+        tok.data.binop.right = lhs_param;
+        tok.data.binop.extra = rhs_param;
     } else if (node->data.binop.op == AST_BINOP_ADD
         && node->data.binop.op == AST_BINOP_SUB) {
         unsigned int lhs_psize = 0;
@@ -909,7 +921,6 @@ static void cc_ssa_process_unop(
     case AST_UNOP_CAST: {
         cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-
         if (param.type != SSA_PARAM_NONE) {
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_ASSIGN;
@@ -922,7 +933,6 @@ static void cc_ssa_process_unop(
     case AST_UNOP_DEREF: {
         cc_ssa_param child_param = cc_ssa_tempvar_param(ctx, &child_type);
         cc_ssa_from_ast(ctx, node->data.unop.child, child_param);
-
         if (param.type != SSA_PARAM_NONE) {
             assert(param.type == SSA_PARAM_TMPVAR);
             tok.type = SSA_TOKEN_LOAD_FROM;
