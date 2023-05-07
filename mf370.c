@@ -362,9 +362,6 @@ static void cc_mf370_process_token(cc_context* ctx, const cc_ssa_token* tok)
     case SSA_TOKEN_AND:
         cc_mf370_gen_binop_arith(ctx, tok);
         break;
-    case SSA_TOKEN_ASSIGN:
-        cc_mf370_gen_assign(ctx, &tok->data.unop.left, &tok->data.unop.right);
-        break;
     case SSA_TOKEN_CALL:
         cc_mf370_process_call(ctx, tok);
         break;
@@ -433,10 +430,10 @@ void cc_mf370_process_func(cc_context* ctx, const cc_ssa_func* func)
     for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
-        case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_STORE_FROM:
             cc_mf370_colstring_unop(ctx, tok);
             break;
+        case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
             cc_abort(__FILE__, __LINE__);
             break;

@@ -259,41 +259,31 @@ static unsigned int cc_as386_get_offsetof(
     cc_abort(__FILE__, __LINE__);
 }
 
-static void cc_as386_gen_assign(cc_context* restrict ctx,
-    const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
+static void cc_as386_gen_assign(cc_context* restrict ctx, unsigned short tmpid,
+    const cc_ssa_param* restrict rhs, unsigned short size)
 {
-    const char** lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
+    const char** lhs_reg_names = cc_as386_get_regset_by_size(size);
     const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     /* No redundant gens should be fed, we assume they've been removed by now */
-    assert(!cc_ssa_is_param_same(lhs, rhs));
-    switch (lhs->type) {
+    switch (rhs->type) {
+    case SSA_PARAM_CONSTANT:
+        fprintf(ctx->out, "\tmov%s\t$%lu,%s\n",
+            cc_as386_get_suffix_by_size(size), rhs->data.constant.value.u,
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        if (rhs->data.constant.is_negative)
+            fprintf(ctx->out, "\timul%s\t$-1,%s\n",
+                cc_as386_get_suffix_by_size(size),
+                lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        break;
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmov%s\t$_%s,%s\n",
+            cc_as386_get_suffix_by_size(size), cc_strview(rhs->data.var_name),
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        break;
     case SSA_PARAM_TMPVAR:
-        switch (rhs->type) {
-        case SSA_PARAM_CONSTANT:
-            fprintf(ctx->out, "\tmov%s\t$%lu,%s\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                rhs->data.constant.value.u,
-                lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            if (rhs->data.constant.is_negative)
-                fprintf(ctx->out, "\timul%s\t$-1,%s\n",
-                    cc_as386_get_suffix_by_size(lhs->size),
-                    lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            break;
-        case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmov%s\t$_%s,%s\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                cc_strview(rhs->data.var_name),
-                lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            break;
-        case SSA_PARAM_TMPVAR:
-            fprintf(ctx->out, "\tmov%s\t%s,%s\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                lhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            break;
-        default:
-            cc_abort(__FILE__, __LINE__);
-        }
+        fprintf(ctx->out, "\tmov%s\t%s,%s\n", cc_as386_get_suffix_by_size(size),
+            rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
+            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -542,6 +532,8 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     cc_ssa_param tmp[2];
     enum cc_as386_reg tmp_reg[2];
 
+    assert(lhs.type == SSA_PARAM_TMPVAR);
+
     rhs[0] = &tok->data.binop.right;
     rhs[1] = &tok->data.binop.extra;
 
@@ -550,8 +542,10 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
     tmp_reg[0] = cc_as386_regalloc(ctx, tmp[0].data.tmpid);
     tmp_reg[1] = cc_as386_regalloc(ctx, tmp[1].data.tmpid);
 
-    cc_as386_gen_assign(ctx, &tmp[0], rhs[0]);
-    cc_as386_gen_assign(ctx, &tmp[1], rhs[1]);
+    assert(tmp[0].type == SSA_PARAM_TMPVAR);
+    cc_as386_gen_assign(ctx, tmp[0].data.tmpid, rhs[0], tmp[0].size);
+    assert(tmp[1].type == SSA_PARAM_TMPVAR);
+    cc_as386_gen_assign(ctx, tmp[1].data.tmpid, rhs[1], tmp[0].size);
 
     switch (tok->type) {
     case SSA_TOKEN_ADD:
@@ -606,7 +600,7 @@ static void cc_as386_gen_binop_arith(cc_context* ctx, const cc_ssa_token* tok)
         reg32_names[cc_as386_get_tmpreg(ctx, tmp[1].data.tmpid)]);
 end:
     cc_as386_regfree_tmpid(ctx, tmp[1].data.tmpid);
-    cc_as386_gen_assign(ctx, &lhs, &tmp[0]);
+    cc_as386_gen_assign(ctx, lhs.data.tmpid, &tmp[0], lhs.size);
     cc_as386_regfree_tmpid(ctx, tmp[0].data.tmpid);
 }
 
@@ -644,12 +638,13 @@ static void cc_as386_process_token(
     case SSA_TOKEN_NEQ:
         cc_as386_gen_binop_arith(ctx, tok);
         break;
-    case SSA_TOKEN_ASSIGN:
-        cc_as386_gen_assign(ctx, &tok->data.unop.left, &tok->data.unop.right);
-        break;
     case SSA_TOKEN_STORE_FROM:
         cc_as386_gen_store_from(
             ctx, &tok->data.unop.left, &tok->data.unop.right);
+        break;
+    case SSA_TOKEN_ASSIGN:
+        cc_as386_gen_assign(ctx, tok->data.load.left_tmpid,
+            &tok->data.load.right, tok->data.load.size);
         break;
     case SSA_TOKEN_LOAD_FROM:
         cc_as386_gen_load_from(ctx, tok->data.load.left_tmpid,
@@ -679,13 +674,6 @@ static void cc_as386_colstring_param(cc_context* ctx, const cc_ssa_param* param)
     if (param->type == SSA_PARAM_STRING_LITERAL)
         fprintf(ctx->out, "__ms_%u:\n\t.ascii \"%s\\0\"\n",
             param->data.string.tmpid, cc_strview(param->data.string.literal));
-}
-/* Helper function for cc_as386_colstring_func */
-static void cc_as386_colstring_call(cc_context* ctx, const cc_ssa_token* tok)
-{
-    size_t i;
-    for (i = 0; i < tok->data.call.n_params; i++)
-        cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
 }
 /* Helper function for cc_as386_colstring_func */
 static void cc_as386_colstring_alloca(cc_context* ctx, const cc_ssa_token* tok)
@@ -791,11 +779,13 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     for (i = 0; i < func->n_tokens; i++) {
         const cc_ssa_token* tok = &func->tokens[i];
         switch (tok->type) {
-        case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_LOAD_FROM:
         case SSA_TOKEN_STORE_FROM:
             cc_as386_colstring_param(ctx, &tok->data.unop.left);
             cc_as386_colstring_param(ctx, &tok->data.unop.right);
+            break;
+        case SSA_TOKEN_ASSIGN:
+        case SSA_TOKEN_LOAD_FROM:
+            cc_as386_colstring_param(ctx, &tok->data.load.right);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
@@ -815,9 +805,11 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
             cc_as386_colstring_param(ctx, &tok->data.binop.right);
             cc_as386_colstring_param(ctx, &tok->data.binop.extra);
             break;
-        case SSA_TOKEN_CALL:
-            cc_as386_colstring_call(ctx, tok);
-            break;
+        case SSA_TOKEN_CALL: {
+            size_t i;
+            for (i = 0; i < tok->data.call.n_params; i++)
+                cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
+        } break;
         case SSA_TOKEN_ALLOCA:
             cc_as386_colstring_alloca(ctx, tok);
             break;
