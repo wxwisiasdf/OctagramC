@@ -471,6 +471,9 @@ bool cc_ceval_deduce_type_1(
                 ctx, node->data.if_expr.tail_else, type, as_func);
         else
             cc_abort(__FILE__, __LINE__);
+        break;
+    case AST_NODE_MIRROR:
+        return cc_ceval_deduce_type_1(ctx, node->data.mirror_expr, type, as_func);
     default:
         cc_abort(__FILE__, __LINE__);
     }
@@ -547,6 +550,8 @@ bool cc_ceval_is_const(cc_context* ctx, const cc_ast_node* node)
         return cc_ceval_var_is_const(ctx, var)
             && cc_ceval_is_const(ctx, node->data.field_access.left);
     }
+    case AST_NODE_MIRROR:
+        return cc_ceval_is_const(ctx, node->data.mirror_expr);
     default:
         cc_abort(__FILE__, __LINE__);
     }

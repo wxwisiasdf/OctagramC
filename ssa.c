@@ -984,6 +984,9 @@ static void cc_ssa_from_ast(
     case AST_NODE_FIELD_ACCESS:
         cc_ssa_process_field_access(ctx, node, param);
         break;
+    case AST_NODE_MIRROR:
+        cc_ssa_from_ast(ctx, node->data.mirror_expr, param);
+        break;
     default:
         cc_abort(__FILE__, __LINE__);
     }

@@ -181,6 +181,9 @@ void cc_optimizer_expr_condense(
     case AST_NODE_FIELD_ACCESS:
         cc_optimizer_expr_condense(ctx, &node->data.field_access.left, true);
         break;
+    case AST_NODE_MIRROR:
+        cc_optimizer_expr_condense(ctx, &node->data.mirror_expr, true);
+        break;
     case AST_NODE_JUMP:
     case AST_NODE_STRING_LITERAL:
     case AST_NODE_LITERAL:

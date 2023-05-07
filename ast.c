@@ -173,6 +173,15 @@ cc_ast_node* cc_ast_create_jump(
     return node;
 }
 
+cc_ast_node* cc_ast_create_mirror(
+    cc_context* ctx, cc_ast_node* parent, cc_ast_node* target)
+{
+    cc_ast_node* node = cc_ast_create_any(ctx, parent, AST_NODE_MIRROR);
+    node->data.mirror_expr = target;
+    target->ref_count++;
+    return node;
+}
+
 void cc_ast_add_block_node(
     cc_ast_node* restrict block, const cc_ast_node* restrict child)
 {
@@ -415,122 +424,6 @@ cc_ast_type* cc_ast_find_type(cc_string_key name, cc_ast_node* node)
     return cc_ast_find_type(name, node->parent);
 }
 
-static cc_ast_node* cc_ast_create_generic(
-    cc_context* ctx, cc_ast_node* parent, enum cc_ast_node_type type)
-{
-    switch (type) {
-    case AST_NODE_BINOP:
-        return cc_ast_create_binop_expr(ctx, parent, AST_BINOP_NONE);
-    case AST_NODE_BLOCK:
-        return cc_ast_create_block(ctx, parent);
-    case AST_NODE_CALL:
-        return cc_ast_create_call(ctx, parent);
-    case AST_NODE_FIELD_ACCESS: {
-        cc_ast_node* node
-            = cc_ast_create_any(ctx, parent, AST_NODE_FIELD_ACCESS);
-        node->data.field_access.left = cc_ast_create_block(ctx, node);
-        return node;
-    }
-    case AST_NODE_IF:
-        return cc_ast_create_if_expr(ctx, parent);
-    case AST_NODE_JUMP:
-        return cc_ast_create_jump(ctx, parent, NULL);
-    case AST_NODE_LITERAL: {
-        cc_ast_literal l = { 0 };
-        return cc_ast_create_literal(ctx, parent, l);
-    }
-    case AST_NODE_RETURN:
-        return cc_ast_create_ret_expr(ctx, parent);
-    case AST_NODE_STRING_LITERAL:
-        return cc_ast_create_any(ctx, parent, AST_NODE_STRING_LITERAL);
-    case AST_NODE_SWITCH:
-        return cc_ast_create_switch_expr(ctx, parent);
-    case AST_NODE_UNOP:
-        return cc_ast_create_unop_expr(ctx, parent, AST_UNOP_NONE);
-    case AST_NODE_VARIABLE:
-        return cc_ast_create_any(ctx, parent, AST_NODE_VARIABLE);
-    default:
-        break;
-    }
-    return NULL;
-}
-
-void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
-    const cc_ast_node* restrict src)
-{
-    if (dest == NULL || src == NULL)
-        return;
-    assert(dest->type == src->type);
-    dest->parent = src->parent;
-    /* Label-Id is unique to every node regardless of copying */
-    switch (src->type) {
-    case AST_NODE_VARIABLE:
-        dest->data.var.name = src->data.var.name;
-        break;
-    case AST_NODE_LITERAL:
-        dest->data.literal = src->data.literal;
-        break;
-    case AST_NODE_STRING_LITERAL:
-        dest->data.string_literal = src->data.string_literal;
-        break;
-    case AST_NODE_BINOP:
-        dest->data.binop.op = src->data.binop.op;
-        cc_ast_copy_node(ctx, dest->data.binop.left, src->data.binop.left);
-        cc_ast_copy_node(ctx, dest->data.binop.right, src->data.binop.right);
-        break;
-    case AST_NODE_UNOP:
-        dest->data.unop.op = src->data.unop.op;
-        cc_ast_copy_node(ctx, dest->data.unop.child, src->data.unop.child);
-        break;
-    case AST_NODE_CALL: {
-        size_t i;
-        cc_ast_copy_node(
-            ctx, dest->data.call.call_expr, src->data.call.call_expr);
-        dest->data.call.n_params = src->data.call.n_params;
-        dest->data.call.params = cc_realloc_array(
-            dest->data.call.params, dest->data.call.n_params);
-        /* Clear all of the params's data */
-        memset(dest->data.call.params, 0,
-            sizeof(cc_ast_node) * src->data.call.n_params);
-        for (i = 0; i < src->data.call.n_params; i++) {
-            cc_ast_node* expr_node = cc_ast_create_generic(
-                ctx, dest, src->data.call.params[i].type);
-            dest->data.call.params[i] = *expr_node;
-            cc_free(expr_node);
-            cc_ast_copy_node(
-                ctx, &dest->data.call.params[i], &src->data.call.params[i]);
-        }
-    } break;
-    case AST_NODE_BLOCK: {
-        size_t i;
-        assert(src->data.block.n_vars == 0);
-        assert(src->data.block.n_types == 0);
-        assert(dest->data.block.n_children == 0); /* Can't handle child */
-        dest->data.block.n_children = src->data.block.n_children;
-        dest->data.block.children = cc_realloc_array(
-            dest->data.block.children, dest->data.block.n_children);
-        /* Clear all of the children's data */
-        memset(dest->data.block.children, 0,
-            sizeof(cc_ast_node) * src->data.block.n_children);
-        for (i = 0; i < src->data.block.n_children; i++) {
-            cc_ast_node* expr_node = cc_ast_create_generic(
-                ctx, dest, src->data.block.children[i].type);
-            dest->data.block.children[i] = *expr_node;
-            cc_free(expr_node);
-            cc_ast_copy_node(ctx, &dest->data.block.children[i],
-                &src->data.block.children[i]);
-        }
-    } break;
-    case AST_NODE_FIELD_ACCESS:
-        cc_ast_copy_node(
-            ctx, dest->data.field_access.left, src->data.field_access.left);
-        dest->data.field_access.field_name = src->data.field_access.field_name;
-        break;
-    default:
-        cc_abort(__FILE__, __LINE__);
-    }
-}
-
 void cc_ast_copy_type(
     cc_ast_type* restrict dest, const cc_ast_type* restrict src)
 {
@@ -771,6 +664,7 @@ void cc_ast_node_iter(cc_context* ctx, cc_ast_node* node,
     case AST_NODE_LITERAL:
     case AST_NODE_STRING_LITERAL:
     case AST_NODE_VARIABLE:
+    case AST_NODE_MIRROR:
         break;
     default:
         break;
@@ -1027,6 +921,11 @@ void cc_ast_print(const cc_ast_node* node)
         printf("<field-access{");
         cc_ast_print(node->data.field_access.left);
         printf("}{%s}>", cc_strview(node->data.field_access.field_name));
+        break;
+    case AST_NODE_MIRROR:
+        printf("<mirror");
+        cc_ast_print(node->data.mirror_expr);
+        printf(">");
         break;
     default:
         printf("<?{%i}>", node->type);

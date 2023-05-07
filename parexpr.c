@@ -279,11 +279,17 @@ bool cc_parse_assignment_expression(
         /* Expand assignment <lhs> += <rhs> into <lhs> = <lhs> + <rhs> */
         assert(binop_type != AST_BINOP_NONE);
         if (binop_type != AST_BINOP_ASSIGN) {
+            /* Create the binop that will go on the right side of the expr */
             cc_ast_node* binop_node = cc_ast_create_binop_expr(
                 ctx, assign_node->data.binop.right, binop_type);
-            assign_node->data.binop.op = AST_BINOP_ASSIGN;
-            cc_ast_copy_node(
+            /* And the mirror node, for evaluating as proper! */
+            cc_ast_node* mirror_node = cc_ast_create_mirror(
                 ctx, binop_node->data.binop.left, assign_node->data.binop.left);
+            
+            /* "Mirror" the assignment expression */
+            cc_ast_add_block_node(binop_node->data.binop.left, mirror_node);
+
+            assign_node->data.binop.op = AST_BINOP_ASSIGN;
             cc_parse_assignment_expression(
                 ctx, binop_node->data.binop.right, NULL);
             cc_ast_add_block_node(assign_node->data.binop.right, binop_node);
@@ -413,15 +419,12 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
     if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_array) {
         if (virtual_type.cv_qual[virtual_type.n_cv_qual].is_vla) {
             /* VLA type uses a node that needs to be computed at runtime! */
-            cc_ast_node* expr_node;
-            const cc_ast_node* array_size_expr
+            cc_ast_node* array_size_expr
                 = virtual_type.cv_qual[virtual_type.n_cv_qual].array.size_expr;
-            assert(array_size_expr != NULL);
-            /* TODO: We should have a "create block by type" function
-            so we don't crash when we do not receive a block node! */
-            expr_node = cc_ast_create_block(ctx, node);
-            cc_ast_copy_node(ctx, expr_node, array_size_expr);
-            expr_node->parent = node;
+            /* Create a mirror node that reflects this expression (without
+               the overhead of copying it over and over) */
+            cc_ast_node* expr_node
+                = cc_ast_create_mirror(ctx, node, array_size_expr);
             cc_ast_add_block_node(node, expr_node);
         } else {
             /* Non-VLA array uses constant size literal node */

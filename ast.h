@@ -147,7 +147,8 @@ enum cc_ast_node_type {
     AST_NODE_STRING_LITERAL,
     AST_NODE_SWITCH,
     AST_NODE_REGISTER,
-    AST_NODE_FIELD_ACCESS
+    AST_NODE_FIELD_ACCESS,
+    AST_NODE_MIRROR
 };
 
 enum cc_ast_binop_type {
@@ -254,6 +255,7 @@ typedef struct cc_ast_node {
             cc_string_key field_name;
         } field_access;
         struct cc_ast_node* return_expr; /* Return value */
+        struct cc_ast_node* mirror_expr; /* Mirrored expression */
     } data;
 } cc_ast_node;
 
@@ -281,6 +283,8 @@ cc_ast_node* cc_ast_create_literal(
     cc_context* ctx, cc_ast_node* parent, cc_ast_literal literal);
 cc_ast_node* cc_ast_create_jump(
     cc_context* ctx, cc_ast_node* parent, cc_ast_node* target);
+cc_ast_node* cc_ast_create_mirror(
+    cc_context* ctx, cc_ast_node* parent, cc_ast_node* target);
 void cc_ast_add_block_node(
     cc_ast_node* restrict block, const cc_ast_node* restrict child);
 void cc_ast_add_block_type(cc_ast_node* block, const cc_ast_type* type);
@@ -296,8 +300,6 @@ cc_ast_variable* cc_ast_find_variable(
     cc_string_key fn_name, cc_string_key name, const cc_ast_node* node);
 cc_ast_node* cc_ast_find_label(cc_string_key name, const cc_ast_node* node);
 cc_ast_type* cc_ast_find_type(cc_string_key name, cc_ast_node* node);
-void cc_ast_copy_node(cc_context* ctx, cc_ast_node* restrict dest,
-    const cc_ast_node* restrict src);
 void cc_ast_copy_type(
     cc_ast_type* restrict dest, const cc_ast_type* restrict src);
 void cc_ast_add_type_member(
