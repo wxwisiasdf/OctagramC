@@ -72,7 +72,7 @@ static void cc_optimizer_expr_condense_binop(
 
     if (node->ref_count) /* Do not remove nodes that are jumped into */
         return;
-    
+
     /* No-op means we coalesce */
     if (node->data.binop.left != NULL && node->data.binop.right == NULL) {
         cc_ast_node new_node = *node->data.binop.left;
@@ -124,8 +124,7 @@ static void cc_optimizer_expr_condense_block(
         }
         /* Condense expressions for possible VLAs */
         for (j = 0; j < var->type.n_cv_qual; ++j)
-            if (var->type.cv_qual[j].is_array
-                && var->type.cv_qual[j].is_vla)
+            if (var->type.cv_qual[j].is_array && var->type.cv_qual[j].is_vla)
                 cc_optimizer_expr_condense(
                     ctx, &var->type.cv_qual[j].array.size_expr, true);
     }

@@ -117,7 +117,8 @@ void cc_diag_increment_linenum(cc_context* ctx)
         ctx->diag_infos[ctx->n_diag_infos - 1].line++;
 }
 
-static void cc_diag_cutoff(cc_context* ctx, size_t offset) {
+static void cc_diag_cutoff(cc_context* ctx, size_t offset)
+{
     size_t i;
     assert(offset < ctx->n_diag_infos);
     /* Cutoff includes after returning to this one */

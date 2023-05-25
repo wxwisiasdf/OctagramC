@@ -432,19 +432,19 @@ static void cc_ssa_process_binop(
 #define HANDLE_POINTER_ARITH()                                                 \
     do {                                                                       \
         cc_ast_literal sizeof_lit;                                             \
-        cc_ssa_param tmplit_parm;                                                \
+        cc_ssa_param tmplit_parm;                                              \
         sizeof_lit.is_float = false;                                           \
         sizeof_lit.is_signed = false;                                          \
         sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize;                \
-        tmplit_parm = cc_ssa_literal_to_param(&sizeof_lit);                      \
+        tmplit_parm = cc_ssa_literal_to_param(&sizeof_lit);                    \
         parith_param                                                           \
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);    \
         /* Assignment is an unop here */                                       \
         tok.type = SSA_TOKEN_MUL;                                              \
-        tok.data.binop.left_tmpid = parith_param.data.tmpid; \
-        tok.data.binop.size = parith_param.size; \
+        tok.data.binop.left_tmpid = parith_param.data.tmpid;                   \
+        tok.data.binop.size = parith_param.size;                               \
         tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
-        tok.data.binop.extra = tmplit_parm;                                      \
+        tok.data.binop.extra = tmplit_parm;                                    \
         cc_diag_copy(&tok.info, &node->info);                                  \
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
         memset(&tok, 0, sizeof(tok));                                          \
@@ -610,8 +610,7 @@ static void cc_ssa_process_block_2(cc_context* ctx, const cc_ast_node* node,
                 break;
             assert(var->type.cv_qual[i].is_vla == false);
             assert(var->type.cv_qual[i].array.size > 0);
-            literal.value.u
-                *= (unsigned int)var->type.cv_qual[i].array.size;
+            literal.value.u *= (unsigned int)var->type.cv_qual[i].array.size;
         }
 
         tok.type = SSA_TOKEN_ALLOCA;
@@ -1014,7 +1013,7 @@ static void cc_ssa_process_variable(
     cc_ssa_token tok = { 0 };
     const cc_ast_variable* var = cc_ast_find_variable(
         ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
-    
+
     assert(param.type == SSA_PARAM_TMPVAR);
     tok.type = SSA_TOKEN_ASSIGN;
     tok.data.load.val_tmpid = param.data.tmpid;
@@ -1254,11 +1253,11 @@ static void cc_ssa_tmpassign_func(
         unsigned short tmpid = cc_ssa_get_lhs_tmpid(vtok);
         if (tmpid == 0)
             continue;
-        
+
         if ((visited[tmpid / CHAR_BIT]) & (1 << (tmpid % CHAR_BIT)))
             continue;
         visited[tmpid / CHAR_BIT] |= 1 << (tmpid % CHAR_BIT);
-        
+
         switch (vtok->type) {
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
@@ -1406,8 +1405,8 @@ static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
             if (cc_ssa_is_param_same(
                     &ld_tok->data.load.addr, &tok->data.load.addr)) {
                 /* Coalesce temporal loads into a single temporal if possible... */
-                cc_ssa_tmpasign_func_1(visited, func, tok->data.load.val_tmpid,
-                    &tmp_param, i + 1);
+                cc_ssa_tmpasign_func_1(
+                    visited, func, tok->data.load.val_tmpid, &tmp_param, i + 1);
 
                 /* Remove this block (it's redundant since the temporal was removed) */
                 memmove(&func->tokens[i], &func->tokens[i + 1],
@@ -1465,8 +1464,7 @@ static void cc_ssa_labmerge_func_1(
             break;
         case SSA_TOKEN_ASSIGN:
         case SSA_TOKEN_LOAD_FROM:
-            cc_ssa_labmerge_param(
-                &tok->data.load.addr, label_id, new_label_id);
+            cc_ssa_labmerge_param(&tok->data.load.addr, label_id, new_label_id);
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
