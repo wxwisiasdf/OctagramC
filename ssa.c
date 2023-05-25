@@ -194,7 +194,7 @@ static void cc_ssa_print_func(const cc_ssa_func* func)
     printf("}\n");
 }
 
-static void cc_ssa_print(cc_context* ctx)
+static void cc_ssa_print(const cc_context* ctx)
 {
     size_t i;
     for (i = 0; i < ctx->n_ssa_funcs; i++)
@@ -472,8 +472,17 @@ static void cc_ssa_process_binop(
         tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     } else {
     non_pointer:
-        cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
-        cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+        if(node->data.binop.op == AST_BINOP_ASSIGN) {
+            bool old_v = ctx->assign_lhs;
+            ctx->assign_lhs = true;
+            cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+            ctx->assign_lhs = false;
+            cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+            ctx->assign_lhs = old_v;
+        } else {
+            cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
+            cc_ssa_from_ast(ctx, node->data.binop.right, rhs_param);
+        }
 
         switch (node->data.binop.op) {
         case AST_BINOP_ADD:
@@ -1014,13 +1023,24 @@ static void cc_ssa_process_variable(
     const cc_ast_variable* var = cc_ast_find_variable(
         ctx->ssa_current_func->ast_var->name, node->data.var.name, node);
 
+    assert(var != NULL);
     assert(param.type == SSA_PARAM_TMPVAR);
-    tok.type = SSA_TOKEN_ASSIGN;
-    tok.data.load.val_tmpid = param.data.tmpid;
-    tok.data.load.size = param.size;
-    tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
-    cc_diag_copy(&tok.info, &node->info);
-    cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    
+    if(var->type.cv_qual[var->type.n_cv_qual].is_array) {
+        tok.type = SSA_TOKEN_ASSIGN;
+        tok.data.load.val_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
+        tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } else {
+        tok.type = SSA_TOKEN_LOAD_FROM;
+        tok.data.load.val_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
+        tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    }
 }
 
 static void cc_ssa_process_label(cc_context* ctx, const cc_ast_node* node)
@@ -1260,7 +1280,6 @@ static void cc_ssa_tmpassign_func(
 
         switch (vtok->type) {
         case SSA_TOKEN_ASSIGN:
-        case SSA_TOKEN_LOAD_FROM:
             cc_ssa_tmpasign_func_1(
                 visited, func, tmpid, &vtok->data.load.addr, i + 1);
 
@@ -1270,6 +1289,8 @@ static void cc_ssa_tmpassign_func(
                 sizeof(cc_ssa_token) * (func->n_tokens - i - 1));
             func->n_tokens--;
             i--;
+            break;
+        case SSA_TOKEN_LOAD_FROM:
             break;
         case SSA_TOKEN_ADD:
         case SSA_TOKEN_SUB:
@@ -1719,18 +1740,52 @@ static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
        only remove temporals. */
     memset(visited, 0, visited_len);
     cc_ssa_tmpassign_func(visited, func);
+    if (ctx->print_ssa) {
+        printf("=>tmpassign\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_remove_assign_func(func);
+    if (ctx->print_ssa) {
+        printf("=>remove_assign\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_remove_loadstore_func(visited, visited_len, func);
+    if (ctx->print_ssa) {
+        printf("=>remove_loadstore\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_tmpassign_func(visited, func);
+    if (ctx->print_ssa) {
+        printf("=>tmpassign\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_remove_assign_func(func);
+    if (ctx->print_ssa) {
+        printf("=>remove_assign\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_labmerge_func(func);
+    if (ctx->print_ssa) {
+        printf("=>labmerge\n");
+        cc_ssa_print_func(func);
+    }
+
     memset(visited, 0, visited_len);
     cc_ssa_livetmp_func(visited, func);
+    if (ctx->print_ssa) {
+        printf("=>livetmp\n");
+        cc_ssa_print_func(func);
+    }
 
     cc_free(visited);
 }
@@ -1759,6 +1814,8 @@ void cc_ssa_top(cc_context* ctx)
     static cc_ssa_func static_ctor_func = { 0 };
     static cc_ast_variable static_ctor_var = { 0 };
     cc_ssa_param none_param = { 0 };
+
+    ctx->assign_lhs = false; /* Start at right-hand-side */
 
     static_ctor_var = cc_ssa_create_func_var("_occ_ctor");
     static_ctor_func.ast_var = &static_ctor_var;

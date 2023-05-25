@@ -75,6 +75,7 @@ typedef struct cc_context {
     struct cc_ssa_func* static_dtor_func;
     bool print_ssa;
     bool mirror_mode;
+    bool assign_lhs;
     unsigned short ssa_tmpid; /* Unique temporal id assigners */
 
     bool
