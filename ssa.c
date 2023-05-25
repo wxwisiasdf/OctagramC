@@ -1027,10 +1027,15 @@ static void cc_ssa_process_variable(
     assert(param.type == SSA_PARAM_TMPVAR);
     
     if(var->type.cv_qual[var->type.n_cv_qual].is_array) {
+        /* Same variable, with an extra indirection so we obtain a pointer
+           to this variable instead of the entire array. */
+        cc_ast_variable tmp_var = *var;
+        ++tmp_var.type.n_cv_qual;
+
         tok.type = SSA_TOKEN_ASSIGN;
         tok.data.load.val_tmpid = param.data.tmpid;
         tok.data.load.size = param.size;
-        tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
+        tok.data.load.addr = cc_ssa_variable_to_param(ctx, &tmp_var);
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } else {
