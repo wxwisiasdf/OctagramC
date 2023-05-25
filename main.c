@@ -104,7 +104,7 @@ int main(int argc, char** argv)
 
             if (ctx.fp != NULL)
                 fclose(ctx.fp);
-            ctx.fp = fopen(input_filename, "rt");
+            ctx.fp = fopen(input_filename, "r");
             if (ctx.fp == NULL) {
                 cc_diag_error(&ctx, "Unable to open file %s", input_filename);
                 return -1;

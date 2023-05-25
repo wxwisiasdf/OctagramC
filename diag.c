@@ -27,7 +27,7 @@ static void cc_diag_print_diag(
         cc_strview(info.filename), info.line);
     vfprintf(stderr, fmt, args);
 
-    fp = fopen(cc_strview(info.filename), "rt");
+    fp = fopen(cc_strview(info.filename), "r");
     if (fp != NULL) {
         char tmpbuf[80];
         unsigned short line = 0;
