@@ -432,11 +432,11 @@ static void cc_ssa_process_binop(
 #define HANDLE_POINTER_ARITH()                                                 \
     do {                                                                       \
         cc_ast_literal sizeof_lit;                                             \
-        cc_ssa_param tmp_param;                                                \
+        cc_ssa_param tmplit_parm;                                                \
         sizeof_lit.is_float = false;                                           \
         sizeof_lit.is_signed = false;                                          \
         sizeof_lit.value.u = lhs_psize ? lhs_psize : rhs_psize;                \
-        tmp_param = cc_ssa_literal_to_param(&sizeof_lit);                      \
+        tmplit_parm = cc_ssa_literal_to_param(&sizeof_lit);                      \
         parith_param                                                           \
             = cc_ssa_tempvar_param(ctx, lhs_psize ? &lhs_type : &rhs_type);    \
         /* Assignment is an unop here */                                       \
@@ -444,7 +444,7 @@ static void cc_ssa_process_binop(
         tok.data.binop.left_tmpid = parith_param.data.tmpid; \
         tok.data.binop.size = parith_param.size; \
         tok.data.binop.right = lhs_psize ? rhs_param : lhs_param;              \
-        tok.data.binop.extra = tmp_param;                                      \
+        tok.data.binop.extra = tmplit_parm;                                      \
         cc_diag_copy(&tok.info, &node->info);                                  \
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);                    \
         memset(&tok, 0, sizeof(tok));                                          \
@@ -625,8 +625,6 @@ static void cc_ssa_process_block_2(cc_context* ctx, const cc_ast_node* node,
 static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
     cc_ssa_param param, const cc_ast_variable* var)
 {
-    cc_ssa_token tok = { 0 };
-
     /* typedefs are a c-construct language that is irrelevant for codegen */
     if ((var->storage & AST_STORAGE_TYPEDEF) != 0)
         return;
@@ -976,7 +974,6 @@ static void cc_ssa_process_unop(
 static void cc_ssa_process_field_access(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
-    cc_ssa_token tok = { 0 };
     cc_ast_type left_type = { 0 };
     cc_ssa_param left_param = { 0 };
     cc_ast_variable* field_var;
@@ -1150,12 +1147,12 @@ static void cc_ssa_tmpasign_func_1(char* restrict visited,
             cc_ssa_tmpassign_param(&tok->data.binop.extra, tmpid, new_colour);
             break;
         case SSA_TOKEN_CALL: {
-            size_t i;
+            size_t j;
             cc_ssa_tmpassign_param(&tok->data.call.left, tmpid, new_colour);
             cc_ssa_tmpassign_param(&tok->data.call.right, tmpid, new_colour);
-            for (i = 0; i < tok->data.call.n_params; i++)
+            for (j = 0; j < tok->data.call.n_params; ++j)
                 cc_ssa_tmpassign_param(
-                    &tok->data.call.params[i], tmpid, new_colour);
+                    &tok->data.call.params[j], tmpid, new_colour);
         } break;
         case SSA_TOKEN_ALLOCA:
             cc_ssa_tmpassign_param(&tok->data.alloca.left, tmpid, new_colour);
@@ -1399,7 +1396,6 @@ static void cc_ssa_remove_loadstore_func_1(char* restrict visited,
     tmp_param.data.tmpid = ld_tok->data.load.val_tmpid;
     for (i = offset; i < func->n_tokens; i++) {
         cc_ssa_token* tok = &func->tokens[i];
-        bool erase = false;
         switch (tok->type) {
         case SSA_TOKEN_STORE_FROM:
             if (cc_ssa_is_param_same(
@@ -1495,13 +1491,13 @@ static void cc_ssa_labmerge_func_1(
                 &tok->data.binop.extra, label_id, new_label_id);
             break;
         case SSA_TOKEN_CALL: {
-            size_t i;
+            size_t j;
             cc_ssa_labmerge_param(&tok->data.call.left, label_id, new_label_id);
             cc_ssa_labmerge_param(
                 &tok->data.call.right, label_id, new_label_id);
-            for (i = 0; i < tok->data.call.n_params; i++)
+            for (j = 0; j < tok->data.call.n_params; ++j)
                 cc_ssa_labmerge_param(
-                    &tok->data.call.params[i], label_id, new_label_id);
+                    &tok->data.call.params[j], label_id, new_label_id);
         } break;
         case SSA_TOKEN_ALLOCA:
             cc_ssa_labmerge_param(

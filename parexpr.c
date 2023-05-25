@@ -88,7 +88,6 @@ error_handle:
 
 static bool cc_parse_cast_expression(cc_context* ctx, cc_ast_node* node)
 {
-    const cc_lexer_token* ctok;
     if (cc_parse_unary_expression(ctx, node))
         return true;
     else
@@ -258,7 +257,6 @@ static bool cc_parse_assignment_operator(
 bool cc_parse_assignment_expression(
     cc_context* ctx, cc_ast_node* node, cc_ast_variable* var)
 {
-    const cc_lexer_token* ctok;
     enum cc_ast_binop_type binop_type;
     cc_ast_node* lhs_paren_node = NULL;
     cc_ast_node* assign_node = cc_ast_create_binop_expr(
@@ -446,7 +444,6 @@ static bool cc_parse_unary_sizeof_or_alignof(cc_context* ctx, cc_ast_node* node)
         unsigned int r = do_alignof ? ctx->get_alignof(ctx, &virtual_type)
                                     : ctx->get_sizeof(ctx, &virtual_type);
         cc_ast_literal tmp_literal = { 0 };
-        cc_ast_node* literal_node;
         tmp_literal.is_float = tmp_literal.is_signed = false;
         tmp_literal.value.u = r;
         cc_ast_add_block_node(

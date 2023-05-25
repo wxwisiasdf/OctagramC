@@ -900,9 +900,9 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
             cc_as386_colstring_param(ctx, &tok->data.binop.extra);
             break;
         case SSA_TOKEN_CALL: {
-            size_t i;
-            for (i = 0; i < tok->data.call.n_params; i++)
-                cc_as386_colstring_param(ctx, &tok->data.call.params[i]);
+            size_t j;
+            for (j = 0; j < tok->data.call.n_params; ++j)
+                cc_as386_colstring_param(ctx, &tok->data.call.params[j]);
         } break;
         case SSA_TOKEN_ALLOCA:
             cc_as386_colstring_alloca(ctx, tok);

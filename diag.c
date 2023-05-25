@@ -117,22 +117,26 @@ void cc_diag_increment_linenum(cc_context* ctx)
         ctx->diag_infos[ctx->n_diag_infos - 1].line++;
 }
 
+static void cc_diag_cutoff(cc_context* ctx, size_t offset) {
+    size_t i;
+    assert(offset < ctx->n_diag_infos);
+    /* Cutoff includes after returning to this one */
+    for (i = offset; i < ctx->n_diag_infos; ++i) {
+        cc_diag_info* info = &ctx->diag_infos[i];
+        cc_strfree(info->filename);
+    }
+}
+
 void cc_diag_return_to_file(cc_context* ctx, cc_diag_info new_info)
 {
     size_t i;
     for (i = 0; i < ctx->n_diag_infos; i++) {
         cc_diag_info* info = &ctx->diag_infos[i];
         if (info->filename == new_info.filename) {
-            size_t j;
-
             info->line = new_info.line;
             cc_strfree(new_info.filename); /* Discard new_info's filename */
-            i++;
-            /* Cutoff includes after returning to this one */
-            for (j = i; j < ctx->n_diag_infos; j++) {
-                cc_diag_info* info = &ctx->diag_infos[j];
-                cc_strfree(info->filename);
-            }
+            ++i;
+            cc_diag_cutoff(ctx, i);
             ctx->n_diag_infos = i;
             return;
         }

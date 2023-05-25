@@ -848,7 +848,6 @@ static bool cc_parse_declarator_assignment_expression(
     } else if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
         && ctok->type == LEXER_TOKEN_ASSIGN) {
         while (cc_parse_assignment_expression(ctx, node, var)) {
-            const cc_lexer_token* ctok;
             if ((ctok = cc_lex_token_peek(ctx, 0)) != NULL
                 && ctok->type == LEXER_TOKEN_COMMA) {
                 cc_lex_token_consume(ctx);

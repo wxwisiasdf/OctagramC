@@ -579,7 +579,6 @@ static bool cc_parse_translation_unit(cc_context* ctx, cc_ast_node* node)
 
 int cc_parse_top(cc_context* ctx)
 {
-    const cc_lexer_token* ctok;
     ctx->root = cc_ast_create_block(ctx, NULL); /* Block holding everything */
     ctx->stage = STAGE_PARSER;
     cc_parse_translation_unit(ctx, ctx->root);

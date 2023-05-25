@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char **argv) {
     FILE *fp = fopen(argv[1], "r");
@@ -13,18 +14,20 @@ int main(int argc, char **argv) {
                 size_t l_len = strlen(linebuf);
                 size_t c_len = strlen(cmd);
                 FILE *t_fp = fopen(linebuf, "r");
-
                 memcpy(p, cmd, c_len);
                 p[c_len] = '\0';
                 p += c_len;
                 memcpy(p, linebuf, l_len);
                 p[l_len] = '\0';
                 p += l_len;
-
+                printf("%s\n", cmdbuf);
+                system(cmdbuf);
                 fclose(t_fp);
             }
         }
         fclose(fp);
+    } else {
+        fprintf(stderr, "?\n");
     }
     return 0;
 }

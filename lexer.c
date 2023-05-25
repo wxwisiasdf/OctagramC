@@ -317,9 +317,7 @@ static void cc_lex_line(cc_context* ctx, const char* line)
         } else if (tok.type == LEXER_TOKEN_NONE) {
             /* Special handling for the idents, literals, etc */
             if (isdigit(*ctx->cptr)) { /* Numbers */
-                const char* s;
             handle_literal:
-                s = ctx->cptr;
                 ctx->cptr = cc_lex_literal(ctx, &tok, ctx->cptr);
                 tok.type = LEXER_TOKEN_NUMBER;
             } else if (ISSTARTIDENT(*ctx->cptr)) { /* Identifiers */

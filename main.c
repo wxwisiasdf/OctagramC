@@ -151,11 +151,11 @@ int main(int argc, char** argv)
                 ctx.stage = STAGE_SSA;
                 cc_ssa_top(&ctx);
                 if (!ctx.error_cnt) {
-                    size_t i;
+                    size_t j;
                     ctx.stage = STAGE_CODEGEN;
                     /* First, process functions */
-                    for (i = 0; i < ctx.n_ssa_funcs; ++i)
-                        ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[i]);
+                    for (j = 0; j < ctx.n_ssa_funcs; ++j)
+                        ctx.process_ssa_func(&ctx, &ctx.ssa_funcs[j]);
                 }
                 cc_ast_destroy_node(ctx.root, true);
             }
