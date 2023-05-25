@@ -50,7 +50,7 @@ static void cc_ssa_print_token_unop(const cc_ssa_token* tok, const char* name)
 
 static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
 {
-    printf("x%u tmp_%u = ", tok->data.binop.size, tok->data.binop.left_tmpid);
+    printf("x%u tmp_%u = ", tok->data.binop.size * 8, tok->data.binop.left_tmpid);
     cc_ssa_print_param(&tok->data.binop.right);
     printf(" %s ", name);
     cc_ssa_print_param(&tok->data.binop.extra);
@@ -293,6 +293,13 @@ cc_ssa_param cc_ssa_tempvar_param_1(
 cc_ssa_param cc_ssa_tempvar_param(
     cc_context* ctx, const struct cc_ast_type* base_type)
 {
+    /* Kludge for arrays to work properly... */
+    if(base_type->cv_qual[base_type->n_cv_qual].is_array) {
+        cc_ast_type tmp_type = *base_type;
+        ++tmp_type.n_cv_qual;
+        return cc_ssa_tempvar_param_1(
+            ctx, base_type->data.num.is_signed, ctx->get_sizeof(ctx, &tmp_type));
+    }
     return cc_ssa_tempvar_param_1(
         ctx, base_type->data.num.is_signed, ctx->get_sizeof(ctx, base_type));
 }
@@ -1740,6 +1747,12 @@ static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
     /* Make a bit array for each visited node... */
     size_t visited_len = ((ctx->ssa_tmpid + 1) / CHAR_BIT) + 1;
     char* visited = cc_malloc(visited_len);
+
+    if (ctx->print_ssa) {
+        printf("###############################################\n");
+        printf("=>vanilla\n");
+        cc_ssa_print_func(func);
+    }
 
     /* None of these passes should ever add any new temporals, they shall
        only remove temporals. */
