@@ -1102,7 +1102,7 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
 
        This state is updated accordingly on the type storage
        specifiers. */
-    if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
+    if (!ctx->is_func_body && var->storage == AST_STORAGE_AUTO)
         var->storage = AST_STORAGE_GLOBAL;
 
     if (!decl_result)
@@ -1117,12 +1117,13 @@ comma_list_initializers: /* Jump here, reusing the variable's stack
         cc_ast_copy_type(&stype, &var->type);
         /* Assign global storage to the variable if it is not inside a
            function body. */
-        if (!ctx->is_func_body && var->storage == AST_STORAGE_NONE)
+        if (!ctx->is_func_body && var->storage == AST_STORAGE_AUTO)
             var->storage = AST_STORAGE_GLOBAL;
         cc_ast_add_or_replace_block_variable(node, var);
         memset(var, 0, sizeof(*var));
         cc_ast_copy_type(&var->type, &stype);
         cc_ast_destroy_type(&stype, false);
+        var->storage = AST_STORAGE_AUTO;
         goto comma_list_initializers;
     }
     return true;

@@ -446,6 +446,7 @@ static bool cc_parse_compund_statment(cc_context* ctx, cc_ast_node* node)
                 return cc_parse_compund_statment(ctx, node);
             } else {
                 cc_ast_variable nvar = { 0 };
+                nvar.storage = AST_STORAGE_AUTO;
                 if (!cc_parse_declarator_list(ctx, node, &nvar))
                     goto error_handle;
                 cc_ast_add_or_replace_block_variable(node, &nvar);
@@ -512,6 +513,8 @@ static bool cc_parse_external_declaration(cc_context* ctx, cc_ast_node* node)
                     cc_strview(var.name));
                 var.storage &= ~AST_STORAGE_EXTERN;
                 var.storage |= AST_STORAGE_GLOBAL;
+            } else {
+                var.storage = AST_STORAGE_AUTO;
             }
 
             cc_lex_token_consume(ctx);
