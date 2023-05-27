@@ -692,6 +692,42 @@ end:
     cc_as386_regfree_tmpid(ctx, tmp[0].data.tmpid);
 }
 
+static void cc_as386_gen_return(cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
+{
+    cc_ssa_param* param = &tok->data.retval;
+    const char **param_reg_names = cc_as386_get_regset_by_size(param->size);
+
+    switch (param->type) {
+    case SSA_PARAM_CONSTANT:
+        if (param->data.constant.is_float) {
+            cc_abort(__FILE__, __LINE__);
+        } else {
+            fprintf(ctx->out, "\tmov%s\t$%s%lu,%%eax\n",
+                cc_as386_get_suffix_by_size(param->size),
+                param->data.constant.is_negative ? "-" : "",
+                param->data.constant.value.u);
+        }
+        break;
+    case SSA_PARAM_VARIABLE:
+        fprintf(ctx->out, "\tmov%s\t$_%s,%%eax\n",
+            cc_as386_get_suffix_by_size(param->size), cc_strview(param->data.var_name));
+        break;
+    case SSA_PARAM_TMPVAR:
+        fprintf(ctx->out, "\tmov%s\t%s,%%eax\n",
+            cc_as386_get_suffix_by_size(param->size),
+            param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)]);
+        break;
+    default:
+        cc_abort(__FILE__, __LINE__);
+    }
+
+    if (needs_frame) {
+        fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
+        fprintf(ctx->out, "\tpopl\t%%ebp\n");
+    }
+    fprintf(ctx->out, "\tret\n");
+}
+
 static void cc_as386_process_token(
     cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
 {
@@ -702,11 +738,7 @@ static void cc_as386_process_token(
 
     switch (tok->type) {
     case SSA_TOKEN_RET:
-        if (needs_frame) {
-            fprintf(ctx->out, "\tmovl\t%%ebp,%%esp\n");
-            fprintf(ctx->out, "\tpopl\t%%ebp\n");
-        }
-        fprintf(ctx->out, "\tret\n");
+        cc_as386_gen_return(ctx, tok, needs_frame);
         break;
     case SSA_TOKEN_LABEL:
         fprintf(ctx->out, "L%i:\n", tok->data.label_id);

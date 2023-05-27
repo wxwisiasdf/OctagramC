@@ -759,7 +759,6 @@ static void cc_ssa_process_if(
         cc_ssa_token else_label_tok = { 0 };
 
         /* Both conditionals are present wherein... */
-        /*
         if_label_tok.type = SSA_TOKEN_LABEL;
         if_label_tok.data.label_id = node->data.if_expr.block == NULL
             ? cc_ast_alloc_label_id(ctx)
@@ -771,7 +770,6 @@ static void cc_ssa_process_if(
             ? cc_ast_alloc_label_id(ctx)
             : node->data.if_expr.tail_else->label_id;
         cc_diag_copy(&else_label_tok.info, &node->info);
-        */
 
         /* Tail else is null, we will have to synthetize a label after this if */
         tok.type = SSA_TOKEN_BRANCH;
@@ -783,10 +781,10 @@ static void cc_ssa_process_if(
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
 
-        /*cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);*/
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, if_label_tok);
         cc_ssa_from_ast(ctx, node->data.if_expr.block, param);
 
-        /*cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);*/
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, else_label_tok);
         cc_ssa_from_ast(ctx, node->data.if_expr.tail_else, param);
     }
 }
