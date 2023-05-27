@@ -1045,6 +1045,16 @@ static void cc_ssa_process_variable(
         tok.data.load.addr = cc_ssa_variable_to_param(ctx, &tmp_var);
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+    } else if(!var->type.n_cv_qual && var->type.mode == AST_TYPE_MODE_FUNCTION) {
+        /* var func_name would take the address of the function, and functions are
+           in the compiler's eyes, a label to a section of code, so naturally we're
+           not going to generate a pointer to every function. */
+        tok.type = SSA_TOKEN_ASSIGN;
+        tok.data.load.val_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
+        tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
     } else {
         tok.type = SSA_TOKEN_LOAD_FROM;
         tok.data.load.val_tmpid = param.data.tmpid;
