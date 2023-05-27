@@ -775,9 +775,9 @@ static void cc_ast_print_var(const cc_ast_variable* var, cc_string_key name)
         printf("thread_local,");
 
     if (var->type.mode == AST_TYPE_MODE_FUNCTION) {
-        printf("(return ");
+        /*printf("(return ");
         cc_ast_print_var(var->type.data.func.return_type, NULL);
-        printf(")");
+        printf(")");*/
         printf("{");
         for (i = 0; i < var->type.data.func.n_params; ++i)
             cc_ast_print_var(&var->type.data.func.params[i], 0);
