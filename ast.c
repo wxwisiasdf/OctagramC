@@ -244,6 +244,7 @@ void cc_ast_add_or_replace_block_variable(
     size_t i;
     assert(node->type == AST_NODE_BLOCK);
     assert(var->name);
+    assert(var->storage != AST_STORAGE_NONE);
 
     for (i = 0; i < node->data.block.n_vars; i++) {
         cc_ast_variable* bvar = &node->data.block.vars[i];

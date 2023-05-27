@@ -303,6 +303,7 @@ static bool cc_parse_compund_statment_potential_declarator(
         does NOT work, fallback to the declarator */
     if (!cc_parse_expression(ctx, node)) {
         cc_ast_variable nvar = { 0 };
+        nvar.storage = AST_STORAGE_AUTO;
         if (!cc_parse_declarator_list(ctx, node, &nvar))
             goto error_handle;
         if (!nvar.name) {

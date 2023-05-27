@@ -672,6 +672,19 @@ static void cc_ssa_process_block_1(cc_context* ctx, const cc_ast_node* node,
 
         ctx->ssa_funcs = cc_realloc_array(ctx->ssa_funcs, ctx->n_ssa_funcs + 1);
         ctx->ssa_funcs[ctx->n_ssa_funcs++] = func;
+    } else if(ctx->ssa_current_func != NULL) {
+        enum cc_ssa_storage storage = cc_ssa_ast_storage_to_ssa(var->storage);
+        if((storage & SSA_STORAGE_STACK) != 0) {
+            cc_ssa_token tok = { 0 };
+            cc_ast_literal literal = { 0 };
+            literal.is_float = literal.is_signed = false;
+            literal.value.u = ctx->get_sizeof(ctx, &var->type);
+            tok.type = SSA_TOKEN_ALLOCA;
+            tok.data.alloca.left = cc_ssa_variable_to_param(ctx, var);
+            tok.data.alloca.size = cc_ssa_literal_to_param(&literal);
+            cc_diag_copy(&tok.info, &node->info);
+            cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        }
     }
 }
 
@@ -679,10 +692,8 @@ static void cc_ssa_process_block(
     cc_context* ctx, const cc_ast_node* node, cc_ssa_param param)
 {
     size_t i;
-    for (i = 0; i < node->data.block.n_vars; i++) {
-        const cc_ast_variable* var = &node->data.block.vars[i];
-        cc_ssa_process_block_1(ctx, node, param, var);
-    }
+    for (i = 0; i < node->data.block.n_vars; i++)
+        cc_ssa_process_block_1(ctx, node, param, &node->data.block.vars[i]);
     for (i = 0; i < node->data.block.n_children; i++)
         cc_ssa_from_ast(ctx, &node->data.block.children[i], param);
 }

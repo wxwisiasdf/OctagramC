@@ -329,7 +329,7 @@ static void cc_as386_print_generic_param(
             else
                 fprintf(ctx->out, "$_%s", cc_strview(param->data.var_name));
         } else if (cc_as386_is_stack_var(ctx, param->data.var_name)) {
-            fprintf(ctx->out, "%u(%%esp)",
+            fprintf(ctx->out, "-%u(%%esp)",
                 cc_as386_get_stack_var_offset(ctx, param->data.var_name));
         }
         break;
@@ -962,6 +962,23 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
         actx->stack_offsets[i] = size;
         actx->total_stack_offset += size;
         ++actx->n_stack_slots;
+    }
+    /* Then go over the locals [of fixed size] within the function... */
+    for (i = 0; i < func->n_tokens; ++i) {
+        const cc_ssa_token* tok = &func->tokens[i];
+        if (tok->type == SSA_TOKEN_ALLOCA) {
+            if (tok->data.alloca.left.type == SSA_PARAM_VARIABLE
+                && tok->data.alloca.size.type == SSA_PARAM_CONSTANT
+                && (tok->data.alloca.left.storage & SSA_STORAGE_STACK) != 0) {
+                unsigned int size = tok->data.alloca.size.data.constant.value.u;
+                assert(tok->data.alloca.size.data.constant.is_negative == false
+                    && tok->data.alloca.size.data.constant.is_float == false);
+                actx->stack_vars[i] = tok->data.alloca.left.data.var_name;
+                actx->stack_offsets[i] = size;
+                actx->total_stack_offset += size;
+                ++actx->n_stack_slots;
+            }
+        }
     }
 
     if (needs_frame) {
