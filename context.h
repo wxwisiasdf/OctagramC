@@ -36,6 +36,7 @@ typedef struct cc_context {
     struct cc_ast_type* sizeof_type; /* Type obtained from within sizeof */
     size_t
         alloc_reserve_factor; /* How many pre-reserved bytes for each buffer? */
+    bool sanitize; /* Enable sanitizer? */
 
     /* Lexer */
     struct cc_lexer_token* tokens;
@@ -77,7 +78,6 @@ typedef struct cc_context {
     bool mirror_mode;
     bool assign_lhs;
     unsigned short ssa_tmpid; /* Unique temporal id assigners */
-
     bool
         func_has_return; /* Basic return detection for functions that should return  */
 

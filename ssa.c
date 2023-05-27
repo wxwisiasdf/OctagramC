@@ -50,7 +50,8 @@ static void cc_ssa_print_token_unop(const cc_ssa_token* tok, const char* name)
 
 static void cc_ssa_print_token_binop(const cc_ssa_token* tok, const char* name)
 {
-    printf("x%u tmp_%u = ", tok->data.binop.size * 8, tok->data.binop.left_tmpid);
+    printf(
+        "x%u tmp_%u = ", tok->data.binop.size * 8, tok->data.binop.left_tmpid);
     cc_ssa_print_param(&tok->data.binop.right);
     printf(" %s ", name);
     cc_ssa_print_param(&tok->data.binop.extra);
@@ -294,11 +295,11 @@ cc_ssa_param cc_ssa_tempvar_param(
     cc_context* ctx, const struct cc_ast_type* base_type)
 {
     /* Kludge for arrays to work properly... */
-    if(base_type->cv_qual[base_type->n_cv_qual].is_array) {
+    if (base_type->cv_qual[base_type->n_cv_qual].is_array) {
         cc_ast_type tmp_type = *base_type;
         ++tmp_type.n_cv_qual;
-        return cc_ssa_tempvar_param_1(
-            ctx, base_type->data.num.is_signed, ctx->get_sizeof(ctx, &tmp_type));
+        return cc_ssa_tempvar_param_1(ctx, base_type->data.num.is_signed,
+            ctx->get_sizeof(ctx, &tmp_type));
     }
     return cc_ssa_tempvar_param_1(
         ctx, base_type->data.num.is_signed, ctx->get_sizeof(ctx, base_type));
@@ -479,7 +480,7 @@ static void cc_ssa_process_binop(
         tok.data.binop.extra = rhs_psize == 0 ? rhs_param : parith_param;
     } else {
     non_pointer:
-        if(node->data.binop.op == AST_BINOP_ASSIGN) {
+        if (node->data.binop.op == AST_BINOP_ASSIGN) {
             bool old_v = ctx->assign_lhs;
             ctx->assign_lhs = true;
             cc_ssa_from_ast(ctx, node->data.binop.left, lhs_param);
@@ -516,11 +517,9 @@ static void cc_ssa_process_binop(
             tok.data.unop.right = rhs_param;
             cc_diag_copy(&tok.info, &node->info);
             cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-
             /* Return result of assignment */
             if (param.type != SSA_PARAM_NONE) {
                 assert(param.type == SSA_PARAM_TMPVAR);
-
                 memset(&tok, 0, sizeof(tok));
                 tok.type = SSA_TOKEN_ASSIGN;
                 tok.data.load.val_tmpid = param.data.tmpid;
@@ -1030,8 +1029,18 @@ static void cc_ssa_process_variable(
 
     assert(var != NULL);
     assert(param.type == SSA_PARAM_TMPVAR);
-    
-    if(var->type.cv_qual[var->type.n_cv_qual].is_array) {
+
+    if (ctx->assign_lhs) {
+        tok.type = SSA_TOKEN_ASSIGN;
+        tok.data.load.val_tmpid = param.data.tmpid;
+        tok.data.load.size = param.size;
+        tok.data.load.addr = cc_ssa_variable_to_param(ctx, var);
+        cc_diag_copy(&tok.info, &node->info);
+        cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
+        return;
+    }
+
+    if (var->type.cv_qual[var->type.n_cv_qual].is_array) {
         /* Same variable, with an extra indirection so we obtain a pointer
            to this variable instead of the entire array. */
         cc_ast_variable tmp_var = *var;
@@ -1043,7 +1052,8 @@ static void cc_ssa_process_variable(
         tok.data.load.addr = cc_ssa_variable_to_param(ctx, &tmp_var);
         cc_diag_copy(&tok.info, &node->info);
         cc_ssa_push_token(ctx, ctx->ssa_current_func, tok);
-    } else if(!var->type.n_cv_qual && var->type.mode == AST_TYPE_MODE_FUNCTION) {
+    } else if (!var->type.n_cv_qual
+        && var->type.mode == AST_TYPE_MODE_FUNCTION) {
         /* var func_name would take the address of the function, and functions are
            in the compiler's eyes, a label to a section of code, so naturally we're
            not going to generate a pointer to every function. */

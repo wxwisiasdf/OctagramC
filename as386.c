@@ -44,9 +44,16 @@ typedef struct cc_as386_context {
                             [UCHAR_MAX]; /* tmpids assigned to each register */
     unsigned char r_spills
         [AS386_NUM_REGS]; /* How many times this register has been spilled? */
-    unsigned int stack_offset;
     bool s_text;
     bool s_data;
+
+#define NUM_STACK_SLOTS 32
+    cc_string_key stack_vars[NUM_STACK_SLOTS]; /* Variables in slot */
+    unsigned int stack_offsets
+        [NUM_STACK_SLOTS]; /* Offset of the slot (relative to the start of the frame) */
+    unsigned char
+        n_stack_slots; /* Current stack slot (out of the NUM_STACK_SLOTS) */
+    unsigned int total_stack_offset;
 } cc_as386_context;
 
 static cc_as386_context* cc_as386_get_ctx(cc_context* ctx)
@@ -57,6 +64,27 @@ static cc_as386_context* cc_as386_get_ctx(cc_context* ctx)
 static bool cc_as386_is_alloc_reg(enum cc_as386_reg regno)
 {
     return !(regno == AS386_EBP || regno == AS386_ESP);
+}
+
+static unsigned int cc_as386_get_stack_var_offset(
+    cc_context* ctx, cc_string_key key)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    unsigned char i;
+    for (i = 0; i < actx->n_stack_slots; ++i)
+        if (actx->stack_vars[i] == key)
+            return actx->stack_offsets[i];
+    cc_abort(__FILE__, __LINE__);
+}
+
+static bool cc_as386_is_stack_var(cc_context* ctx, cc_string_key key)
+{
+    cc_as386_context* actx = cc_as386_get_ctx(ctx);
+    unsigned char i;
+    for (i = 0; i < actx->n_stack_slots; ++i)
+        if (actx->stack_vars[i] == key)
+            return true;
+    return false;
 }
 
 static enum cc_as386_reg cc_as386_get_tmpreg(
@@ -290,43 +318,84 @@ static unsigned int cc_as386_get_offsetof(
     cc_abort(__FILE__, __LINE__);
 }
 
+static void cc_as386_print_generic_param(
+    cc_context* restrict ctx, const cc_ssa_param* restrict param, bool address)
+{
+    switch (param->type) {
+    case SSA_PARAM_VARIABLE:
+        if (!cc_as386_is_stack_var(ctx, param->data.var_name)) {
+            if (address)
+                fprintf(ctx->out, "($_%s)", cc_strview(param->data.var_name));
+            else
+                fprintf(ctx->out, "$_%s", cc_strview(param->data.var_name));
+        } else if (cc_as386_is_stack_var(ctx, param->data.var_name)) {
+            fprintf(ctx->out, "%u(%%esp)",
+                cc_as386_get_stack_var_offset(ctx, param->data.var_name));
+        }
+        break;
+    case SSA_PARAM_TMPVAR: {
+        const char** param_reg_names = cc_as386_get_regset_by_size(param->size);
+        if (address) {
+            fprintf(ctx->out, "(%s)",
+                param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)]);
+        } else {
+            fprintf(ctx->out, "%s",
+                param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)]);
+        }
+    } break;
+    case SSA_PARAM_CONSTANT:
+        if (param->data.constant.is_float) {
+            cc_abort(__FILE__, __LINE__);
+        } else {
+            if (address) {
+                fprintf(ctx->out, "($%s%lu)",
+                    param->data.constant.is_negative ? "-" : "",
+                    param->data.constant.value.u);
+            } else {
+                fprintf(ctx->out, "$%s%lu",
+                    param->data.constant.is_negative ? "-" : "",
+                    param->data.constant.value.u);
+            }
+        }
+        break;
+    default:
+        cc_abort(__FILE__, __LINE__);
+    }
+}
+
 static void cc_as386_gen_assign(cc_context* restrict ctx, unsigned short tmpid,
     const cc_ssa_param* restrict rhs, unsigned short size)
 {
     const char** lhs_reg_names;
-    const char** rhs_reg_names;
-
     if (size > 4 || rhs->size > 4) {
         fprintf(ctx->out, "#todo: assignments for big datastructures!\n");
         return;
     }
 
     lhs_reg_names = cc_as386_get_regset_by_size(size);
-    rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     /* No redundant gens should be fed, we assume they've been removed by now */
     switch (rhs->type) {
     case SSA_PARAM_CONSTANT:
         if (rhs->data.constant.is_float) {
             cc_abort(__FILE__, __LINE__);
         } else {
-            fprintf(ctx->out, "\tmov%s\t$%lu,%s\n",
-                cc_as386_get_suffix_by_size(size), rhs->data.constant.value.u,
+            fprintf(ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",%s\n",
                 lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
-            if (rhs->data.constant.is_negative)
-                fprintf(ctx->out, "\timul%s\t$-1,%s\n",
-                    cc_as386_get_suffix_by_size(size),
-                    lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         }
         break;
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tmov%s\t$_%s,%s\n",
-            cc_as386_get_suffix_by_size(size), cc_strview(rhs->data.var_name),
-            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        fprintf(ctx->out, "\tmov%s\t\n", cc_as386_get_suffix_by_size(size));
+        cc_as386_print_generic_param(ctx, rhs, false);
+        fprintf(
+            ctx->out, ",%s\n", lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         break;
     case SSA_PARAM_TMPVAR:
-        fprintf(ctx->out, "\tmov%s\t%s,%s\n", cc_as386_get_suffix_by_size(size),
-            rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        fprintf(ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(size));
+        cc_as386_print_generic_param(ctx, rhs, false);
+        fprintf(
+            ctx->out, ",%s\n", lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -336,34 +405,29 @@ static void cc_as386_gen_assign(cc_context* restrict ctx, unsigned short tmpid,
 static void cc_as386_gen_store_from(cc_context* restrict ctx,
     const cc_ssa_param* restrict lhs, const cc_ssa_param* restrict rhs)
 {
-    const char** lhs_reg_names;
-    const char** rhs_reg_names;
     if (lhs->size > 4 || rhs->size > 4) {
         fprintf(ctx->out, "#todo: generate big loads\n");
         return;
     }
-
-    lhs_reg_names = cc_as386_get_regset_by_size(lhs->size);
-    rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     assert(!cc_ssa_is_param_same(lhs, rhs));
     switch (lhs->type) {
     case SSA_PARAM_TMPVAR: {
         switch (rhs->type) {
         case SSA_PARAM_TMPVAR:
-            fprintf(ctx->out, "\tmov%s\t%s,(%s)\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                rhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
+            fprintf(
+                ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(lhs->size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",");
+            cc_as386_print_generic_param(ctx, lhs, true);
+            fprintf(ctx->out, "\n");
             break;
         case SSA_PARAM_CONSTANT:
-            if (rhs->data.constant.is_float) {
-                cc_abort(__FILE__, __LINE__);
-            } else {
-                fprintf(ctx->out, "\tmov%s\t$%lu,(%s)\n",
-                    cc_as386_get_suffix_by_size(lhs->size),
-                    rhs->data.constant.value.u,
-                    rhs_reg_names[cc_as386_get_tmpreg(ctx, lhs->data.tmpid)]);
-            }
+            fprintf(
+                ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(lhs->size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",");
+            cc_as386_print_generic_param(ctx, lhs, true);
+            fprintf(ctx->out, "\n");
             break;
         default:
             cc_abort(__FILE__, __LINE__);
@@ -373,24 +437,28 @@ static void cc_as386_gen_store_from(cc_context* restrict ctx,
     case SSA_PARAM_VARIABLE: {
         switch (rhs->type) {
         case SSA_PARAM_VARIABLE:
-            fprintf(ctx->out, "\tmov%s\t$_%s,($_%s)\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                cc_strview(rhs->data.var_name), cc_strview(lhs->data.var_name));
+            fprintf(
+                ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(lhs->size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",");
+            cc_as386_print_generic_param(ctx, lhs, true);
+            fprintf(ctx->out, "\n");
             break;
         case SSA_PARAM_TMPVAR:
-            fprintf(ctx->out, "\tmov%s\t%s,($_%s)\n",
-                cc_as386_get_suffix_by_size(lhs->size),
-                rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-                cc_strview(lhs->data.var_name));
+            fprintf(
+                ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(lhs->size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",");
+            cc_as386_print_generic_param(ctx, lhs, true);
+            fprintf(ctx->out, "\n");
             break;
         case SSA_PARAM_CONSTANT:
-            if (rhs->data.constant.is_float) {
-                cc_abort(__FILE__, __LINE__);
-            } else {
-                fprintf(ctx->out, "\tmov%s\t$%lu,($_%s)\n",
-                    cc_as386_get_suffix_by_size(lhs->size),
-                    rhs->data.constant.value.u, cc_strview(lhs->data.var_name));
-            }
+            fprintf(
+                ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(lhs->size));
+            cc_as386_print_generic_param(ctx, rhs, false);
+            fprintf(ctx->out, ",");
+            cc_as386_print_generic_param(ctx, lhs, true);
+            fprintf(ctx->out, "\n");
             break;
         default:
             cc_abort(__FILE__, __LINE__);
@@ -405,20 +473,19 @@ static void cc_as386_gen_load_from(cc_context* restrict ctx,
     unsigned short tmpid, const cc_ssa_param* restrict rhs, unsigned short size)
 {
     const char** lhs_reg_names = cc_as386_get_regset_by_size(size);
-    const char** rhs_reg_names = cc_as386_get_regset_by_size(rhs->size);
     switch (rhs->type) {
     case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tmov%s\t($_%s),%s\n",
-            cc_as386_get_suffix_by_size(rhs->size),
-            cc_strview(rhs->data.var_name),
-            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        fprintf(ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(rhs->size));
+        cc_as386_print_generic_param(ctx, rhs, true);
+        fprintf(
+            ctx->out, ",%s\n", lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         break;
     case SSA_PARAM_TMPVAR:
         assert(tmpid != rhs->data.tmpid);
-        fprintf(ctx->out, "\tmov%s\t(%s),%s\n",
-            cc_as386_get_suffix_by_size(rhs->size),
-            rhs_reg_names[cc_as386_get_tmpreg(ctx, rhs->data.tmpid)],
-            lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
+        fprintf(ctx->out, "\tmov%s\t", cc_as386_get_suffix_by_size(rhs->size));
+        cc_as386_print_generic_param(ctx, rhs, true);
+        fprintf(
+            ctx->out, ",%s\n", lhs_reg_names[cc_as386_get_tmpreg(ctx, tmpid)]);
         break;
     default:
         cc_abort(__FILE__, __LINE__);
@@ -692,33 +759,40 @@ end:
     cc_as386_regfree_tmpid(ctx, tmp[0].data.tmpid);
 }
 
-static void cc_as386_gen_return(cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
+static void cc_as386_gen_return(
+    cc_context* ctx, const cc_ssa_token* tok, bool needs_frame)
 {
-    cc_ssa_param* param = &tok->data.retval;
-    const char **param_reg_names = cc_as386_get_regset_by_size(param->size);
-
-    switch (param->type) {
-    case SSA_PARAM_CONSTANT:
-        if (param->data.constant.is_float) {
-            cc_abort(__FILE__, __LINE__);
-        } else {
-            fprintf(ctx->out, "\tmov%s\t$%s%lu,%%eax\n",
+    if (tok->data.retval.type != SSA_PARAM_NONE) {
+        /* Return values are placed, by convention, into %eax. */
+        const cc_ssa_param* param = &tok->data.retval;
+        const char** param_reg_names = cc_as386_get_regset_by_size(param->size);
+        switch (param->type) {
+        case SSA_PARAM_CONSTANT:
+            if (param->data.constant.is_float) {
+                cc_abort(__FILE__, __LINE__);
+            } else {
+                fprintf(ctx->out, "\tmov%s\t$%s%lu,%%eax\n",
+                    cc_as386_get_suffix_by_size(param->size),
+                    param->data.constant.is_negative ? "-" : "",
+                    param->data.constant.value.u);
+            }
+            break;
+        case SSA_PARAM_VARIABLE:
+            fprintf(ctx->out, "\tmov%s\t$_%s,%%eax\n",
                 cc_as386_get_suffix_by_size(param->size),
-                param->data.constant.is_negative ? "-" : "",
-                param->data.constant.value.u);
+                cc_strview(param->data.var_name));
+            break;
+        case SSA_PARAM_TMPVAR:
+            if (cc_as386_get_tmpreg(ctx, param->data.tmpid) != AS386_EAX) {
+                fprintf(ctx->out, "\tmov%s\t%s,%%eax\n",
+                    cc_as386_get_suffix_by_size(param->size),
+                    param_reg_names[cc_as386_get_tmpreg(
+                        ctx, param->data.tmpid)]);
+            }
+            break;
+        default:
+            cc_abort(__FILE__, __LINE__);
         }
-        break;
-    case SSA_PARAM_VARIABLE:
-        fprintf(ctx->out, "\tmov%s\t$_%s,%%eax\n",
-            cc_as386_get_suffix_by_size(param->size), cc_strview(param->data.var_name));
-        break;
-    case SSA_PARAM_TMPVAR:
-        fprintf(ctx->out, "\tmov%s\t%s,%%eax\n",
-            cc_as386_get_suffix_by_size(param->size),
-            param_reg_names[cc_as386_get_tmpreg(ctx, param->data.tmpid)]);
-        break;
-    default:
-        cc_abort(__FILE__, __LINE__);
     }
 
     if (needs_frame) {
@@ -848,7 +922,7 @@ static bool cc_as386_needs_frame_setup(const cc_ssa_func* func)
             break;
         }
     }
-    return b;
+    return b || func->ast_var->type.data.func.n_params > 0;
 }
 
 void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
@@ -878,19 +952,25 @@ void cc_as386_process_func(cc_context* ctx, const cc_ssa_func* func)
     fprintf(ctx->out, "_%s:\n", cc_strview(func->ast_var->name));
     fprintf(ctx->out, ".cfi_startproc\n");
 
+    /* Reset stack usage and prepare stack offset for local non-VLA variables */
+    /* First begin with the function parameters */
+    actx->n_stack_slots = actx->total_stack_offset = 0;
+    for (i = 0; i < func->ast_var->type.data.func.n_params; i++) {
+        const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
+        unsigned int size = ctx->get_sizeof(ctx, &param->type);
+        actx->stack_vars[i] = param->name;
+        actx->stack_offsets[i] = size;
+        actx->total_stack_offset += size;
+        ++actx->n_stack_slots;
+    }
+
     if (needs_frame) {
         fprintf(ctx->out, "\tpushl\t%%ebp\n");
         fprintf(ctx->out, "\tmovl\t%%esp,%%ebp\n");
     }
 
-    /* Stack offset for local non-VLA variables */
-    actx->stack_offset = 0;
-    for (i = 0; i < func->ast_var->type.data.func.n_params; i++) {
-        const cc_ast_variable* param = &func->ast_var->type.data.func.params[i];
-        actx->stack_offset += ctx->get_sizeof(ctx, &param->type);
-    }
-    if (needs_frame && actx->stack_offset > 0)
-        fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->stack_offset);
+    if (needs_frame && actx->total_stack_offset > 0)
+        fprintf(ctx->out, "\taddl\t$%u,%%esp\n", actx->total_stack_offset);
 
     /* Perform alignment required by ABI */
     if (needs_frame && ctx->min_stack_alignment != 0)
