@@ -1778,6 +1778,49 @@ unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok)
     }
     return 0;
 }
+/* Obtain the size of the LHS parameter. */
+unsigned short cc_ssa_get_lhs_size(const cc_ssa_token* tok)
+{
+    switch (tok->type) {
+    case SSA_TOKEN_STORE_FROM:
+        return tok->data.unop.left.size;
+    case SSA_TOKEN_ASSIGN:
+    case SSA_TOKEN_LOAD_FROM:
+        return tok->data.load.size;
+    case SSA_TOKEN_ADD:
+    case SSA_TOKEN_SUB:
+    case SSA_TOKEN_AND:
+    case SSA_TOKEN_COMPARE:
+    case SSA_TOKEN_DIV:
+    case SSA_TOKEN_MUL:
+    case SSA_TOKEN_OR:
+    case SSA_TOKEN_XOR:
+    case SSA_TOKEN_GT:
+    case SSA_TOKEN_GTE:
+    case SSA_TOKEN_LT:
+    case SSA_TOKEN_LTE:
+    case SSA_TOKEN_EQ:
+    case SSA_TOKEN_NEQ:
+    case SSA_TOKEN_LSHIFT:
+    case SSA_TOKEN_RSHIFT:
+    case SSA_TOKEN_MOD:
+        return tok->data.binop.size;
+    case SSA_TOKEN_CALL:
+        return tok->data.call.left.size;
+    case SSA_TOKEN_ALLOCA:
+        return tok->data.alloca.left.size;
+    case SSA_TOKEN_BRANCH:
+    case SSA_TOKEN_JUMP:
+    case SSA_TOKEN_RET:
+    case SSA_TOKEN_LABEL:
+    case SSA_TOKEN_DROP:
+        /* No-operation or codegen aids - ignored */
+        return 0;
+    default:
+        cc_abort(__FILE__, __LINE__);
+    }
+    return 0;
+}
 
 static void cc_ssa_colour_func(const cc_context* ctx, cc_ssa_func* func)
 {

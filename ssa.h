@@ -162,6 +162,7 @@ cc_ssa_param cc_ssa_tempvar_param(
 bool cc_ssa_is_param_same(
     const cc_ssa_param* restrict p1, const cc_ssa_param* restrict p2);
 unsigned short cc_ssa_get_lhs_tmpid(const cc_ssa_token* tok);
+unsigned short cc_ssa_get_lhs_size(const cc_ssa_token* tok);
 void cc_ssa_top(cc_context* ctx);
 
 #endif
