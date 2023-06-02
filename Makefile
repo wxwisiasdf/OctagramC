@@ -19,5 +19,5 @@ occ: main.c as386.c ast.c constevl.c diag.c lexer.c mf370.c optzer.c \
 	parser.h partyp.h ssa.h util.h stdbool.h context.h
 	$(CC) $(CFLAGS) $< -o $@
 
-test: test.c tests/list.txt
+test: test.c tests/files.lst
 	$(CC) $(CFLAGS) $< -o $@

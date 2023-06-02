@@ -1,0 +1,21 @@
+AS=aswin
+CC=occ
+LD=ldwin
+OBJS=main.o
+
+all: clean occ-new.exe
+
+occ-new.exe: main.c as386.c ast.c constevl.c diag.c lexer.c mf370.c optzer.c \
+        parexpr.c parser.c partyp.c ssa.c util.c \
+        as386.h ast.h constevl.h diag.h lexer.h mf370.h optzer.h parexpr.h \
+        parser.h partyp.h ssa.h util.h stdbool.h context.h
+  pdcc -E -o main.i -I. -I../pdos/pdpclib -D__STDC_VERSION__ -Dfalse=0 -Dtrue=1 -D__NODECLSPEC__ -D__WIN32__ -D__NOBIVA__ -DTARGET_AS386=1 main.c
+  $(CC) main.i -o main.s
+  rm -f main.i
+  $(AS) -o main.o main.s
+  rm -f main.s
+  $(LD) -s -o occ-new.exe ../pdos/pdpclib/w32start.o main.o ../pdos/pdpclib/msvcrt.a
+  rm -f main.o
+
+clean:
+  rm -f main.o occ-new.exe
